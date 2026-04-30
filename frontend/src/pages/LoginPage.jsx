@@ -6,7 +6,6 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import AuthSplitLayout from '../components/AuthSplitLayout';
 import claimEligibilityIfPresent from '../utils/claimEligibility';
-import { getCandidateNextRoute } from '../utils/pathwayFlow';
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -32,17 +31,7 @@ export default function LoginPage() {
       } else if (!data.user?.phoneVerified) {
         navigate(`/verify-phone?next=${encodeURIComponent(next)}`);
       } else {
-        try {
-          const { data: dashboard } = await api.get('/dashboard/me');
-          const requiredRoute = getCandidateNextRoute(dashboard);
-          if (requiredRoute && requiredRoute !== '/candidate-dashboard') {
-            navigate(requiredRoute);
-          } else {
-            navigate(next);
-          }
-        } catch {
-          navigate(next);
-        }
+        navigate(next);
       }
     } catch (error) {
       alert(error.response?.data?.message || 'Login failed');

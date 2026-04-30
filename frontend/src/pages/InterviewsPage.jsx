@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import Button from '../components/Button';
+import CandidatePortalSidebar from '../components/CandidatePortalSidebar';
 import api from '../api/axios';
 
 export default function InterviewsPage() {
@@ -14,7 +15,8 @@ export default function InterviewsPage() {
   return (
     <div className="nst-shell">
       <Navbar />
-      <main className="pt-28 pb-16">
+      <CandidatePortalSidebar />
+      <main className="pb-[430px] pt-28 md:pb-[240px] lg:ml-64">
         <div className="mx-auto max-w-5xl px-6">
           <div className="nst-card rounded-xl p-8">
             <h1 className="mb-3 text-3xl font-bold text-[#002147]">Interviews</h1>
@@ -38,7 +40,9 @@ export default function InterviewsPage() {
           </div>
         </div>
       </main>
-      <Footer />
+      <div className="fixed bottom-0 left-0 right-0 z-30 lg:left-64">
+        <Footer />
+      </div>
     </div>
   );
 }

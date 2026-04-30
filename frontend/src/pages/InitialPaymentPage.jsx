@@ -34,7 +34,7 @@ export default function InitialPaymentPage() {
   };
 
   useEffect(() => {
-    const guardAndRedirect = async () => {
+    const guard = async () => {
       try {
         const { data } = await api.get('/dashboard/me');
         const required = getCandidateNextRoute(data);
@@ -44,12 +44,11 @@ export default function InitialPaymentPage() {
         }
 
         setReadyForCheckout(true);
-        await redirectToStripeCheckout();
       } catch {
         navigate('/candidate-dashboard', { replace: true });
       }
     };
-    guardAndRedirect();
+    guard();
   }, [navigate]);
 
   return (

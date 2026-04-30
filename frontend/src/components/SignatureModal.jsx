@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Modal from './Modal';
 import Button from './Button';
 import Input from './Input';
@@ -12,37 +12,90 @@ export default function SignatureModal({
   metaFields = null,
 }) {
   const canvasRef = useRef(null);
+  const isDrawingRef = useRef(false);
+  const hasDrawnRef = useRef(false);
   const [tab, setTab] = useState('type');
   const [typed, setTyped] = useState('');
-  const [drawing, setDrawing] = useState(false);
+
+  const initCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    hasDrawnRef.current = false;
+    isDrawingRef.current = false;
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+    canvas.height = Math.max(1, Math.floor(180 * ratio));
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (tab !== 'draw') return;
+    initCanvas();
+  }, [isOpen, tab]);
+
+  const getPoint = (event) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+  };
 
   const start = (event) => {
     if (tab !== 'draw') return;
     const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    const point = getPoint(event);
+    if (!point) return;
+
+    event.preventDefault();
+    canvas.setPointerCapture?.(event.pointerId);
     ctx.beginPath();
-    ctx.moveTo(event.clientX - rect.left, event.clientY - rect.top);
-    setDrawing(true);
+    ctx.moveTo(point.x, point.y);
+    isDrawingRef.current = true;
+    hasDrawnRef.current = true;
   };
 
   const move = (event) => {
-    if (!drawing || tab !== 'draw') return;
+    if (tab !== 'draw' || !isDrawingRef.current) return;
     const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineTo(event.clientX - rect.left, event.clientY - rect.top);
+    const point = getPoint(event);
+    if (!point) return;
+
+    event.preventDefault();
+    ctx.lineTo(point.x, point.y);
     ctx.stroke();
   };
 
-  const stop = () => setDrawing(false);
+  const stop = (event) => {
+    if (event) {
+      event.preventDefault();
+      canvasRef.current?.releasePointerCapture?.(event.pointerId);
+    }
+    isDrawingRef.current = false;
+  };
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasDrawnRef.current = false;
+    isDrawingRef.current = false;
   };
 
   const submit = () => {
@@ -51,6 +104,7 @@ export default function SignatureModal({
       onConfirm({ type: 'typed', value: typed.trim() });
       return;
     }
+    if (!hasDrawnRef.current) return alert('Draw your signature');
     const dataUrl = canvasRef.current.toDataURL();
     onConfirm({ type: 'drawn', value: dataUrl });
   };
@@ -82,13 +136,13 @@ export default function SignatureModal({
         <div>
           <canvas
             ref={canvasRef}
-            width={500}
             height={180}
-            className="w-full rounded-xl border border-slate-300"
-            onMouseDown={start}
-            onMouseMove={move}
-            onMouseUp={stop}
-            onMouseLeave={stop}
+            className="h-[180px] w-full touch-none rounded-xl border border-slate-300 bg-white"
+            onPointerDown={start}
+            onPointerMove={move}
+            onPointerUp={stop}
+            onPointerLeave={stop}
+            onPointerCancel={stop}
           />
           <div className="mt-2">
             <Button type="button" variant="secondary" onClick={clearCanvas}>

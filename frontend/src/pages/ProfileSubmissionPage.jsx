@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -8,6 +8,7 @@ import Input from '../components/Input';
 import Select from '../components/Select';
 import Modal from '../components/Modal';
 import SignatureModal from '../components/SignatureModal';
+import CandidatePortalSidebar from '../components/CandidatePortalSidebar';
 import api from '../api/axios';
 
 const formSteps = ['Personal', 'Education', 'Certifications', 'Experience', 'Skills', 'Languages', 'Additional', 'Review'];
@@ -109,42 +110,115 @@ const blankQualification = () => ({ qualificationName: '', field: '', startDate:
 const blankCertification = () => ({ certificationName: '', issuingOrganization: '', yearCompleted: '' });
 const blankWork = () => ({ organizationName: '', jobTitle: '', responsibilities: '', startDate: '', endDate: '', currentlyWorkingHere: false, country: '' });
 const blankLanguage = () => ({ language: '', proficiencyLevel: '', certified: 'No', certificateTitle: '' });
+const createDefaultForm = () => ({
+  personalDetails: {
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    dateOfBirth: '',
+    countryOfBirth: '',
+    citizenship: '',
+    currentCountryOfResidence: '',
+    currentVisaStatus: '',
+    email: '',
+  },
+  education: {
+    highSchool: { startDate: '', endDate: '', track: '', country: '' },
+    diploma: { notApplicable: false, duration: '', hasTraining: '', startDate: '', endDate: '', field: '', country: '' },
+    bachelors: { startDate: '', endDate: '', field: '', country: '' },
+    masters: { notApplicable: true, startDate: '', endDate: '', field: '', country: '' },
+    additionalQualifications: [blankQualification()],
+  },
+  certifications: [blankCertification()],
+  workExperience: [blankWork()],
+  skills: { technical: '', soft: '' },
+  languages: [blankLanguage()],
+  additionalInfo: '',
+});
+const normalizeArray = (items, fallbackFactory) => (Array.isArray(items) && items.length ? items : [fallbackFactory()]);
+const hydrateFormFromProfile = (profile) => {
+  const defaults = createDefaultForm();
+  const profileEducation = profile?.education || {};
+
+  return {
+    personalDetails: { ...defaults.personalDetails, ...(profile?.personalDetails || {}) },
+    education: {
+      ...defaults.education,
+      ...profileEducation,
+      highSchool: { ...defaults.education.highSchool, ...(profileEducation.highSchool || {}) },
+      diploma: { ...defaults.education.diploma, ...(profileEducation.diploma || {}) },
+      bachelors: { ...defaults.education.bachelors, ...(profileEducation.bachelors || {}) },
+      masters: { ...defaults.education.masters, ...(profileEducation.masters || {}) },
+      additionalQualifications: normalizeArray(profileEducation.additionalQualifications, blankQualification).map((q) => ({
+        ...blankQualification(),
+        ...(q || {}),
+      })),
+    },
+    certifications: normalizeArray(profile?.certifications, blankCertification).map((c) => ({
+      ...blankCertification(),
+      ...(c || {}),
+    })),
+    workExperience: normalizeArray(profile?.workExperience, blankWork).map((w) => ({
+      ...blankWork(),
+      ...(w || {}),
+    })),
+    skills: { ...defaults.skills, ...(profile?.skills || {}) },
+    languages: normalizeArray(profile?.languages, blankLanguage).map((lang) => ({
+      ...blankLanguage(),
+      ...(lang || {}),
+    })),
+    additionalInfo: profile?.additionalInfo || '',
+  };
+};
 
 export default function ProfileSubmissionPage() {
   const [currentStep, setCurrentStep] = useState(1);
-  const [showFinancialModal, setShowFinancialModal] = useState(true);
+  const [showFinancialModal, setShowFinancialModal] = useState(false);
   const [financialAccepted, setFinancialAccepted] = useState(false);
   const [showAckModal, setShowAckModal] = useState(false);
   const [signature, setSignature] = useState(null);
+  const [hasExistingProfile, setHasExistingProfile] = useState(false);
+  const [isApprovedProfileView, setIsApprovedProfileView] = useState(false);
   const [loading, setLoading] = useState(false);
   const [technicalSkillInput, setTechnicalSkillInput] = useState('');
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({
-    personalDetails: {
-      firstName: '',
-      middleName: '',
-      lastName: '',
-      dateOfBirth: '',
-      countryOfBirth: '',
-      citizenship: '',
-      currentCountryOfResidence: '',
-      currentVisaStatus: '',
-      email: '',
-    },
-    education: {
-      highSchool: { startDate: '', endDate: '', track: '', country: '' },
-      diploma: { notApplicable: false, duration: '', hasTraining: '', startDate: '', endDate: '', field: '', country: '' },
-      bachelors: { startDate: '', endDate: '', field: '', country: '' },
-      masters: { notApplicable: true, startDate: '', endDate: '', field: '', country: '' },
-      additionalQualifications: [blankQualification()],
-    },
-    certifications: [blankCertification()],
-    workExperience: [blankWork()],
-    skills: { technical: '', soft: '' },
-    languages: [blankLanguage()],
-    additionalInfo: '',
-  });
+  const [form, setForm] = useState(createDefaultForm);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadExistingProfile = async () => {
+      try {
+        const { data: existingProfile } = await api.get('/profile/me');
+        if (!isMounted) return;
+
+        if (existingProfile) {
+          setHasExistingProfile(true);
+          setIsApprovedProfileView(existingProfile.status === 'accepted');
+          setForm(hydrateFormFromProfile(existingProfile));
+          setFinancialAccepted(Boolean(existingProfile.financialDisclosureAccepted));
+          setSignature(existingProfile.signature || null);
+          setCurrentStep(8);
+          setShowFinancialModal(false);
+          return;
+        }
+
+        setHasExistingProfile(false);
+        setIsApprovedProfileView(false);
+        setShowFinancialModal(true);
+      } catch {
+        if (!isMounted) return;
+        setIsApprovedProfileView(false);
+        setShowFinancialModal(true);
+      }
+    };
+
+    loadExistingProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const requireVisa =
     form.personalDetails.currentCountryOfResidence &&
@@ -372,17 +446,23 @@ By signing below, you accept full responsibility for the authenticity of the det
 
     setLoading(true);
     try {
-      await api.post('/profile', {
+      const payload = {
         ...form,
         financialDisclosureAccepted: financialAccepted,
         acknowledgementSigned: true,
         signature: {
-          ...signature,
+          ...(signature || {}),
           fullName,
           signedAt: new Date().toISOString(),
           location: 'Auto-captured placeholder',
         },
-      });
+      };
+
+      if (hasExistingProfile) {
+        await api.put('/profile/me', payload);
+      } else {
+        await api.post('/profile', payload);
+      }
       navigate('/internal-evaluation');
     } catch (err) {
       alert(err.response?.data?.message || 'Profile submission failed');
@@ -402,35 +482,40 @@ By signing below, you accept full responsibility for the authenticity of the det
   return (
     <div className="nst-shell min-h-screen">
       <Navbar />
-      <main className="px-6 pb-16 pt-28">
+      <CandidatePortalSidebar />
+      <main className="px-6 pb-16 pt-28 lg:ml-64">
         <div className="mx-auto max-w-[1200px]">
           <div className="flex flex-col gap-6 lg:flex-row">
-            <aside className="w-full lg:w-1/4">
-              <div className="nst-card sticky top-28 rounded-xl border border-slate-200 p-5">
-                <h3 className="mb-4 text-xl font-semibold text-[#002147]">Application Progress</h3>
-                <div className="space-y-3">
-                  {formSteps.map((stepName, idx) => {
-                    const stepNo = idx + 1;
-                    const active = stepNo === currentStep;
-                    const done = stepNo < currentStep;
-                    return (
-                      <div key={stepName} className="flex items-center gap-3">
-                        <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${done ? 'bg-green-600 text-white' : active ? 'bg-blue-100 text-[#002147]' : 'bg-slate-200 text-slate-600'}`}>
-                          {stepNo}
-                        </span>
-                        <span className={`text-sm ${active ? 'font-semibold text-[#002147]' : 'text-slate-600'}`}>{stepName}</span>
-                      </div>
-                    );
-                  })}
+            {!isApprovedProfileView && (
+              <aside className="w-full lg:w-1/4">
+                <div className="nst-card sticky top-28 rounded-xl border border-slate-200 p-5">
+                  <h3 className="mb-4 text-xl font-semibold text-[#002147]">Application Progress</h3>
+                  <div className="space-y-3">
+                    {formSteps.map((stepName, idx) => {
+                      const stepNo = idx + 1;
+                      const active = stepNo === currentStep;
+                      const done = stepNo < currentStep;
+                      return (
+                        <div key={stepName} className="flex items-center gap-3">
+                          <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${done ? 'bg-green-600 text-white' : active ? 'bg-blue-100 text-[#002147]' : 'bg-slate-200 text-slate-600'}`}>
+                            {stepNo}
+                          </span>
+                          <span className={`text-sm ${active ? 'font-semibold text-[#002147]' : 'text-slate-600'}`}>{stepName}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            </aside>
+              </aside>
+            )}
 
-            <div className="w-full lg:w-3/4">
+            <div className={isApprovedProfileView ? 'w-full' : 'w-full lg:w-3/4'}>
               <Card className="nst-card border border-slate-200 rounded-xl p-6">
-                <h1 className="text-3xl font-bold text-[#002147]">Profile Submission</h1>
+                <h1 className="text-3xl font-bold text-[#002147]">{isApprovedProfileView ? 'Profile Information' : 'Profile Submission'}</h1>
                 <p className="mb-4 mt-2 text-sm text-[#44474e]">
-                  Complete all sections carefully. Precision in your profile supports faster evaluation.
+                  {isApprovedProfileView
+                    ? 'Your profile has been approved. Details are shown below in read-only mode.'
+                    : 'Complete all sections carefully. Precision in your profile supports faster evaluation.'}
                 </p>
 
           {currentStep === 1 && (
@@ -867,7 +952,7 @@ By signing below, you accept full responsibility for the authenticity of the det
           {currentStep === 6 && (
             <div>
               {form.languages.map((lang, idx) => (
-                <div key={idx} className="relative mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-4">
+                <div key={idx} className="relative mt-3 space-y-3 rounded-xl border border-slate-200 p-3">
                   {idx > 0 && (
                     <button
                       type="button"
@@ -946,7 +1031,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Personal Details</h3>
-                  <Button variant="secondary" onClick={() => setCurrentStep(1)}>Edit</Button>
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(1)}>Edit</Button>}
                 </div>
                 <div className="grid gap-3 text-sm md:grid-cols-2">
                   <div className="rounded-lg bg-white p-3"><p className="text-slate-500">First Name</p><p className="font-medium text-slate-900">{reviewValue(form.personalDetails.firstName)}</p></div>
@@ -966,7 +1051,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Education</h3>
-                  <Button variant="secondary" onClick={() => setCurrentStep(2)}>Edit</Button>
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(2)}>Edit</Button>}
                 </div>
 
                 <div className="space-y-4 text-sm">
@@ -1019,12 +1104,148 @@ By signing below, you accept full responsibility for the authenticity of the det
                       </div>
                     )}
                   </div>
+
+                  <div className="rounded-lg bg-white p-4">
+                    <p className="mb-2 font-semibold text-slate-900">Additional Qualifications</p>
+                    {form.education.additionalQualifications.some((q) => q.qualificationName || q.field || q.startDate || q.endDate || q.country) ? (
+                      <div className="space-y-3">
+                        {form.education.additionalQualifications
+                          .filter((q) => q.qualificationName || q.field || q.startDate || q.endDate || q.country)
+                          .map((q, idx) => (
+                            <div key={idx} className="rounded-lg border border-slate-200 p-3">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Qualification {idx + 1}</p>
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <div><p className="text-slate-500">Qualification Name</p><p className="font-medium text-slate-900">{reviewValue(q.qualificationName)}</p></div>
+                                <div><p className="text-slate-500">Field</p><p className="font-medium text-slate-900">{reviewValue(q.field)}</p></div>
+                                <div><p className="text-slate-500">Start</p><p className="font-medium text-slate-900">{reviewValue(q.startDate)}</p></div>
+                                <div><p className="text-slate-500">End</p><p className="font-medium text-slate-900">{reviewValue(q.endDate)}</p></div>
+                                <div><p className="text-slate-500">Country</p><p className="font-medium text-slate-900">{reviewValue(q.country)}</p></div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="text-slate-600">Not provided</p>
+                    )}
+                  </div>
                 </div>
               </Card>
 
-              <Button onClick={() => setShowAckModal(true)} disabled={loading}>
-                {loading ? 'Submitting...' : 'Submit Profile for Evaluation'}
-              </Button>
+              <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900">Certifications</h3>
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(3)}>Edit</Button>}
+                </div>
+                {form.certifications.some((c) => c.certificationName || c.issuingOrganization || c.yearCompleted) ? (
+                  <div className="space-y-3 text-sm">
+                    {form.certifications
+                      .filter((c) => c.certificationName || c.issuingOrganization || c.yearCompleted)
+                      .map((c, idx) => (
+                        <div key={idx} className="rounded-lg bg-white p-4">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Certification {idx + 1}</p>
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <div><p className="text-slate-500">Name</p><p className="font-medium text-slate-900">{reviewValue(c.certificationName)}</p></div>
+                            <div><p className="text-slate-500">Issuing Organization / Platform</p><p className="font-medium text-slate-900">{reviewValue(c.issuingOrganization)}</p></div>
+                            <div><p className="text-slate-500">Year Completed</p><p className="font-medium text-slate-900">{reviewValue(c.yearCompleted)}</p></div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-600">Not provided</p>
+                )}
+              </Card>
+
+              <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900">Work Experience / Internships</h3>
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(4)}>Edit</Button>}
+                </div>
+                {form.workExperience.some((w) => w.organizationName || w.jobTitle || w.responsibilities || w.startDate || w.endDate || w.currentlyWorkingHere || w.country) ? (
+                  <div className="space-y-3 text-sm">
+                    {form.workExperience
+                      .filter((w) => w.organizationName || w.jobTitle || w.responsibilities || w.startDate || w.endDate || w.currentlyWorkingHere || w.country)
+                      .map((w, idx) => (
+                        <div key={idx} className="rounded-lg bg-white p-4">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Experience {idx + 1}</p>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div><p className="text-slate-500">Organization</p><p className="font-medium text-slate-900">{reviewValue(w.organizationName)}</p></div>
+                            <div><p className="text-slate-500">Job Title</p><p className="font-medium text-slate-900">{reviewValue(w.jobTitle)}</p></div>
+                            <div><p className="text-slate-500">Country</p><p className="font-medium text-slate-900">{reviewValue(w.country)}</p></div>
+                            <div><p className="text-slate-500">Currently Working Here</p><p className="font-medium text-slate-900">{w.currentlyWorkingHere ? 'Yes' : 'No'}</p></div>
+                            <div><p className="text-slate-500">Start Date</p><p className="font-medium text-slate-900">{reviewValue(w.startDate)}</p></div>
+                            <div><p className="text-slate-500">End Date</p><p className="font-medium text-slate-900">{w.currentlyWorkingHere ? 'Present' : reviewValue(w.endDate)}</p></div>
+                            <div className="md:col-span-2"><p className="text-slate-500">Key Responsibilities</p><p className="font-medium text-slate-900">{reviewValue(w.responsibilities)}</p></div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-600">Not provided</p>
+                )}
+              </Card>
+
+              <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900">Skills</h3>
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(5)}>Edit</Button>}
+                </div>
+                <div className="grid gap-3 text-sm md:grid-cols-2">
+                  <div className="rounded-lg bg-white p-3">
+                    <p className="text-slate-500">Technical Skills</p>
+                    <p className="font-medium text-slate-900">{technicalSkills.length ? technicalSkills.join(', ') : 'Not provided'}</p>
+                  </div>
+                  <div className="rounded-lg bg-white p-3">
+                    <p className="text-slate-500">Soft Skills</p>
+                    <p className="font-medium text-slate-900">{reviewValue(form.skills.soft)}</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900">Languages</h3>
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(6)}>Edit</Button>}
+                </div>
+                {form.languages.some((lang) => lang.language || lang.proficiencyLevel || lang.certified === 'Yes' || lang.certificateTitle) ? (
+                  <div className="space-y-3 text-sm">
+                    {form.languages
+                      .filter((lang) => lang.language || lang.proficiencyLevel || lang.certified === 'Yes' || lang.certificateTitle)
+                      .map((lang, idx) => (
+                        <div key={idx} className="rounded-lg bg-white p-4">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Language {idx + 1}</p>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <div><p className="text-slate-500">Language</p><p className="font-medium text-slate-900">{reviewValue(lang.language)}</p></div>
+                            <div><p className="text-slate-500">Proficiency Level</p><p className="font-medium text-slate-900">{reviewValue(lang.proficiencyLevel)}</p></div>
+                            <div><p className="text-slate-500">Certified</p><p className="font-medium text-slate-900">{reviewValue(lang.certified)}</p></div>
+                            {lang.certified === 'Yes' && (
+                              <div><p className="text-slate-500">Certificate Title</p><p className="font-medium text-slate-900">{reviewValue(lang.certificateTitle)}</p></div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-600">Not provided</p>
+                )}
+              </Card>
+
+              <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900">Additional Information</h3>
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(7)}>Edit</Button>}
+                </div>
+                <div className="rounded-lg bg-white p-4 text-sm">
+                  <p className="text-slate-500">Notes</p>
+                  <p className="whitespace-pre-wrap font-medium text-slate-900">{reviewValue(form.additionalInfo)}</p>
+                </div>
+              </Card>
+
+              {!isApprovedProfileView && (
+                <Button onClick={() => setShowAckModal(true)} disabled={loading}>
+                  {loading ? 'Submitting...' : 'Submit Profile for Evaluation'}
+                </Button>
+              )}
             </div>
           )}
 
@@ -1092,7 +1313,9 @@ By signing below, you accept full responsibility for the authenticity of the det
           submitProfile();
         }}
       />
-      <Footer />
+      <div className="relative z-30">
+        <Footer />
+      </div>
     </div>
   );
 }

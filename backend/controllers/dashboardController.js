@@ -65,7 +65,7 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments })
               : 'In Progress'
         : 'Pending',
     },
-    { name: 'Initial Payment', status: hasInitial ? 'Completed' : 'Pending' },
+    { name: 'Initial Payment', status: hasInitial ? 'Completed' : profile?.status === 'accepted' ? 'Ongoing' : 'Pending' },
     { name: 'Declaration Signed', status: declarationDone ? 'Completed' : 'Pending' },
     { name: 'Team Contact / Onboarding', status: onboardingDone ? 'Completed' : hasInitial ? 'In Progress' : 'Pending' },
     { name: 'Documents Uploaded', status: docsUploaded ? 'Completed' : 'Pending' },
