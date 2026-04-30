@@ -1,10 +1,13 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/axios';
 
 const sideItems = [
   { name: 'Profile', icon: 'account_circle', to: '/profile-submission' },
   { name: 'Dashboard', icon: 'dashboard', to: '/candidate-dashboard' },
   { name: 'Programs', icon: 'work_history', to: '/interviews' },
+  { name: 'Payment History', icon: 'receipt_long', to: '/payment-history' },
   { name: 'Settings', icon: 'settings', to: '/candidate-dashboard' },
 ];
 
@@ -12,6 +15,22 @@ export default function CandidatePortalSidebar() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const [firstName, setFirstName] = useState(
+    user?.profile?.personalDetails?.firstName || user?.name?.split?.(' ')?.[0] || (user?.email?.split?.('@')?.[0] || '')
+  );
+
+  useEffect(() => {
+    if (!firstName) {
+      api
+        .get('/dashboard/me')
+        .then(({ data }) => {
+          const fn = data?.candidate?.profile?.personalDetails?.firstName;
+          if (fn) setFirstName(fn);
+        })
+        .catch(() => {});
+    }
+  }, [firstName]);
 
   const handleLogout = () => {
     logout();
@@ -22,7 +41,7 @@ export default function CandidatePortalSidebar() {
     <aside className="fixed left-0 top-20 z-20 hidden h-[calc(100vh-80px)] w-64 flex-col gap-2 border-r border-slate-200 bg-[#f8f9fa] p-4 lg:flex">
       <div className="mb-4 flex items-center gap-3 border-b border-slate-200 px-3 py-5">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#002147] text-sm font-bold text-white">
-          {user?.name?.slice(0, 2)?.toUpperCase() || 'CA'}
+          {(firstName ? firstName.slice(0, 2) : user?.name?.slice(0, 2) || 'CA').toUpperCase()}
         </div>
         <div>
           <p className="text-sm font-semibold text-[#002147]">Candidate Portal</p>

@@ -3,6 +3,7 @@ const Profile = require('../models/Profile');
 const Payment = require('../models/Payment');
 const Document = require('../models/Document');
 const Interview = require('../models/Interview');
+const Testimonial = require('../models/Testimonial');
 const User = require('../models/User');
 
 const hasPassedInitialEligibility = ({ eligibility, user, profile, payments, docs, interviews }) =>
@@ -22,10 +23,20 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments })
   const docsUnderReview = docs.some((d) => d.status === 'Under Review');
   const docsAccepted = docs.length > 0 && docs.every((d) => d.status === 'Accepted');
   const anyInterview = interviews.length > 0;
+  const hasScheduledInterview =
+    interviews.some((interview) => String(interview.status || '').toLowerCase() === 'scheduled') ||
+    user.status === 'interview_scheduled';
+  const hasCompletedInterview =
+    interviews.some((interview) => String(interview.status || '').toLowerCase() === 'completed') ||
+    user.status === 'interview_completed';
+  const selectionDecision = String(user?.stageStatuses?.get ? user.stageStatuses.get('selection') : user?.stageStatuses?.selection || '').toLowerCase();
   const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews });
 
   const selected = user.status === 'selected';
   const rejected = user.status === 'rejected' || profile?.status === 'rejected';
+  const selectionAccepted = selectionDecision === 'accepted' || (selectionDecision !== 'rejected' && selected);
+  const selectionRejected = selectionDecision === 'rejected' || (selectionDecision !== 'accepted' && rejected);
+  const selectionUnderReview = selectionDecision === 'under_review' || (!selected && !rejected && user.status === 'interview_completed');
   const declarationDone =
     user.status === 'declaration_signed' ||
     user.status === 'onboarding_complete' ||
@@ -67,7 +78,7 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments })
               : 'In Progress'
         : 'Pending',
     },
-    { name: 'Initial Payment', status: hasInitial ? 'Completed' : profile?.status === 'accepted' ? 'Ongoing' : 'Pending' },
+    { name: 'Initial Payment', status: hasInitial ? 'Completed' : profile?.status === 'accepted' ? 'Pending' : 'Pending' },
     { name: 'Declaration Signed', status: declarationDone ? 'Completed' : 'Pending' },
     { name: 'Team Contact / Onboarding', status: onboardingDone ? 'Completed' : hasInitial ? 'In Progress' : 'Pending' },
     { name: 'Documents Uploaded', status: docsUploaded ? 'Completed' : 'Pending' },
@@ -77,16 +88,25 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments })
     },
     {
       name: 'Program Fee Payment',
-      status: programFeeActionRequired ? 'Ongoing' : hasProgram || hasFinal || selected || user.status === 'process_complete' ? 'Completed' : 'Pending',
+      status: programFeeActionRequired ? 'Pending' : hasProgram || hasFinal || selected || user.status === 'process_complete' ? 'Completed' : 'Pending',
     },
     {
       name: 'Sent to Hiring Partners',
       status: user.status === 'sent_to_partners' || anyInterview || selected ? 'Completed' : 'Pending',
     },
-    { name: 'Interviews', status: anyInterview ? 'In Progress' : 'Pending' },
-    { name: 'Selection Result', status: selected ? 'Accepted' : rejected ? 'Rejected' : 'Pending' },
-    { name: 'Final Payment', status: hasFinal ? 'Completed' : selected ? 'Pending' : 'Pending' },
-    { name: 'Testimonial', status: user.status === 'process_complete' ? 'Completed' : 'Pending' },
+    {
+      name: 'Interviews',
+      status: hasCompletedInterview ? 'Completed' : hasScheduledInterview ? 'In Progress' : anyInterview ? 'Pending' : 'Pending',
+    },
+    {
+      name: 'Selection Result',
+      status: selectionAccepted ? 'Accepted' : selectionRejected ? 'Rejected' : selectionUnderReview ? 'Under Review' : 'Pending',
+    },
+    {
+      name: 'Final Payment',
+      status: selectionRejected ? 'Inactive' : hasFinal ? 'Completed' : selectionAccepted ? 'Pending' : 'Pending',
+    },
+    { name: 'Testimonial', status: selectionRejected ? 'Inactive' : user.status === 'process_complete' ? 'Completed' : 'Pending' },
   ];
 };
 
@@ -131,6 +151,7 @@ const getDashboard = async (req, res) => {
       Interview.find({ userId: req.user._id }),
       User.findById(req.user._id),
     ]);
+    const testimonial = await Testimonial.findOne({ userId: req.user._id }).sort({ createdAt: -1 });
 
     const stages = buildStages({ eligibility, profile, user, docs, interviews, payments });
     const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed') || user.status === 'program_payment_complete';
@@ -140,6 +161,7 @@ const getDashboard = async (req, res) => {
     const docsUploaded = docs.length > 0;
     const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews });
     const docsReceived = user.status === 'documents_received' || effectiveHasProgram || hasFinal || user.status === 'selected' || user.status === 'process_complete';
+    const selectionDecision = String(user?.stageStatuses?.get ? user.stageStatuses.get('selection') : user?.stageStatuses?.selection || '').toLowerCase();
     const declarationDone =
       user.status === 'declaration_signed' ||
       user.status === 'onboarding_complete' ||
@@ -149,9 +171,17 @@ const getDashboard = async (req, res) => {
       user.status === 'onboarding_complete' ||
       user.status === 'documents_submitted' ||
       docsReceived;
-    const currentStage =
-      stages.find((s) => s.status === 'Pending' || s.status === 'Under Review' || s.status === 'In Progress') ||
-      stages[stages.length - 1];
+    let currentStage = stages.find((s) => s.status === 'Pending' || s.status === 'Under Review' || s.status === 'In Progress');
+    if (selectionDecision === 'accepted' || user.status === 'selected') {
+      currentStage = stages.find((s) => s.name === 'Final Payment' && s.status !== 'Completed') || stages.find((s) => s.name === 'Testimonial') || currentStage;
+    } else if (selectionDecision === 'rejected' || user.status === 'not_selected') {
+      currentStage = stages.find((s) => s.name === 'Selection Result') || currentStage;
+    } else if (!currentStage && (selectionDecision === 'under_review' || user.status === 'interview_completed' || user.status === 'interview_scheduled')) {
+      currentStage = stages.find((s) => s.name === 'Selection Result') || currentStage;
+    }
+    if (!currentStage) {
+      currentStage = stages[stages.length - 1];
+    }
 
     let nextAction = 'No immediate action required';
     if (!eligibilityDone) nextAction = 'Complete eligibility check';
@@ -176,6 +206,7 @@ const getDashboard = async (req, res) => {
       paymentStatus: payments,
       documentStatus: docs,
       interviewStatus: interviews,
+      testimonialSubmitted: Boolean(testimonial),
       stages,
       profileStatus: profile?.status || 'not_submitted',
     });

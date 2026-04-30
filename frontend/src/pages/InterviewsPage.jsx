@@ -8,6 +8,8 @@ import api from '../api/axios';
 export default function InterviewsPage() {
   const [interviews, setInterviews] = useState([]);
 
+  const hasJoinLink = (item) => String(item?.status || '').toLowerCase() === 'scheduled' && Boolean(String(item?.meetingLink || '').trim());
+
   useEffect(() => {
     api.get('/interviews/me').then(({ data }) => setInterviews(data)).catch(() => setInterviews([]));
   }, []);
@@ -32,7 +34,17 @@ export default function InterviewsPage() {
                     <p><b>Date:</b> {item.date}</p>
                     <p><b>Time:</b> {item.time}</p>
                     <p><b>Status:</b> {item.status}</p>
-                    <a href={item.meetingLink} target="_blank" rel="noreferrer"><Button className="mt-4">Join Interview</Button></a>
+                    {hasJoinLink(item) ? (
+                      <a href={item.meetingLink} target="_blank" rel="noreferrer">
+                        <Button className="mt-4">Join Interview</Button>
+                      </a>
+                    ) : (
+                      <p className="mt-4 text-sm text-slate-500">
+                        {String(item?.status || '').toLowerCase() === 'completed'
+                          ? 'Interview completed.'
+                          : 'Join link will appear once the interview is scheduled.'}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

@@ -8,7 +8,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const navigate = useNavigate();
-  const displayName = user?.name || user?.email?.split('@')?.[0] || 'User';
+  const displayName = user?.name?.trim()?.split(/\s+/)?.[0] || user?.email?.split('@')?.[0] || 'User';
   const initials = displayName.slice(0, 2).toUpperCase();
   const dashboardPath = user?.role === 'admin' ? '/admin/dashboard' : '/candidate-dashboard';
 

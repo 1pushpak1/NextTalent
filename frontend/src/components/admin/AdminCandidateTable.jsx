@@ -43,6 +43,7 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
   const navigate = useNavigate();
   const [selectedActionById, setSelectedActionById] = useState({});
   const [selectedPartnerById, setSelectedPartnerById] = useState({});
+  const [interviewDraftById, setInterviewDraftById] = useState({});
   const [savingCandidateId, setSavingCandidateId] = useState('');
 
   if (loading) return <p className="text-sm text-slate-500">Loading applications...</p>;
@@ -78,11 +79,58 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
     }
   };
 
+  const scheduleInterview = async (candidateId) => {
+    const draft = interviewDraftById[candidateId] || {};
+    const missingFields = [];
+    if (!String(draft.hiringPartner || '').trim()) missingFields.push('partner');
+    if (!String(draft.country || '').trim()) missingFields.push('country');
+    if (!String(draft.role || '').trim()) missingFields.push('role');
+    if (!String(draft.date || '').trim()) missingFields.push('date');
+    if (!String(draft.time || '').trim()) missingFields.push('time');
+
+    if (missingFields.length) {
+      alert(`Please fill the interview schedule fields first: ${missingFields.join(', ')}.`);
+      return;
+    }
+
+    setSavingCandidateId(candidateId);
+    try {
+      await api.post(`/admin/candidates/${candidateId}/interviews`, {
+        hiringPartner: String(draft.hiringPartner || '').trim(),
+        country: String(draft.country || '').trim(),
+        role: String(draft.role || '').trim(),
+        date: String(draft.date || '').trim(),
+        time: String(draft.time || '').trim(),
+        meetingLink: String(draft.meetingLink || '').trim(),
+      });
+      if (onUpdated) onUpdated();
+    } catch (error) {
+      alert(error.response?.data?.message || 'Unable to schedule interview');
+    } finally {
+      setSavingCandidateId('');
+    }
+  };
+
   const completeButtonLabel = (currentAction, candidateId) => {
     if (savingCandidateId === candidateId) return 'Saving...';
     if (stageKey === 'hiring' && currentAction === 'accepted') return 'Transfer';
-    if (stageKey === 'interviews' && currentAction === 'accepted') return 'Mark Interview Completed';
+    if (stageKey === 'interviews' && currentAction === 'accepted') {
+      const hasScheduledInterview = String(rows.find((row) => row._id === candidateId)?.latestInterviewStatus || '').toLowerCase() === 'scheduled';
+      return hasScheduledInterview ? 'Mark Interview Completed' : 'Schedule Interview';
+    }
     return 'Complete';
+  };
+
+  const getInterviewDraft = (candidateId) => interviewDraftById[candidateId] || {};
+  const isInterviewDraftReady = (candidateId) => {
+    const draft = getInterviewDraft(candidateId);
+    return Boolean(
+      String(draft.hiringPartner || '').trim() &&
+      String(draft.country || '').trim() &&
+      String(draft.role || '').trim() &&
+      String(draft.date || '').trim() &&
+      String(draft.time || '').trim(),
+    );
   };
 
   return (
@@ -128,7 +176,7 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
                   </td>
                 )}
                 {isActionStep && (
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 align-top">
                     {stageKey === 'hiring' ? (
                       <div className="flex items-center gap-2">
                         <select
@@ -151,15 +199,109 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
                         </button>
                       </div>
                     ) : stageKey === 'interviews' ? (
-                      <button
-                        type="button"
-                        className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-                        onClick={() => completeStep(row._id, 'accepted')}
-                        disabled={savingCandidateId === row._id || row.latestInterviewStatus !== 'Scheduled'}
-                        title={row.latestInterviewStatus !== 'Scheduled' ? 'Open the application and schedule an interview first.' : 'Mark interview completed'}
-                      >
-                        {completeButtonLabel('accepted', row._id)}
-                      </button>
+                      <div className="min-w-[420px] rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Interview Action</p>
+                            <p className="text-xs text-slate-500">
+                              {String(row.latestInterviewStatus || '').toLowerCase() === 'scheduled'
+                                ? 'Interview already scheduled. Complete it from here.'
+                                : 'Schedule the interview first, then complete it later.'}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600 ring-1 ring-slate-200">
+                            {row.latestInterviewStatus || 'Not Scheduled'}
+                          </span>
+                        </div>
+
+                        {String(row.latestInterviewStatus || '').toLowerCase() === 'scheduled' ? (
+                          <button
+                            type="button"
+                            className="inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => completeStep(row._id, 'accepted')}
+                            disabled={savingCandidateId === row._id}
+                            title="Mark interview completed"
+                          >
+                            {completeButtonLabel('accepted', row._id)}
+                          </button>
+                        ) : (
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            <select
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm outline-none transition focus:border-[#002147]"
+                              value={interviewDraftById[row._id]?.hiringPartner || ''}
+                              onChange={(e) => setInterviewDraftById((prev) => ({
+                                ...prev,
+                                [row._id]: { ...(prev[row._id] || {}), hiringPartner: e.target.value },
+                              }))}
+                            >
+                              <option value="">Select partner</option>
+                              {hiringPartners.map((partner) => (
+                                <option key={partner} value={partner}>{partner}</option>
+                              ))}
+                            </select>
+                            <input
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm outline-none transition focus:border-[#002147]"
+                              type="text"
+                              placeholder="Role"
+                              value={interviewDraftById[row._id]?.role || ''}
+                              onChange={(e) => setInterviewDraftById((prev) => ({
+                                ...prev,
+                                [row._id]: { ...(prev[row._id] || {}), role: e.target.value },
+                              }))}
+                            />
+                            <input
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm outline-none transition focus:border-[#002147]"
+                              type="text"
+                              placeholder="Country"
+                              value={interviewDraftById[row._id]?.country || row.country || ''}
+                              onChange={(e) => setInterviewDraftById((prev) => ({
+                                ...prev,
+                                [row._id]: { ...(prev[row._id] || {}), country: e.target.value },
+                              }))}
+                            />
+                            <input
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm outline-none transition focus:border-[#002147]"
+                              type="date"
+                              value={interviewDraftById[row._id]?.date || ''}
+                              onChange={(e) => setInterviewDraftById((prev) => ({
+                                ...prev,
+                                [row._id]: { ...(prev[row._id] || {}), date: e.target.value },
+                              }))}
+                            />
+                            <input
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm outline-none transition focus:border-[#002147]"
+                              type="time"
+                              value={interviewDraftById[row._id]?.time || ''}
+                              onChange={(e) => setInterviewDraftById((prev) => ({
+                                ...prev,
+                                [row._id]: { ...(prev[row._id] || {}), time: e.target.value },
+                              }))}
+                            />
+                            <input
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm outline-none transition focus:border-[#002147] sm:col-span-2 xl:col-span-3"
+                              type="url"
+                              placeholder="Meeting link (optional)"
+                              value={interviewDraftById[row._id]?.meetingLink || ''}
+                              onChange={(e) => setInterviewDraftById((prev) => ({
+                                ...prev,
+                                [row._id]: { ...(prev[row._id] || {}), meetingLink: e.target.value },
+                              }))}
+                            />
+                            <button
+                              type="button"
+                              className="rounded-lg bg-[#002147] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#01305e] disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2 xl:col-span-3"
+                              onClick={() => scheduleInterview(row._id)}
+                              disabled={savingCandidateId === row._id || !isInterviewDraftReady(row._id)}
+                              title={isInterviewDraftReady(row._id) ? 'Schedule interview' : 'Fill partner, country, role, date and time first'}
+                            >
+                              Schedule Interview
+                            </button>
+                            <p className="sm:col-span-2 xl:col-span-3 text-[11px] text-slate-500">
+                              Required: partner, country, role, date, and time. Meeting link is optional.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         {Object.entries(actionConfig).map(([actionKey, cfg]) => {

@@ -222,9 +222,10 @@ const formatCandidateRow = (snapshot, stageKey = '') => {
       ? candidate.stageStatuses[normalizedStageKey] || 'pending'
       : 'pending';
   const latestInterview = interviews[0] || null;
+  const displayName = profile?.personalDetails?.firstName || candidate.name || candidate.email?.split('@')?.[0] || 'N/A';
   return {
     _id: candidate._id,
-    name: candidate.name,
+    name: displayName,
     email: candidate.email,
     country: profile?.personalDetails?.currentCountryOfResidence || 'N/A',
     currentStage: stagePageLabelMap[normalizedStageKey] || currentStage,

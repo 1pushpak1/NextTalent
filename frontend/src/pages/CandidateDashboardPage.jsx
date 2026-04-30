@@ -30,6 +30,10 @@ const paymentRouteNotice = {
 export default function CandidateDashboardPage() {
   const [data, setData] = useState(null);
   const { user } = useAuth();
+  const displayFirstName =
+    data?.candidate?.profile?.personalDetails?.firstName ||
+    user?.name?.split?.(' ')?.[0] ||
+    (user?.email?.split?.('@')?.[0] || 'Candidate');
 
   useEffect(() => {
     api
@@ -44,10 +48,14 @@ export default function CandidateDashboardPage() {
   const hasInitial = data?.paymentStatus?.some((p) => p.type === 'initial' && p.status === 'completed');
   const programPaid = data?.paymentStatus?.some((p) => p.type === 'program' && p.status === 'completed');
   const finalPaid = data?.paymentStatus?.some((p) => p.type === 'final' && p.status === 'completed');
-  const interviewScheduled = data?.interviewStatus?.length > 0;
+  const interviewScheduled = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'scheduled');
+  const interviewCompleted = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'completed');
+  const testimonialSubmitted = Boolean(data?.testimonialSubmitted);
   const selected = data?.candidate?.status === 'selected';
   const requiredRoute = getCandidateNextRoute(data);
   const paymentNotice = paymentRouteNotice[requiredRoute] || null;
+  const currentStageLabel =
+    data?.currentStage === 'Interviews' && interviewCompleted ? 'Selection Result' : data?.currentStage || 'Pending';
   const timelineStages = useMemo(() => {
     const stages = Array.isArray(data?.stages) ? data.stages : [];
     if (!stages.length) return stages;
@@ -57,6 +65,8 @@ export default function CandidateDashboardPage() {
     const profileSubmittedDone = stageByName.get('Profile Submitted')?.status === 'Completed';
     const internalEvalStatus = stageByName.get('Internal Evaluation')?.status;
     const internalEvalDone = internalEvalStatus === 'Accepted' || internalEvalStatus === 'Rejected' || internalEvalStatus === 'Under Review';
+    const interviewStageStatus = stageByName.get('Interviews')?.status;
+    const interviewStageDone = interviewStageStatus === 'Completed' || interviewCompleted;
     const shouldMarkEligibilityDone =
       stageByName.get('Eligibility Check')?.status === 'Completed' ||
       accountCreatedDone ||
@@ -66,6 +76,8 @@ export default function CandidateDashboardPage() {
     const normalized = stages.map((stage) =>
       stage.name === 'Eligibility Check' && shouldMarkEligibilityDone
         ? { ...stage, status: 'Completed' }
+        : stage.name === 'Interviews' && interviewStageDone
+          ? { ...stage, status: 'Completed' }
         : stage
     );
 
@@ -75,7 +87,7 @@ export default function CandidateDashboardPage() {
     const remainder = normalized.filter((stage) => !preferredOrder.includes(stage.name));
     const timeline = [...ordered, ...remainder];
 
-    // Keep exactly one Ongoing step: the immediate next actionable stage after the latest Accepted stage.
+    // Keep exactly one Pending step: the immediate next actionable stage after the latest Accepted stage.
     const acceptedIndex = [...timeline]
       .map((stage, idx) => (stage.status === 'Accepted' ? idx : -1))
       .filter((idx) => idx >= 0)
@@ -84,14 +96,15 @@ export default function CandidateDashboardPage() {
     if (acceptedIndex === undefined) return timeline;
 
     const nextActionIndex = timeline.findIndex(
-      (stage, idx) => idx > acceptedIndex && !['Completed', 'Accepted', 'Rejected'].includes(stage.status),
+      (stage, idx) => idx > acceptedIndex && !['Completed', 'Accepted', 'Rejected', 'Inactive'].includes(stage.status),
     );
 
     if (nextActionIndex === -1) return timeline;
 
     return timeline.map((stage, idx) => {
-      if (idx === nextActionIndex) return { ...stage, status: 'Ongoing' };
-      if (idx > acceptedIndex && stage.status === 'Ongoing') return { ...stage, status: 'Pending' };
+      if (idx === nextActionIndex) return { ...stage, status: 'Pending' };
+      if (idx > acceptedIndex && stage.status === 'Pending') return { ...stage, status: 'Pending' };
+      if (stage.status === 'Inactive') return stage;
       return stage;
     });
   }, [data?.stages]);
@@ -105,7 +118,7 @@ export default function CandidateDashboardPage() {
         <div className="mx-auto max-w-[1200px] px-6">
           <section className="mb-10 flex flex-col justify-between gap-5 md:flex-row md:items-end">
             <div>
-              <h1 className="mb-2 text-4xl font-bold tracking-tight text-[#002147]">Welcome back, {user?.name || 'Candidate'}</h1>
+              <h1 className="mb-2 text-4xl font-bold tracking-tight text-[#002147]">Welcome back, {displayFirstName}</h1>
               <p className="max-w-2xl text-base text-[#44474e]">
                 Track your international pathway progress.
               </p>
@@ -143,8 +156,8 @@ export default function CandidateDashboardPage() {
           <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="nst-card rounded-xl p-6">
               <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Current Stage</p>
-              <h3 className="text-2xl font-semibold text-[#002147]">{data?.currentStage || 'Pending'}</h3>
-              <p className="mt-2 text-sm text-[#3a5f94]">Pathway Timeline Active</p>
+              <h3 className="text-2xl font-semibold text-[#002147]">{currentStageLabel}</h3>
+              {/* <p className="mt-2 text-sm text-[#3a5f94]">Pathway Timeline Active</p> */}
             </div>
             <div className="nst-card rounded-xl p-6">
               <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Next Action Required</p>
@@ -156,7 +169,9 @@ export default function CandidateDashboardPage() {
             </div>
             <div className="nst-card rounded-xl p-6">
               <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Interview Status</p>
-              <h3 className="text-2xl font-semibold text-[#002147]">{interviewScheduled ? 'Scheduled' : 'Pending'}</h3>
+              <h3 className="text-2xl font-semibold text-[#002147]">
+                {interviewCompleted ? 'Completed' : interviewScheduled ? 'Scheduled' : 'Pending'}
+              </h3>
             </div>
           </section>
 
@@ -183,7 +198,8 @@ export default function CandidateDashboardPage() {
                 {!hasInitial && <Link to="/initial-payment"><Button>Pay Initial USD 500</Button></Link>}
                 {hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Link to="/payment/program-fee"><Button>Pay Program Fee</Button></Link>}
                 {selected && !finalPaid && <Link to="/payment/final-payment"><Button>Pay Final Program Fee</Button></Link>}
-                {selected && finalPaid && <Link to="/testimonial"><Button variant="secondary">Share Testimonial</Button></Link>}
+                {selected && finalPaid && !testimonialSubmitted && <Link to="/testimonial"><Button variant="secondary">Share Testimonial</Button></Link>}
+                {selected && finalPaid && testimonialSubmitted && <Button variant="secondary" disabled>Testimonial Shared</Button>}
               </div>
             </div>
             <div className="nst-card rounded-xl p-6">
