@@ -1,0 +1,245 @@
+const Eligibility = require('../models/Eligibility');
+const Profile = require('../models/Profile');
+const Payment = require('../models/Payment');
+const Document = require('../models/Document');
+const Interview = require('../models/Interview');
+const User = require('../models/User');
+
+const hasPassedInitialEligibility = ({ eligibility, user, profile, payments, docs, interviews }) =>
+  Boolean(eligibility) ||
+  Boolean(user?.status) ||
+  Boolean(profile) ||
+  payments.length > 0 ||
+  docs.length > 0 ||
+  interviews.length > 0;
+
+const buildStages = ({ eligibility, profile, user, docs, interviews, payments }) => {
+  const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
+  const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed');
+  const hasFinal = payments.some((p) => p.type === 'final' && p.status === 'completed');
+  const docsUploaded = docs.length > 0;
+  const docsUnderReview = docs.some((d) => d.status === 'Under Review');
+  const docsAccepted = docs.length > 0 && docs.every((d) => d.status === 'Accepted');
+  const anyInterview = interviews.length > 0;
+  const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews });
+
+  const selected = user.status === 'selected';
+  const rejected = user.status === 'rejected' || profile?.status === 'rejected';
+  const declarationDone =
+    user.status === 'declaration_signed' ||
+    user.status === 'onboarding_complete' ||
+    user.status === 'documents_submitted' ||
+    user.status === 'documents_received' ||
+    hasProgram ||
+    hasFinal ||
+    selected ||
+    user.status === 'process_complete';
+  const onboardingDone =
+    user.status === 'onboarding_complete' ||
+    user.status === 'documents_submitted' ||
+    user.status === 'documents_received' ||
+    hasProgram ||
+    hasFinal ||
+    selected ||
+    user.status === 'process_complete';
+  const docsReceived =
+    user.status === 'documents_received' ||
+    hasProgram ||
+    hasFinal ||
+    selected ||
+    user.status === 'process_complete';
+
+  return [
+    { name: 'Eligibility Check', status: eligibilityDone ? 'Completed' : 'Pending' },
+    { name: 'Account Created', status: user ? 'Completed' : 'Pending' },
+    { name: 'Profile Submitted', status: profile ? 'Completed' : 'Pending' },
+    {
+      name: 'Internal Evaluation',
+      status: profile
+        ? profile.status === 'submitted'
+          ? 'Under Review'
+          : profile.status === 'accepted'
+            ? 'Accepted'
+            : profile.status === 'rejected'
+              ? 'Rejected'
+              : 'In Progress'
+        : 'Pending',
+    },
+    { name: 'Initial Payment', status: hasInitial ? 'Completed' : 'Pending' },
+    { name: 'Declaration Signed', status: declarationDone ? 'Completed' : 'Pending' },
+    { name: 'Team Contact / Onboarding', status: onboardingDone ? 'Completed' : hasInitial ? 'In Progress' : 'Pending' },
+    { name: 'Documents Uploaded', status: docsUploaded ? 'Completed' : 'Pending' },
+    {
+      name: 'Document Verification',
+      status: docsReceived ? 'Accepted' : docsUnderReview ? 'Under Review' : docsAccepted ? 'In Progress' : 'Pending',
+    },
+    {
+      name: 'Sent to Hiring Partners',
+      status: user.status === 'sent_to_partners' || anyInterview || selected ? 'Completed' : 'Pending',
+    },
+    { name: 'Interviews', status: anyInterview ? 'In Progress' : 'Pending' },
+    { name: 'Selection Result', status: selected ? 'Accepted' : rejected ? 'Rejected' : 'Pending' },
+    { name: 'Final Payment', status: hasFinal ? 'Completed' : selected ? 'Pending' : 'Pending' },
+    { name: 'Testimonial', status: user.status === 'process_complete' ? 'Completed' : 'Pending' },
+  ];
+};
+
+const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
+  const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
+  const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed');
+  const hasFinal = payments.some((p) => p.type === 'final' && p.status === 'completed');
+  const docsUploaded = docs.length > 0;
+  const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews: [] });
+  const docsReceived = user.status === 'documents_received' || hasProgram || hasFinal || user.status === 'selected' || user.status === 'process_complete';
+  const declarationDone =
+    user.status === 'declaration_signed' ||
+    user.status === 'onboarding_complete' ||
+    user.status === 'documents_submitted' ||
+    docsReceived;
+  const onboardingDone =
+    user.status === 'onboarding_complete' ||
+    user.status === 'documents_submitted' ||
+    docsReceived;
+
+  if (!eligibilityDone) return '/eligibility-check';
+  if (!profile) return '/profile-submission';
+  if (profile.status === 'submitted') return '/internal-evaluation';
+  if (profile.status === 'rejected') return '/email-sent';
+  if (profile.status === 'accepted' && !hasInitial) return '/initial-payment';
+  if (hasInitial && !declarationDone) return '/declaration';
+  if (hasInitial && declarationDone && !onboardingDone) return '/onboarding';
+  if (hasInitial && onboardingDone && !docsUploaded) return '/documents';
+  if (docsReceived && !hasProgram) return '/payment/program-fee';
+  if (user.status === 'selected' && !hasFinal) return '/payment/final-payment';
+
+  return '/candidate-dashboard';
+};
+
+const getDashboard = async (req, res) => {
+  try {
+    const [eligibility, profile, payments, docs, interviews, user] = await Promise.all([
+      Eligibility.findOne({ userId: req.user._id }).sort({ createdAt: -1 }),
+      Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }),
+      Payment.find({ userId: req.user._id }),
+      Document.find({ userId: req.user._id }),
+      Interview.find({ userId: req.user._id }),
+      User.findById(req.user._id),
+    ]);
+
+    const stages = buildStages({ eligibility, profile, user, docs, interviews, payments });
+    const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed');
+    const hasFinal = payments.some((p) => p.type === 'final' && p.status === 'completed');
+    const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
+    const docsUploaded = docs.length > 0;
+    const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews });
+    const docsReceived = user.status === 'documents_received' || hasProgram || hasFinal || user.status === 'selected' || user.status === 'process_complete';
+    const declarationDone =
+      user.status === 'declaration_signed' ||
+      user.status === 'onboarding_complete' ||
+      user.status === 'documents_submitted' ||
+      docsReceived;
+    const onboardingDone =
+      user.status === 'onboarding_complete' ||
+      user.status === 'documents_submitted' ||
+      docsReceived;
+    const currentStage =
+      stages.find((s) => s.status === 'Pending' || s.status === 'Under Review' || s.status === 'In Progress') ||
+      stages[stages.length - 1];
+
+    let nextAction = 'No immediate action required';
+    if (!eligibilityDone) nextAction = 'Complete eligibility check';
+    else if (!profile) nextAction = 'Submit your profile for evaluation';
+    else if (profile.status === 'submitted') nextAction = 'Await internal evaluation outcome';
+    else if (profile.status === 'rejected') nextAction = 'Review profile not accepted notification';
+    else if (profile.status === 'accepted' && !hasInitial) nextAction = 'Complete initial payment (USD 500)';
+    else if (hasInitial && !declarationDone) nextAction = 'Sign declaration and contract';
+    else if (hasInitial && declarationDone && !onboardingDone) nextAction = 'Complete team contact/onboarding';
+    else if (hasInitial && onboardingDone && !docsUploaded) nextAction = 'Upload required documents';
+    else if (docsUploaded && !docsReceived) nextAction = 'Await document review and all-documents-received confirmation';
+    else if (docsReceived && !hasProgram)
+      nextAction = 'Pay program and documentation verification fee';
+    else if (user.status === 'selected' && !hasFinal)
+      nextAction = 'Complete final payment';
+
+    res.json({
+      candidate: user,
+      currentStage: currentStage?.name,
+      nextAction,
+      nextRoute: deriveNextRoute({ eligibility, profile, user, docs, payments }),
+      paymentStatus: payments,
+      documentStatus: docs,
+      interviewStatus: interviews,
+      stages,
+      profileStatus: profile?.status || 'not_submitted',
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateMyStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const user = await User.findByIdAndUpdate(req.user._id, { status }, { new: true });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const listCandidates = async (req, res) => {
+  try {
+    const candidates = await User.find({ role: 'candidate' }).sort({ createdAt: -1 }).lean();
+    const candidateIds = candidates.map((c) => c._id);
+
+    const profiles = await Profile.find({ userId: { $in: candidateIds } })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const profileByUser = new Map();
+    for (const profile of profiles) {
+      const key = String(profile.userId || '');
+      if (!key || profileByUser.has(key)) continue;
+      profileByUser.set(key, profile);
+    }
+
+    const response = candidates.map((candidate) => {
+      const profile = profileByUser.get(String(candidate._id));
+      return {
+        ...candidate,
+        profileStatus: profile?.status || 'not_submitted',
+        profileId: profile?._id || null,
+      };
+    });
+
+    res.json(response);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateCandidateStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const normalizedStatus = String(status || '').trim().toLowerCase();
+    const candidate = await User.findByIdAndUpdate(req.params.id, { status: normalizedStatus }, { new: true });
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+
+    if (normalizedStatus === 'accepted') {
+      await Profile.findOneAndUpdate({ userId: candidate._id }, { status: 'accepted' });
+    }
+    if (normalizedStatus === 'rejected' || normalizedStatus === 'not_selected') {
+      await Profile.findOneAndUpdate({ userId: candidate._id }, { status: 'rejected' });
+    }
+    if (normalizedStatus === 'selected') {
+      candidate.status = 'selected';
+      await candidate.save();
+    }
+
+    res.json(candidate);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getDashboard, updateMyStatus, listCandidates, updateCandidateStatus };
