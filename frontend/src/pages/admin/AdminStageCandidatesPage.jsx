@@ -5,12 +5,15 @@ import api from '../../api/axios';
 export default function AdminStageCandidatesPage({ title, stageKey }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewFilter, setViewFilter] = useState('current');
   const mountedRef = useRef(true);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent && mountedRef.current) setLoading(true);
     try {
-      const { data } = await api.get(`/admin/candidates/stage/${stageKey}`);
+      const { data } = await api.get(`/admin/candidates/stage/${stageKey}`, {
+        params: { filter: viewFilter },
+      });
       if (!mountedRef.current) return;
       setRows(Array.isArray(data) ? data : []);
     } catch {
@@ -19,7 +22,7 @@ export default function AdminStageCandidatesPage({ title, stageKey }) {
     } finally {
       if (!silent && mountedRef.current) setLoading(false);
     }
-  }, [stageKey]);
+  }, [stageKey, viewFilter]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -39,9 +42,31 @@ export default function AdminStageCandidatesPage({ title, stageKey }) {
 
   return (
     <section className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
-        <p className="text-sm text-slate-600">Use step actions for this stage only, then click Complete to save.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
+          <p className="text-sm text-slate-600">Use step actions for this stage only, then click Complete to save.</p>
+        </div>
+        <div className="flex rounded-lg border border-slate-200 bg-white p-1">
+          <button
+            type="button"
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+              viewFilter === 'current' ? 'bg-[#002147] text-white' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+            onClick={() => setViewFilter('current')}
+          >
+            Current Queue
+          </button>
+          <button
+            type="button"
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+              viewFilter === 'passed' ? 'bg-[#002147] text-white' : 'text-slate-600 hover:bg-slate-100'
+            }`}
+            onClick={() => setViewFilter('passed')}
+          >
+            Passed Candidates
+          </button>
+        </div>
       </div>
       <AdminCandidateTable rows={rows} loading={loading} stageKey={stageKey} onUpdated={() => load({ silent: true })} />
     </section>

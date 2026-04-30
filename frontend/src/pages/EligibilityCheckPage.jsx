@@ -59,7 +59,24 @@ export default function EligibilityCheckPage() {
     setPopup('This destination is upcoming. Please check back in a future cycle.');
   };
 
+  const validateEligibilityAnswers = () => {
+    if (!country) return 'Please select your target country.';
+    if (!answers.hasITBackground) return 'Please answer whether you have an IT background.';
+    if (!answers.qualification) return 'Please select your highest qualification.';
+    if (!answers.languageAnswer) return 'Please answer the language eligibility question.';
+    if (!answers.currentLocation) return 'Please select your current location.';
+    if (!answers.willingToRelocate) return 'Please answer whether you are willing to relocate.';
+    if (!answers.comfortableWithFees) return 'Please answer whether you are comfortable with program/service fees.';
+    return null;
+  };
+
   const submitEligibility = async () => {
+    const validationError = validateEligibilityAnswers();
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
+
     const payload = {
       destination,
       country,
@@ -176,14 +193,16 @@ export default function EligibilityCheckPage() {
             <Card className="nst-card rounded-xl p-6">
               <h2 className="mb-4 text-2xl font-semibold text-[#002147]">Quick Eligibility Questions</h2>
               <div className="grid gap-3 md:grid-cols-2">
-                <Select label="Do you have an IT background?" options={['Yes', 'No']} value={answers.hasITBackground} onChange={(e) => setAnswers({ ...answers, hasITBackground: e.target.value })} />
+                <Select required label="Do you have an IT background?" options={['Yes', 'No']} value={answers.hasITBackground} onChange={(e) => setAnswers({ ...answers, hasITBackground: e.target.value })} />
                 <Select
+                  required
                   label="Highest Qualification"
                   options={['Diploma with one year practical training', 'Bachelor’s', 'Master’s', 'Other']}
                   value={answers.qualification}
                   onChange={(e) => setAnswers({ ...answers, qualification: e.target.value })}
                 />
                 <Select
+                  required
                   label={
                     country === 'Switzerland'
                       ? 'Do you have certified B2 or above in German, French, or Italian?'
@@ -203,13 +222,13 @@ export default function EligibilityCheckPage() {
                     onChange={(e) => setAnswers({ ...answers, knowsGerman: e.target.value })}
                   />
                 )}
-                <Select label="Current location" options={['Europe', 'Outside Europe']} value={answers.currentLocation} onChange={(e) => setAnswers({ ...answers, currentLocation: e.target.value })} />
-                <Select label="Are you willing to relocate to the selected country?" options={['Yes', 'No']} value={answers.willingToRelocate} onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })} />
-                <Select label="Are you comfortable with program/service fees?" options={['Yes', 'No']} value={answers.comfortableWithFees} onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })} />
+                <Select required label="Current location" options={['Europe', 'Outside Europe']} value={answers.currentLocation} onChange={(e) => setAnswers({ ...answers, currentLocation: e.target.value })} />
+                <Select required label="Are you willing to relocate to the selected country?" options={['Yes', 'No']} value={answers.willingToRelocate} onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })} />
+                <Select required label="Are you comfortable with program/service fees?" options={['Yes', 'No']} value={answers.comfortableWithFees} onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })} />
               </div>
               <div className="mt-6 flex gap-2">
                 <Button variant="secondary" onClick={() => setStep(2)}>Back</Button>
-                <Button onClick={submitEligibility}>Check Result</Button>
+                <Button onClick={submitEligibility}>Check Eligibility</Button>
               </div>
             </Card>
           )}

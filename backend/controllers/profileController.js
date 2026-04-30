@@ -4,55 +4,101 @@ const Eligibility = require('../models/Eligibility');
 const generatePdf = require('../utils/generatePdf');
 const sendEmail = require('../utils/sendEmail');
 
+const clampSavedStep = (value, fallback = 1) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(8, Math.max(1, Math.trunc(numeric)));
+};
+
+const ensureEligible = async (userId) => {
+  const eligibility = await Eligibility.findOne({ userId, isEligible: true }).sort({ createdAt: -1 });
+  if (!eligibility) {
+    const error = new Error('Complete and pass eligibility check before profile submission');
+    error.statusCode = 403;
+    throw error;
+  }
+};
+
+const applyProfileFields = (profile, body = {}) => {
+  if ('personalDetails' in body) profile.personalDetails = body.personalDetails || {};
+  if ('education' in body) profile.education = body.education || {};
+  if ('certifications' in body) profile.certifications = body.certifications || [];
+  if ('workExperience' in body) profile.workExperience = body.workExperience || [];
+  if ('skills' in body) profile.skills = body.skills || {};
+  if ('languages' in body) profile.languages = body.languages || [];
+  if ('additionalInfo' in body) profile.additionalInfo = body.additionalInfo || '';
+  if ('financialDisclosureAccepted' in body) profile.financialDisclosureAccepted = Boolean(body.financialDisclosureAccepted);
+  if ('acknowledgementSigned' in body) profile.acknowledgementSigned = Boolean(body.acknowledgementSigned);
+  if ('signature' in body) profile.signature = body.signature || null;
+  if ('savedStep' in body) profile.savedStep = clampSavedStep(body.savedStep, profile.savedStep || 1);
+};
+
+const finalizeSubmission = async ({ profile, body, userId, isNewProfile }) => {
+  if (!body.financialDisclosureAccepted) {
+    const error = new Error('Financial disclosure must be accepted');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!body.acknowledgementSigned || !body.signature?.value) {
+    const error = new Error('Acknowledgement signature is required');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  applyProfileFields(profile, body);
+  profile.status = 'submitted';
+  profile.savedStep = 8;
+
+  const pdfUrl = await generatePdf(profile);
+  profile.generatedPdfUrl = pdfUrl;
+  await profile.save();
+
+  await User.findByIdAndUpdate(userId, { status: 'profile_submitted' });
+
+  if (body.personalDetails?.email) {
+    await sendEmail({
+      to: body.personalDetails.email,
+      subject: 'Profile Submitted - NextStep Talent',
+      text: 'Your profile has been submitted and is now in internal evaluation.',
+    });
+  }
+
+  return { profile, statusCode: isNewProfile ? 201 : 200 };
+};
+
+const saveDraftProfile = async ({ profile, body }) => {
+  applyProfileFields(profile, body);
+  profile.status = 'draft';
+  profile.generatedPdfUrl = '';
+  await profile.save();
+  return profile;
+};
+
 const createProfile = async (req, res) => {
   try {
     const body = req.body;
     const userId = req.user?._id;
 
-    const eligibility = await Eligibility.findOne({ userId, isEligible: true }).sort({ createdAt: -1 });
-    if (!eligibility) {
-      return res.status(403).json({ message: 'Complete and pass eligibility check before profile submission' });
+    await ensureEligible(userId);
+
+    const existingProfile = await Profile.findOne({ userId }).sort({ createdAt: -1 });
+    if (body.status === 'draft') {
+      const profile = existingProfile || new Profile({ userId });
+      const draftProfile = await saveDraftProfile({ profile, body });
+      return res.status(existingProfile ? 200 : 201).json(draftProfile);
     }
 
-    if (!body.financialDisclosureAccepted) {
-      return res.status(400).json({ message: 'Financial disclosure must be accepted' });
-    }
-    if (!body.acknowledgementSigned || !body.signature?.value) {
-      return res.status(400).json({ message: 'Acknowledgement signature is required' });
-    }
-
-    const profile = await Profile.create({
+    const profile = existingProfile || new Profile({ userId });
+    const { profile: savedProfile, statusCode } = await finalizeSubmission({
+      profile,
+      body,
       userId,
-      personalDetails: body.personalDetails,
-      education: body.education,
-      certifications: body.certifications || [],
-      workExperience: body.workExperience || [],
-      skills: body.skills || {},
-      languages: body.languages || [],
-      additionalInfo: body.additionalInfo || '',
-      financialDisclosureAccepted: body.financialDisclosureAccepted,
-      acknowledgementSigned: body.acknowledgementSigned,
-      signature: body.signature,
-      status: 'submitted',
+      isNewProfile: !existingProfile,
     });
 
-    const pdfUrl = await generatePdf(profile);
-    profile.generatedPdfUrl = pdfUrl;
-    await profile.save();
-
-    await User.findByIdAndUpdate(userId, { status: 'profile_submitted' });
-
-    if (body.personalDetails?.email) {
-      await sendEmail({
-        to: body.personalDetails.email,
-        subject: 'Profile Submitted - NextStep Talent',
-        text: 'Your profile has been submitted and is now in internal evaluation.',
-      });
-    }
-
-    res.status(201).json(profile);
+    res.status(statusCode).json(savedProfile);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
@@ -67,15 +113,37 @@ const getMyProfile = async (req, res) => {
 
 const updateMyProfile = async (req, res) => {
   try {
-    const profile = await Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 });
-    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+    const body = req.body;
+    const userId = req.user._id;
 
-    Object.assign(profile, req.body);
-    await profile.save();
+    await ensureEligible(userId);
 
-    res.json(profile);
+    const isDraftSave = body.status === 'draft';
+    let profile = await Profile.findOne({ userId }).sort({ createdAt: -1 });
+
+    if (!profile && !isDraftSave) {
+      return res.status(404).json({ message: 'Profile not found' });
+    }
+
+    if (!profile) {
+      profile = new Profile({ userId });
+    }
+
+    if (isDraftSave) {
+      const draftProfile = await saveDraftProfile({ profile, body });
+      return res.json(draftProfile);
+    }
+
+    const { profile: savedProfile } = await finalizeSubmission({
+      profile,
+      body,
+      userId,
+      isNewProfile: false,
+    });
+
+    res.json(savedProfile);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 

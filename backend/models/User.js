@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ['candidate', 'admin'], default: 'candidate' },
     status: { type: String, default: 'account_created' },
     stageStatuses: { type: Map, of: String, default: {} },
+    assignedHiringPartner: { type: String, default: '' },
     adminNotes: { type: String, default: '' },
     phoneOtp: { type: String, default: '' },
   },

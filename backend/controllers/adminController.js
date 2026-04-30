@@ -4,6 +4,7 @@ const Document = require('../models/Document');
 const Interview = require('../models/Interview');
 const Payment = require('../models/Payment');
 const Eligibility = require('../models/Eligibility');
+const Testimonial = require('../models/Testimonial');
 
 const validProfileStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 const validDocumentStatuses = ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'];
@@ -32,6 +33,7 @@ const stageLabelMap = {
   documents_received: 'Document Verification',
   sent_to_partners: 'Hiring Partner Stage',
   interview_scheduled: 'Interviews',
+  interview_completed: 'Selection Results',
   selected: 'Selection Results',
   not_selected: 'Selection Results',
   process_complete: 'Testimonials',
@@ -82,9 +84,12 @@ const readStageDecision = (candidate, stageKey) => {
 };
 
 const buildCandidateSnapshot = ({ candidate, profile, eligibility, documents, interviews, payments }) => {
+  const hasSubmittedProfile = Boolean(profile) && profile.status !== 'draft';
   const paymentByType = {
     initial: payments.find((p) => p.type === 'initial' && p.status === 'completed'),
-    program: payments.find((p) => p.type === 'program' && p.status === 'completed'),
+    program:
+      payments.find((p) => p.type === 'program' && p.status === 'completed') ||
+      (candidate.status === 'program_payment_complete' ? { type: 'program', status: 'completed' } : null),
     final: payments.find((p) => p.type === 'final' && p.status === 'completed'),
   };
 
@@ -111,7 +116,7 @@ const buildCandidateSnapshot = ({ candidate, profile, eligibility, documents, in
 
   const currentStage =
     stageLabelMap[candidate.status] ||
-    (profile
+    (hasSubmittedProfile
       ? profile.status === 'submitted' || profile.status === 'under_review'
         ? 'Internal Evaluation'
         : profile.status === 'accepted'
@@ -143,17 +148,21 @@ const buildCandidateSnapshot = ({ candidate, profile, eligibility, documents, in
 };
 
 const deriveAdminStageKey = (snapshot) => {
-  const { candidate, profile, hasInitial, docsUploaded, docsVerified, hasInterviews } = snapshot;
+  const { candidate, profile, hasInitial, hasProgram, hasFinal, docsUploaded, hasInterviews } = snapshot;
   const status = String(candidate?.status || '');
   const evaluationDecision = readStageDecision(candidate, 'evaluation');
   const declarationDecision = readStageDecision(candidate, 'declaration');
   const documentVerificationDecision = readStageDecision(candidate, 'document-verification');
+  const hiringDecision = readStageDecision(candidate, 'hiring');
+  const interviewDecision = readStageDecision(candidate, 'interviews');
 
   if (status === 'process_complete') return 'testimonials';
-  if (['selected', 'not_selected', 'rejected'].includes(status)) return 'selection';
-  if (hasInterviews || status === 'interview_scheduled') return 'interviews';
-  if (status === 'sent_to_partners') return 'hiring';
-  if (!profile) return null;
+  if (status === 'selected' && hasFinal) return 'testimonials';
+  if (['not_selected', 'rejected'].includes(status)) return 'selection';
+  if (status === 'selected') return 'selection';
+  if (status === 'interview_completed' || interviewDecision === 'accepted') return 'selection';
+  if (hasInterviews || status === 'interview_scheduled' || status === 'sent_to_partners') return 'interviews';
+  if (!profile || profile.status === 'draft') return null;
 
   if (!hasInitial) return 'evaluation';
   if (evaluationDecision !== 'accepted') return 'evaluation';
@@ -166,9 +175,9 @@ const deriveAdminStageKey = (snapshot) => {
     return 'documents';
   }
 
-  if (docsUploaded && !docsVerified) return 'document-verification';
-  if (docsUploaded && docsVerified && documentVerificationDecision !== 'accepted') return 'document-verification';
-  if (docsUploaded && docsVerified) return 'hiring';
+  if (docsUploaded && documentVerificationDecision !== 'accepted') return 'document-verification';
+  if (docsUploaded && documentVerificationDecision === 'accepted' && !hasProgram) return null;
+  if (docsUploaded && hasProgram && hiringDecision !== 'accepted') return 'hiring';
 
   return null;
 };
@@ -200,13 +209,19 @@ const stageMatcher = (stageKey, snapshot) => {
   }
 };
 
+const passedStageMatcher = (stageKey, snapshot) => {
+  if (!stageKey || stageKey === 'dashboard') return false;
+  return readStageDecision(snapshot.candidate, stageKey) === 'accepted';
+};
+
 const formatCandidateRow = (snapshot, stageKey = '') => {
-  const { candidate, profile, currentStage } = snapshot;
+  const { candidate, profile, currentStage, interviews, testimonial } = snapshot;
   const normalizedStageKey = String(stageKey || '').toLowerCase();
   const stepStatus =
     normalizedStageKey && candidate?.stageStatuses
       ? candidate.stageStatuses[normalizedStageKey] || 'pending'
       : 'pending';
+  const latestInterview = interviews[0] || null;
   return {
     _id: candidate._id,
     name: candidate.name,
@@ -217,6 +232,10 @@ const formatCandidateRow = (snapshot, stageKey = '') => {
     date: candidate.createdAt,
     profileStatus: profile?.status || 'not_submitted',
     stepStatus,
+    assignedHiringPartner: candidate.assignedHiringPartner || '',
+    latestInterviewStatus: latestInterview?.status || '',
+    latestInterviewRole: latestInterview?.role || '',
+    testimonialText: testimonial?.text || '',
   };
 };
 
@@ -224,12 +243,13 @@ const fetchAllSnapshots = async () => {
   const candidates = await User.find({ role: 'candidate' }).sort({ createdAt: -1 }).lean();
   const candidateIds = candidates.map((c) => c._id);
 
-  const [profiles, eligibilities, documents, interviews, payments] = await Promise.all([
+  const [profiles, eligibilities, documents, interviews, payments, testimonials] = await Promise.all([
     Profile.find({ userId: { $in: candidateIds } }).sort({ createdAt: -1 }).lean(),
     Eligibility.find({ userId: { $in: candidateIds } }).sort({ createdAt: -1 }).lean(),
     Document.find({ userId: { $in: candidateIds } }).sort({ createdAt: -1 }).lean(),
     Interview.find({ userId: { $in: candidateIds } }).sort({ createdAt: -1 }).lean(),
     Payment.find({ userId: { $in: candidateIds } }).sort({ createdAt: -1 }).lean(),
+    Testimonial.find({ userId: { $in: candidateIds } }).sort({ createdAt: -1 }).lean(),
   ]);
 
   const profileByUser = groupLatestByUserId(profiles);
@@ -237,10 +257,11 @@ const fetchAllSnapshots = async () => {
   const documentsByUser = groupAllByUserId(documents);
   const interviewsByUser = groupAllByUserId(interviews);
   const paymentsByUser = groupAllByUserId(payments);
+  const testimonialByUser = groupLatestByUserId(testimonials);
 
   return candidates.map((candidate) => {
     const userId = toId(candidate._id);
-    return buildCandidateSnapshot({
+    const snapshot = buildCandidateSnapshot({
       candidate,
       profile: profileByUser.get(userId) || null,
       eligibility: eligibilityByUser.get(userId) || null,
@@ -248,16 +269,23 @@ const fetchAllSnapshots = async () => {
       interviews: interviewsByUser.get(userId) || [],
       payments: paymentsByUser.get(userId) || [],
     });
+    snapshot.testimonial = testimonialByUser.get(userId) || null;
+    return snapshot;
   });
 };
 
 const listCandidatesByStage = async (req, res) => {
   try {
     const stageKey = String(req.params.stageKey || 'dashboard').toLowerCase();
+    const filter = String(req.query.filter || 'current').toLowerCase();
     const snapshots = await fetchAllSnapshots();
-    const rows = snapshots
-      .filter((snapshot) => stageMatcher(stageKey, snapshot))
-      .map((snapshot) => formatCandidateRow(snapshot, stageKey));
+
+    const filteredSnapshots =
+      filter === 'passed'
+        ? snapshots.filter((snapshot) => passedStageMatcher(stageKey, snapshot))
+        : snapshots.filter((snapshot) => stageMatcher(stageKey, snapshot));
+
+    const rows = filteredSnapshots.map((snapshot) => formatCandidateRow(snapshot, stageKey));
 
     res.json(rows);
   } catch (error) {
@@ -399,12 +427,13 @@ const getCandidateDetails = async (req, res) => {
     const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' }).select('-passwordHash').lean();
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
-    const [profile, documents, interviews, payments, eligibility] = await Promise.all([
+    const [profile, documents, interviews, payments, eligibility, testimonial] = await Promise.all([
       Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
       Document.find({ userId: candidate._id }).sort({ uploadedAt: -1 }).lean(),
       Interview.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
       Payment.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
       Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Testimonial.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
     ]);
 
     res.json({
@@ -414,6 +443,7 @@ const getCandidateDetails = async (req, res) => {
       interviews,
       payments,
       eligibility,
+      testimonial,
       adminNotes: candidate.adminNotes || '',
     });
   } catch (error) {
@@ -497,7 +527,12 @@ const addCandidateInterview = async (req, res) => {
       status: 'Scheduled',
     });
 
-    await User.findByIdAndUpdate(candidate._id, { status: 'interview_scheduled' });
+    if (!candidate.stageStatuses) {
+      candidate.stageStatuses = new Map();
+    }
+    candidate.stageStatuses.set('interviews', 'under_review');
+    candidate.status = 'interview_scheduled';
+    await candidate.save();
 
     res.status(201).json(interview);
   } catch (error) {
@@ -515,6 +550,10 @@ const updatePaymentStatus = async (req, res) => {
 
     const payment = await Payment.findByIdAndUpdate(paymentId, { status }, { new: true });
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
+
+    if (payment.type === 'program' && status === 'completed') {
+      await User.findByIdAndUpdate(payment.userId, { status: 'program_payment_complete' });
+    }
 
     res.json(payment);
   } catch (error) {
@@ -542,6 +581,7 @@ const updateCandidateStageDecision = async (req, res) => {
   try {
     const stageKey = String(req.params?.stageKey || '').trim().toLowerCase();
     const status = String(req.body?.status || '').trim().toLowerCase();
+    const hiringPartner = String(req.body?.hiringPartner || '').trim();
 
     if (!validStageKeys.includes(stageKey)) {
       return res.status(400).json({ message: `Invalid stage key: ${stageKey}` });
@@ -587,8 +627,30 @@ const updateCandidateStageDecision = async (req, res) => {
 
     if (stageKey === 'hiring') {
       if (status === 'accepted') {
+        if (!hiringPartner) {
+          return res.status(400).json({ message: 'Hiring partner is required' });
+        }
+        candidate.assignedHiringPartner = hiringPartner;
         candidate.status = 'sent_to_partners';
+      } else if (status === 'under_review') {
+        candidate.assignedHiringPartner = '';
       }
+    }
+
+    if (stageKey === 'interviews') {
+      const interview = await Interview.findOne({ userId: candidate._id }).sort({ createdAt: -1 });
+      if (!interview) {
+        return res.status(404).json({ message: 'No interview found for this candidate' });
+      }
+
+      if (status === 'accepted') {
+        interview.status = 'Completed';
+        candidate.status = 'interview_completed';
+      } else if (status === 'under_review') {
+        interview.status = 'Scheduled';
+        candidate.status = 'interview_scheduled';
+      }
+      await interview.save();
     }
 
     if (stageKey === 'selection') {

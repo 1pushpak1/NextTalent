@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import api from '../../api/axios';
 
+const hiringPartners = ['Nordic Talent Partners', 'EuroTech Careers', 'Global Hiring Bridge'];
+
 const formatDate = (value) => {
   if (!value) return '—';
   const date = new Date(value);
@@ -40,12 +42,13 @@ const stepStatusLabel = {
 export default function AdminCandidateTable({ rows = [], loading = false, stageKey = '', onUpdated }) {
   const navigate = useNavigate();
   const [selectedActionById, setSelectedActionById] = useState({});
+  const [selectedPartnerById, setSelectedPartnerById] = useState({});
   const [savingCandidateId, setSavingCandidateId] = useState('');
 
   if (loading) return <p className="text-sm text-slate-500">Loading applications...</p>;
   if (!rows.length) return <p className="text-sm text-slate-500">No applications found for this stage.</p>;
 
-  const isActionStep = Boolean(stageKey && stageKey !== 'dashboard');
+  const isActionStep = Boolean(stageKey && !['dashboard', 'testimonials'].includes(stageKey));
 
   const chooseAction = (candidateId, action) => {
     setSelectedActionById((prev) => ({ ...prev, [candidateId]: action }));
@@ -56,13 +59,30 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
     if (!selected || !isActionStep) return;
     setSavingCandidateId(candidateId);
     try {
-      await api.put(`/admin/candidates/${candidateId}/stage/${stageKey}/decision`, { status: selected });
+      const payload = { status: selected };
+      if (stageKey === 'hiring' && selected === 'accepted') {
+        const hiringPartner = selectedPartnerById[candidateId] || '';
+        if (!hiringPartner) {
+          alert('Please select a hiring partner first.');
+          setSavingCandidateId('');
+          return;
+        }
+        payload.hiringPartner = hiringPartner;
+      }
+      await api.put(`/admin/candidates/${candidateId}/stage/${stageKey}/decision`, payload);
       if (onUpdated) onUpdated();
     } catch (error) {
       alert(error.response?.data?.message || 'Unable to update step status');
     } finally {
       setSavingCandidateId('');
     }
+  };
+
+  const completeButtonLabel = (currentAction, candidateId) => {
+    if (savingCandidateId === candidateId) return 'Saving...';
+    if (stageKey === 'hiring' && currentAction === 'accepted') return 'Transfer';
+    if (stageKey === 'interviews' && currentAction === 'accepted') return 'Mark Interview Completed';
+    return 'Complete';
   };
 
   return (
@@ -77,6 +97,7 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
               <th className="px-4 py-3">Current Stage</th>
               <th className="px-4 py-3">Pipeline Status</th>
               <th className="px-4 py-3">Date</th>
+              {stageKey === 'testimonials' && <th className="px-4 py-3">Testimonial</th>}
               {isActionStep && <th className="px-4 py-3">Step Status</th>}
               {isActionStep && <th className="px-4 py-3">Step Action</th>}
               <th className="px-4 py-3">Open</th>
@@ -94,42 +115,82 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
                 <td className="px-4 py-3 text-slate-600">{row.currentStage || '—'}</td>
                 <td className="px-4 py-3 text-slate-600">{row.status || '—'}</td>
                 <td className="px-4 py-3 text-slate-600">{formatDate(row.date)}</td>
+                {stageKey === 'testimonials' && (
+                  <td className="max-w-xs px-4 py-3 text-slate-600">
+                    <p>{row.testimonialText || '—'}</p>
+                  </td>
+                )}
                 {isActionStep && (
                   <td className="px-4 py-3 text-slate-700">
-                    {stepStatusLabel[String(row.stepStatus || '').toLowerCase()] || stepStatusLabel.pending}
+                    {stageKey === 'interviews' && row.latestInterviewStatus
+                      ? row.latestInterviewStatus
+                      : stepStatusLabel[String(row.stepStatus || '').toLowerCase()] || stepStatusLabel.pending}
                   </td>
                 )}
                 {isActionStep && (
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {Object.entries(actionConfig).map(([actionKey, cfg]) => {
-                        const selected = currentAction === actionKey;
-                        return (
-                          <button
-                            key={actionKey}
-                            type="button"
-                            className={`rounded-md border p-1.5 transition ${selected ? cfg.iconClass : 'border-slate-300 text-slate-500 hover:bg-slate-100'}`}
-                            onClick={() => chooseAction(row._id, actionKey)}
-                            title={cfg.label}
-                            aria-label={cfg.label}
-                          >
-                            <span className="material-symbols-outlined text-base leading-none">{cfg.icon}</span>
-                          </button>
-                        );
-                      })}
+                    {stageKey === 'hiring' ? (
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700"
+                          value={selectedPartnerById[row._id] || ''}
+                          onChange={(e) => setSelectedPartnerById((prev) => ({ ...prev, [row._id]: e.target.value }))}
+                        >
+                          <option value="">Select partner</option>
+                          {hiringPartners.map((partner) => (
+                            <option key={partner} value={partner}>{partner}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => completeStep(row._id, 'accepted')}
+                          disabled={savingCandidateId === row._id || !selectedPartnerById[row._id]}
+                        >
+                          {completeButtonLabel('accepted', row._id)}
+                        </button>
+                      </div>
+                    ) : stageKey === 'interviews' ? (
                       <button
                         type="button"
-                        className={`rounded-md px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                          currentAction
-                            ? actionConfig[currentAction].buttonClass
-                            : 'bg-slate-300 text-slate-700'
-                        }`}
-                        onClick={() => completeStep(row._id, currentAction)}
-                        disabled={!currentAction || savingCandidateId === row._id}
+                        className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => completeStep(row._id, 'accepted')}
+                        disabled={savingCandidateId === row._id || row.latestInterviewStatus !== 'Scheduled'}
+                        title={row.latestInterviewStatus !== 'Scheduled' ? 'Open the application and schedule an interview first.' : 'Mark interview completed'}
                       >
-                        {savingCandidateId === row._id ? 'Saving...' : 'Complete'}
+                        {completeButtonLabel('accepted', row._id)}
                       </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        {Object.entries(actionConfig).map(([actionKey, cfg]) => {
+                          const selected = currentAction === actionKey;
+                          return (
+                            <button
+                              key={actionKey}
+                              type="button"
+                              className={`rounded-md border p-1.5 transition ${selected ? cfg.iconClass : 'border-slate-300 text-slate-500 hover:bg-slate-100'}`}
+                              onClick={() => chooseAction(row._id, actionKey)}
+                              title={cfg.label}
+                              aria-label={cfg.label}
+                            >
+                              <span className="material-symbols-outlined text-base leading-none">{cfg.icon}</span>
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          className={`rounded-md px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                            currentAction
+                              ? actionConfig[currentAction].buttonClass
+                              : 'bg-slate-300 text-slate-700'
+                          }`}
+                          onClick={() => completeStep(row._id, currentAction)}
+                          disabled={!currentAction || savingCandidateId === row._id}
+                        >
+                          {completeButtonLabel(currentAction, row._id)}
+                        </button>
+                      </div>
+                    )}
                   </td>
                 )}
                 <td className="px-4 py-3">

@@ -17,7 +17,7 @@ const paymentRouteNotice = {
   },
   '/payment/program-fee': {
     title: 'Program fee required',
-    description: 'Please complete the program fee payment before the next processing stage.',
+    description: 'Please complete the program fee payment before the next processing stage. Your dashboard and profile are still accessible.',
     cta: 'Pay Program Fee USD 3,500',
   },
   '/payment/final-payment': {
@@ -133,9 +133,7 @@ export default function CandidateDashboardPage() {
             <section className="mb-8 rounded-xl border border-amber-300 bg-amber-50 p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Action Required</p>
               <h2 className="mt-1 text-xl font-bold text-amber-900">{paymentNotice.title}</h2>
-              <p className="mt-1 text-sm text-amber-900">
-                {paymentNotice.description} Your dashboard and profile are still accessible.
-              </p>
+              <p className="mt-1 text-sm text-amber-900">{paymentNotice.description}</p>
               <Link className="mt-3 inline-block" to={requiredRoute}>
                 <Button>{paymentNotice.cta}</Button>
               </Link>

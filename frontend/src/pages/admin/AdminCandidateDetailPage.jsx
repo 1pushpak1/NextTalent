@@ -95,6 +95,7 @@ export default function AdminCandidateDetailPage() {
   const documents = data?.documents || [];
   const payments = data?.payments || [];
   const interviews = data?.interviews || [];
+  const testimonial = data?.testimonial || null;
 
   const personalDetailsRows = useMemo(() => {
     if (!profile?.personalDetails) return [];
@@ -209,6 +210,10 @@ export default function AdminCandidateDetailPage() {
               <div className="rounded-md bg-slate-100 p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Status</p>
                 <p className="mt-1 font-medium text-slate-900">{candidate.status || 'N/A'}</p>
+              </div>
+              <div className="rounded-md bg-slate-100 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Assigned Hiring Partner</p>
+                <p className="mt-1 font-medium text-slate-900">{candidate.assignedHiringPartner || 'N/A'}</p>
               </div>
             </div>
             <p className="mt-4 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
@@ -442,6 +447,23 @@ export default function AdminCandidateDetailPage() {
               placeholder="Write internal admin notes about this candidate..."
             />
             <button type="button" className="mt-3 rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white" onClick={saveNotes} disabled={saving}>Save Notes</button>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <h2 className="text-lg font-semibold text-slate-900">Candidate Testimonial</h2>
+            {!testimonial && <p className="mt-3 text-sm text-slate-500">No testimonial submitted yet.</p>}
+            {testimonial && (
+              <div className="mt-3 space-y-2 text-sm text-slate-700">
+                <p><b>Name:</b> {testimonial.fullName}</p>
+                <p><b>Country:</b> {testimonial.country}</p>
+                <p><b>Destination:</b> {testimonial.selectedDestination}</p>
+                <p><b>Role:</b> {testimonial.role}</p>
+                <p><b>Consent:</b> {testimonial.consent ? 'Yes' : 'No'}</p>
+                <div className="rounded-md bg-slate-50 p-3 text-slate-800">
+                  {testimonial.text}
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

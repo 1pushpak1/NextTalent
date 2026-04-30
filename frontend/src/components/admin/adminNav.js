@@ -1,8 +1,6 @@
 export const adminMainNav = [
   { label: 'Dashboard', to: '/admin/dashboard' },
   { label: 'Internal Evaluation', to: '/admin/evaluation' },
-  { label: 'Declaration & Contract', to: '/admin/declaration' },
-  { label: 'Document Uploads', to: '/admin/documents' },
   { label: 'Document Verification', to: '/admin/document-verification' },
   { label: 'Hiring Partner Stage', to: '/admin/hiring' },
   { label: 'Interviews', to: '/admin/interviews' },

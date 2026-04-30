@@ -110,6 +110,11 @@ const blankQualification = () => ({ qualificationName: '', field: '', startDate:
 const blankCertification = () => ({ certificationName: '', issuingOrganization: '', yearCompleted: '' });
 const blankWork = () => ({ organizationName: '', jobTitle: '', responsibilities: '', startDate: '', endDate: '', currentlyWorkingHere: false, country: '' });
 const blankLanguage = () => ({ language: '', proficiencyLevel: '', certified: 'No', certificateTitle: '' });
+const clampStep = (value, fallback = 1) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(8, Math.max(1, Math.trunc(numeric)));
+};
 const createDefaultForm = () => ({
   personalDetails: {
     firstName: '',
@@ -180,6 +185,7 @@ export default function ProfileSubmissionPage() {
   const [hasExistingProfile, setHasExistingProfile] = useState(false);
   const [isApprovedProfileView, setIsApprovedProfileView] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [technicalSkillInput, setTechnicalSkillInput] = useState('');
   const navigate = useNavigate();
 
@@ -199,8 +205,13 @@ export default function ProfileSubmissionPage() {
           setForm(hydrateFormFromProfile(existingProfile));
           setFinancialAccepted(Boolean(existingProfile.financialDisclosureAccepted));
           setSignature(existingProfile.signature || null);
-          setCurrentStep(8);
-          setShowFinancialModal(false);
+          if (existingProfile.status === 'draft') {
+            setCurrentStep(clampStep(existingProfile.savedStep, 1));
+            setShowFinancialModal(Boolean(!existingProfile.financialDisclosureAccepted));
+          } else {
+            setCurrentStep(8);
+            setShowFinancialModal(false);
+          }
           return;
         }
 
@@ -292,7 +303,7 @@ By signing below, you accept full responsibility for the authenticity of the det
     });
   };
 
-  const validateRequired = () => {
+  const validateRequired = (providedSignature = signature) => {
     if (!financialAccepted) return 'Financial disclosure acceptance is required.';
     if (!form.personalDetails.firstName || !form.personalDetails.lastName) return 'First and last name are required.';
     if (!form.personalDetails.dateOfBirth || !form.personalDetails.countryOfBirth || !form.personalDetails.citizenship) return 'Complete personal details are required.';
@@ -313,7 +324,7 @@ By signing below, you accept full responsibility for the authenticity of the det
     if (form.education.additionalQualifications.length > 3) return 'Additional qualifications max is 3.';
     if (form.certifications.length > 10) return 'Certifications max is 10.';
     if (form.workExperience.length > 10) return 'Work experience max is 10.';
-    if (!signature?.value) return 'Acknowledgement signature is required.';
+    if (!providedSignature?.value) return 'Acknowledgement signature is required.';
     return null;
   };
 
@@ -438,8 +449,44 @@ By signing below, you accept full responsibility for the authenticity of the det
     setCurrentStep((s) => s + 1);
   };
 
-  const submitProfile = async () => {
-    const error = validateRequired();
+  const saveDraft = async ({ nextStep = currentStep, successMessage = 'Draft saved.', showSuccessMessage = true } = {}) => {
+    setSavingDraft(true);
+    try {
+      const payload = {
+        ...form,
+        financialDisclosureAccepted: financialAccepted,
+        acknowledgementSigned: Boolean(signature?.value),
+        signature: signature || null,
+        savedStep: clampStep(nextStep, currentStep),
+        status: 'draft',
+      };
+
+      const request = hasExistingProfile ? api.put('/profile/me', payload) : api.post('/profile', payload);
+      await request;
+      setHasExistingProfile(true);
+      setCurrentStep(clampStep(nextStep, currentStep));
+      if (showSuccessMessage && successMessage) {
+        alert(successMessage);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Unable to save draft');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const handleSaveAndContinue = async () => {
+    const error = validateCurrentStep();
+    if (error) return alert(error);
+    const nextStep = clampStep(currentStep + 1, 8);
+    await saveDraft({
+      nextStep,
+      showSuccessMessage: false,
+    });
+  };
+
+  const submitProfile = async (providedSignature = signature) => {
+    const error = validateRequired(providedSignature);
     if (error) return alert(error);
     const languagesError = getLanguagesError(form.languages);
     if (languagesError) return alert(languagesError);
@@ -451,7 +498,7 @@ By signing below, you accept full responsibility for the authenticity of the det
         financialDisclosureAccepted: financialAccepted,
         acknowledgementSigned: true,
         signature: {
-          ...(signature || {}),
+          ...(providedSignature || {}),
           fullName,
           signedAt: new Date().toISOString(),
           location: 'Auto-captured placeholder',
@@ -760,7 +807,22 @@ By signing below, you accept full responsibility for the authenticity of the det
               <div>
                 <h3 className="font-semibold text-slate-900">Additional Qualifications (max 3)</h3>
                 {form.education.additionalQualifications.map((q, idx) => (
-                  <div key={idx} className="mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-2">
+                  <div key={idx} className="relative mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-2">
+                    {idx > 0 && (
+                      <button
+                        type="button"
+                        className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-sm font-bold text-rose-600 hover:bg-rose-50"
+                        onClick={() => {
+                          updateSection('education', {
+                            ...form.education,
+                            additionalQualifications: form.education.additionalQualifications.filter((_, qualificationIdx) => qualificationIdx !== idx),
+                          });
+                        }}
+                        aria-label="Remove qualification"
+                      >
+                        x
+                      </button>
+                    )}
                     <Input label="Qualification Name" value={q.qualificationName} onChange={(e) => {
                       const next = [...form.education.additionalQualifications];
                       next[idx].qualificationName = e.target.value;
@@ -1250,11 +1312,15 @@ By signing below, you accept full responsibility for the authenticity of the det
           )}
 
           <div className="mt-6 flex gap-2">
-            {currentStep > 1 && currentStep < 8 && (
-              <Button variant="secondary" onClick={() => setCurrentStep((s) => s - 1)}>Back</Button>
+            {currentStep < 8 && (
+              <Button variant="secondary" onClick={() => saveDraft()} disabled={savingDraft || loading}>
+                {savingDraft ? 'Saving...' : 'Save Draft'}
+              </Button>
             )}
             {currentStep < 8 && (
-              <Button onClick={handleNext}>Next</Button>
+              <Button onClick={handleSaveAndContinue} disabled={savingDraft || loading}>
+                {savingDraft ? 'Saving...' : 'Save & Continue'}
+              </Button>
             )}
           </div>
               </Card>
@@ -1310,7 +1376,7 @@ By signing below, you accept full responsibility for the authenticity of the det
         }}
         onConfirm={(sig) => {
           setSignature(sig);
-          submitProfile();
+          submitProfile(sig);
         }}
       />
       <div className="relative z-30">

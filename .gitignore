@@ -1,3 +1,4 @@
 /backend/node_modules/@swc/helpers/cjs
 /backend/node_modules
 backend/.env
+/backend/uploads

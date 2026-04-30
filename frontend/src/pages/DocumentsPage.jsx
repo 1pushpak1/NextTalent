@@ -34,10 +34,12 @@ export default function DocumentsPage() {
     load();
   }, [navigate]);
 
-  const statusMap = useMemo(() => {
+  const latestDocMap = useMemo(() => {
     const map = {};
     docs.forEach((d) => {
-      map[d.documentType] = d.status;
+      if (!map[d.documentType]) {
+        map[d.documentType] = d;
+      }
     });
     return map;
   }, [docs]);
@@ -55,7 +57,7 @@ export default function DocumentsPage() {
     }
   };
 
-  const uploadedCount = docs.length;
+  const uploadedCount = Object.keys(latestDocMap).length;
   const progress = Math.min(100, Math.round((uploadedCount / documentChecklist.length) * 100));
 
   return (
@@ -99,8 +101,11 @@ export default function DocumentsPage() {
                   <FileUpload
                     key={doc}
                     label={doc}
-                    status={statusMap[doc] || 'Pending'}
-                    onUploaded={(data) => setDocs((prev) => [data, ...prev])}
+                    status={latestDocMap[doc]?.status || 'Pending'}
+                    hasUploadedFile={Boolean(latestDocMap[doc])}
+                    onUploaded={(data) =>
+                      setDocs((prev) => [data, ...prev.filter((existing) => existing.documentType !== data.documentType)])
+                    }
                   />
                 ))}
               </div>

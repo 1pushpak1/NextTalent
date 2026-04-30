@@ -98,8 +98,6 @@ export default function App() {
         >
           <Route path="dashboard" element={<AdminDashboardPage />} />
           <Route path="evaluation" element={<AdminStageCandidatesPage title="Internal Evaluation" stageKey="evaluation" />} />
-          <Route path="declaration" element={<AdminStageCandidatesPage title="Declaration & Contract" stageKey="declaration" />} />
-          <Route path="documents" element={<AdminStageCandidatesPage title="Document Uploads" stageKey="documents" />} />
           <Route path="document-verification" element={<AdminStageCandidatesPage title="Document Verification" stageKey="document-verification" />} />
           <Route path="hiring" element={<AdminStageCandidatesPage title="Hiring Partner Stage" stageKey="hiring" />} />
           <Route path="interviews" element={<AdminStageCandidatesPage title="Interviews" stageKey="interviews" />} />

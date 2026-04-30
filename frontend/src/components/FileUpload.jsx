@@ -3,7 +3,7 @@ import api from '../api/axios';
 import Button from './Button';
 import StatusBadge from './StatusBadge';
 
-export default function FileUpload({ label, status = 'Pending', onUploaded }) {
+export default function FileUpload({ label, status = 'Pending', hasUploadedFile = false, onUploaded }) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
 
@@ -44,7 +44,7 @@ export default function FileUpload({ label, status = 'Pending', onUploaded }) {
         accept=".pdf,.png,.jpg,.jpeg,.webp"
       />
       <Button type="button" variant="secondary" disabled={uploading} onClick={openPicker}>
-        {uploading ? 'Uploading...' : 'Upload'}
+        {uploading ? 'Uploading...' : hasUploadedFile ? 'Change File' : 'Upload File'}
       </Button>
       <StatusBadge status={status} />
     </div>
