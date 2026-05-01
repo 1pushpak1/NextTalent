@@ -19,6 +19,16 @@ const adminRoutes = require('./routes/adminRoutes');
 const { stripeWebhook } = require('./controllers/paymentController');
 
 dotenv.config();
+
+const requireEnv = (name) => {
+  const value = process.env[name];
+  if (!value || !String(value).trim()) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+};
+
+requireEnv('JWT_SECRET');
+
 const app = express();
 app.use(cors());
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhook);

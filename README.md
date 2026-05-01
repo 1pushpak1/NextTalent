@@ -26,6 +26,18 @@ npm install
 npm run dev
 ```
 
+Required backend environment variables:
+- `JWT_SECRET`
+- `MONGO_URI` or `MONGODB_URI`
+
+Optional backend environment variables:
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+- `ADMIN_NAME`
+- `FRONTEND_URL`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+
 ### 2) Frontend
 ```bash
 cd frontend
