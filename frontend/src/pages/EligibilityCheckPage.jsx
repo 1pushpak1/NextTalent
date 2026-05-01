@@ -17,6 +17,17 @@ const destinations = [
   'Italy Upcoming',
 ];
 const countries = ['Germany', 'Switzerland', 'Austria', 'Poland'];
+const eligibilityBurstPieces = [
+  { left: '16%', delay: '0ms', duration: '2350ms', rotate: '-18deg', color: '#f59e0b' },
+  { left: '24%', delay: '120ms', duration: '2550ms', rotate: '22deg', color: '#ef4444' },
+  { left: '33%', delay: '60ms', duration: '2280ms', rotate: '-12deg', color: '#10b981' },
+  { left: '42%', delay: '180ms', duration: '2620ms', rotate: '16deg', color: '#3b82f6' },
+  { left: '50%', delay: '0ms', duration: '2450ms', rotate: '-6deg', color: '#8b5cf6' },
+  { left: '58%', delay: '200ms', duration: '2580ms', rotate: '18deg', color: '#ec4899' },
+  { left: '67%', delay: '90ms', duration: '2380ms', rotate: '-22deg', color: '#14b8a6' },
+  { left: '76%', delay: '160ms', duration: '2520ms', rotate: '12deg', color: '#f97316' },
+  { left: '84%', delay: '40ms', duration: '2300ms', rotate: '-16deg', color: '#eab308' },
+];
 
 export default function EligibilityCheckPage() {
   const [step, setStep] = useState(1);
@@ -234,9 +245,25 @@ export default function EligibilityCheckPage() {
           )}
 
           {step === 4 && result && (
-            <Card className="nst-card rounded-xl p-8 text-center">
+            <Card className="nst-card relative overflow-hidden rounded-xl p-8 text-center">
               {result.isEligible ? (
                 <>
+                  <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                    <div className="nst-burst-glow absolute left-1/2 top-6 h-24 w-24 -translate-x-1/2 rounded-full" />
+                    {eligibilityBurstPieces.map((piece, index) => (
+                      <span
+                        key={index}
+                        className="nst-burst-piece absolute h-4 w-2 rounded-full"
+                        style={{
+                          left: piece.left,
+                          backgroundColor: piece.color,
+                          '--nst-burst-rotate': piece.rotate,
+                          animationDelay: piece.delay,
+                          animationDuration: piece.duration,
+                        }}
+                      />
+                    ))}
+                  </div>
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-700">
                     <span className="material-symbols-outlined text-3xl">check_circle</span>
                   </div>

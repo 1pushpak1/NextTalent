@@ -67,3 +67,54 @@ a {
     radial-gradient(circle at 0% 0%, rgba(58, 95, 148, 0.08) 0, rgba(58, 95, 148, 0) 48%),
     radial-gradient(circle at 100% 100%, rgba(0, 33, 71, 0.08) 0, rgba(0, 33, 71, 0) 50%);
 }
+
+.nst-burst-glow {
+  background:
+    radial-gradient(circle, rgba(254, 240, 138, 0.9) 0, rgba(254, 240, 138, 0.35) 45%, rgba(254, 240, 138, 0) 75%);
+  animation: nst-burst-glow 1400ms ease-out forwards;
+}
+
+.nst-burst-piece {
+  top: 2.5rem;
+  opacity: 0;
+  transform-origin: center;
+  animation-name: nst-burst-piece;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes nst-burst-glow {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.25);
+  }
+  25% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1.4);
+  }
+}
+
+@keyframes nst-burst-piece {
+  0% {
+    opacity: 0;
+    top: 2.5rem;
+    transform: rotate(var(--nst-burst-rotate, 0deg)) scale(0.3);
+  }
+  20% {
+    opacity: 1;
+  }
+  78% {
+    opacity: 1;
+    top: calc(100% - 3.5rem);
+    transform: rotate(calc(var(--nst-burst-rotate, 0deg) + 135deg)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    top: calc(100% - 1.5rem);
+    transform: rotate(calc(var(--nst-burst-rotate, 0deg) + 180deg)) scale(0.92);
+  }
+}
