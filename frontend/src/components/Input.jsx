@@ -9,7 +9,7 @@ export default function Input({ label, error, required = false, inputClassName =
       )}
       <span className="relative block">
         <input
-          className={`w-full rounded-lg border border-[#c4c6cf] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#3a5f94] focus:ring-2 focus:ring-[#3a5f94]/20 ${rightIcon ? 'pr-10' : ''} ${inputClassName}`.trim()}
+          className={`w-full rounded-lg border border-[#c4c6cf] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#3a5f94] focus:ring-2 focus:ring-[#3a5f94]/20 ${error ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20' : ''} ${rightIcon ? 'pr-10' : ''} ${inputClassName}`.trim()}
           required={required}
           {...props}
         />

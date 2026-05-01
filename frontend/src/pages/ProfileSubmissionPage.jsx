@@ -13,6 +13,7 @@ import api from '../api/axios';
 
 const formSteps = ['Personal', 'Education', 'Certifications', 'Experience', 'Skills', 'Languages', 'Additional', 'Review'];
 const monthYearRegex = /^(0[1-9]|1[0-2])\/\d{4}$/;
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const formatMonthYearInput = (value) => {
   const digits = value.replace(/\D/g, '').slice(0, 6);
   if (!digits) return '';
@@ -110,6 +111,348 @@ const blankQualification = () => ({ qualificationName: '', field: '', startDate:
 const blankCertification = () => ({ certificationName: '', issuingOrganization: '', yearCompleted: '' });
 const blankWork = () => ({ organizationName: '', jobTitle: '', responsibilities: '', startDate: '', endDate: '', currentlyWorkingHere: false, country: '' });
 const blankLanguage = () => ({ language: '', proficiencyLevel: '', certified: 'No', certificateTitle: '' });
+const hasValue = (value) => {
+  if (typeof value === 'string') return Boolean(value.trim());
+  return Boolean(value);
+};
+const addError = (errors, path, message) => {
+  if (!errors[path]) {
+    errors[path] = message;
+  }
+};
+const areErrorMapsEqual = (left, right) => {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) return false;
+  return leftKeys.every((key) => left[key] === right[key]);
+};
+const getStepValidation = (step, form, { requireVisa, technicalSkills, financialAccepted, providedSignature } = {}) => {
+  const errors = {};
+  let summary = null;
+
+  if (step === 1) {
+    const p = form.personalDetails;
+    const missingRequired = [];
+
+    if (!hasValue(p.firstName)) {
+      addError(errors, 'personalDetails.firstName', 'First name is required.');
+      missingRequired.push('firstName');
+    }
+    if (!hasValue(p.lastName)) {
+      addError(errors, 'personalDetails.lastName', 'Last name is required.');
+      missingRequired.push('lastName');
+    }
+    if (!hasValue(p.dateOfBirth)) {
+      addError(errors, 'personalDetails.dateOfBirth', 'Date of birth is required.');
+      missingRequired.push('dateOfBirth');
+    }
+    if (!hasValue(p.countryOfBirth)) {
+      addError(errors, 'personalDetails.countryOfBirth', 'Country of birth is required.');
+      missingRequired.push('countryOfBirth');
+    }
+    if (!hasValue(p.citizenship)) {
+      addError(errors, 'personalDetails.citizenship', 'Citizenship is required.');
+      missingRequired.push('citizenship');
+    }
+    if (!hasValue(p.currentCountryOfResidence)) {
+      addError(errors, 'personalDetails.currentCountryOfResidence', 'Current country of residence is required.');
+      missingRequired.push('currentCountryOfResidence');
+    }
+    if (missingRequired.length && !summary) {
+      summary = 'Please complete all mandatory personal details before continuing.';
+    }
+    if (requireVisa && !hasValue(p.currentVisaStatus)) {
+      addError(errors, 'personalDetails.currentVisaStatus', 'Current visa status is required when residence and citizenship differ.');
+      summary ||= 'Current visa status is required when residence and citizenship differ.';
+    }
+    if (hasValue(p.email) && !emailRegex.test(p.email)) {
+      addError(errors, 'personalDetails.email', 'Please enter a valid email format.');
+      summary ||= 'Please enter a valid email format.';
+    }
+  }
+
+  if (step === 2) {
+    const e = form.education;
+    const highSchoolMissing = [];
+
+    if (!hasValue(e.highSchool.startDate)) {
+      addError(errors, 'education.highSchool.startDate', 'High school start date is required.');
+      highSchoolMissing.push('startDate');
+    }
+    if (!hasValue(e.highSchool.endDate)) {
+      addError(errors, 'education.highSchool.endDate', 'High school end date is required.');
+      highSchoolMissing.push('endDate');
+    }
+    if (!hasValue(e.highSchool.track)) {
+      addError(errors, 'education.highSchool.track', 'Academic track is required.');
+      highSchoolMissing.push('track');
+    }
+    if (!hasValue(e.highSchool.country)) {
+      addError(errors, 'education.highSchool.country', 'High school country is required.');
+      highSchoolMissing.push('country');
+    }
+    if (highSchoolMissing.length && !summary) {
+      summary = 'Please complete all mandatory high school fields.';
+    }
+
+    const dateFields = [
+      ['education.highSchool.startDate', 'High school start date', e.highSchool.startDate],
+      ['education.highSchool.endDate', 'High school end date', e.highSchool.endDate],
+      ['education.diploma.startDate', 'Diploma start date', e.diploma.startDate],
+      ['education.diploma.endDate', 'Diploma end date', e.diploma.endDate],
+      ['education.bachelors.startDate', "Bachelor's start date", e.bachelors.startDate],
+      ['education.bachelors.endDate', "Bachelor's end date", e.bachelors.endDate],
+      ['education.masters.startDate', "Master's start date", e.masters.startDate],
+      ['education.masters.endDate', "Master's end date", e.masters.endDate],
+    ];
+
+    dateFields.forEach(([path, label, value]) => {
+      if (hasValue(value) && !monthYearRegex.test(value)) {
+        addError(errors, path, `${label} must use MM/YYYY format.`);
+        summary ||= 'Use MM/YYYY format for education dates.';
+      }
+    });
+
+    if (!e.diploma.notApplicable) {
+      const diplomaMissing = [];
+      if (!hasValue(e.diploma.duration)) {
+        addError(errors, 'education.diploma.duration', 'Diploma duration is required.');
+        diplomaMissing.push('duration');
+      }
+      if (!hasValue(e.diploma.hasTraining)) {
+        addError(errors, 'education.diploma.hasTraining', 'Please specify whether the diploma includes training.');
+        diplomaMissing.push('hasTraining');
+      }
+      if (!hasValue(e.diploma.startDate)) {
+        addError(errors, 'education.diploma.startDate', 'Diploma start date is required.');
+        diplomaMissing.push('startDate');
+      }
+      if (!hasValue(e.diploma.endDate)) {
+        addError(errors, 'education.diploma.endDate', 'Diploma end date is required.');
+        diplomaMissing.push('endDate');
+      }
+      if (!hasValue(e.diploma.field)) {
+        addError(errors, 'education.diploma.field', 'Diploma field of study is required.');
+        diplomaMissing.push('field');
+      }
+      if (!hasValue(e.diploma.country)) {
+        addError(errors, 'education.diploma.country', 'Diploma country is required.');
+        diplomaMissing.push('country');
+      }
+      if (diplomaMissing.length && !summary) {
+        summary = 'Please complete all diploma fields or mark diploma as not applicable.';
+      }
+    } else {
+      const bachelorsMissing = [];
+      if (!hasValue(e.bachelors.startDate)) {
+        addError(errors, 'education.bachelors.startDate', "Bachelor's start date is required.");
+        bachelorsMissing.push('startDate');
+      }
+      if (!hasValue(e.bachelors.endDate)) {
+        addError(errors, 'education.bachelors.endDate', "Bachelor's end date is required.");
+        bachelorsMissing.push('endDate');
+      }
+      if (!hasValue(e.bachelors.field)) {
+        addError(errors, 'education.bachelors.field', "Bachelor's field of study is required.");
+        bachelorsMissing.push('field');
+      }
+      if (!hasValue(e.bachelors.country)) {
+        addError(errors, 'education.bachelors.country', "Bachelor's country is required.");
+        bachelorsMissing.push('country');
+      }
+      if (bachelorsMissing.length && !summary) {
+        summary = "Bachelor's details are mandatory when diploma is not applicable.";
+      }
+    }
+
+    const bachelorsTouched = [e.bachelors.startDate, e.bachelors.endDate, e.bachelors.field, e.bachelors.country].some(hasValue);
+    if (!e.diploma.notApplicable && bachelorsTouched) {
+      if (!hasValue(e.bachelors.startDate)) addError(errors, 'education.bachelors.startDate', "Bachelor's start date is required once you start this section.");
+      if (!hasValue(e.bachelors.endDate)) addError(errors, 'education.bachelors.endDate', "Bachelor's end date is required once you start this section.");
+      if (!hasValue(e.bachelors.field)) addError(errors, 'education.bachelors.field', "Bachelor's field of study is required once you start this section.");
+      if (!hasValue(e.bachelors.country)) addError(errors, 'education.bachelors.country', "Bachelor's country is required once you start this section.");
+      if (Object.keys(errors).some((key) => key.startsWith('education.bachelors.')) && !summary) {
+        summary = "Please complete all highlighted bachelor's fields before continuing.";
+      }
+    }
+
+    if (!e.masters.notApplicable) {
+      const mastersTouched = [e.masters.startDate, e.masters.endDate, e.masters.field, e.masters.country].some(hasValue);
+      if (!hasValue(e.masters.startDate)) addError(errors, 'education.masters.startDate', "Master's start date is required.");
+      if (!hasValue(e.masters.endDate)) addError(errors, 'education.masters.endDate', "Master's end date is required.");
+      if (!hasValue(e.masters.field)) addError(errors, 'education.masters.field', "Master's field of study is required.");
+      if (!hasValue(e.masters.country)) addError(errors, 'education.masters.country', "Master's country is required.");
+      if (mastersTouched && !summary) {
+        summary = "Please complete all highlighted master's fields before continuing.";
+      }
+    }
+
+    e.additionalQualifications.forEach((q, idx) => {
+      const touched = [q.qualificationName, q.field, q.startDate, q.endDate].some(hasValue);
+      if (!touched) return;
+
+      if (!hasValue(q.qualificationName)) addError(errors, `education.additionalQualifications.${idx}.qualificationName`, `Qualification name is required for additional qualification ${idx + 1}.`);
+      if (!hasValue(q.field)) addError(errors, `education.additionalQualifications.${idx}.field`, `Field is required for additional qualification ${idx + 1}.`);
+      if (!hasValue(q.startDate)) addError(errors, `education.additionalQualifications.${idx}.startDate`, `Start date is required for additional qualification ${idx + 1}.`);
+      if (!hasValue(q.endDate)) addError(errors, `education.additionalQualifications.${idx}.endDate`, `End date is required for additional qualification ${idx + 1}.`);
+      if (hasValue(q.startDate) && !monthYearRegex.test(q.startDate)) {
+        addError(errors, `education.additionalQualifications.${idx}.startDate`, `Additional qualification ${idx + 1} start date must use MM/YYYY format.`);
+        summary ||= 'Use MM/YYYY format for education dates.';
+      }
+      if (hasValue(q.endDate) && !monthYearRegex.test(q.endDate)) {
+        addError(errors, `education.additionalQualifications.${idx}.endDate`, `Additional qualification ${idx + 1} end date must use MM/YYYY format.`);
+        summary ||= 'Use MM/YYYY format for education dates.';
+      }
+      if (
+        Object.keys(errors).some((key) => key.startsWith(`education.additionalQualifications.${idx}.`)) &&
+        !summary
+      ) {
+        summary = 'Please complete all highlighted additional qualification fields before continuing.';
+      }
+    });
+
+    const educationPairs = [
+      { label: 'High school', startPath: 'education.highSchool.startDate', endPath: 'education.highSchool.endDate', startDate: e.highSchool.startDate, endDate: e.highSchool.endDate },
+      { label: 'Diploma', startPath: 'education.diploma.startDate', endPath: 'education.diploma.endDate', startDate: e.diploma.startDate, endDate: e.diploma.endDate },
+      { label: "Bachelor's", startPath: 'education.bachelors.startDate', endPath: 'education.bachelors.endDate', startDate: e.bachelors.startDate, endDate: e.bachelors.endDate },
+      { label: "Master's", startPath: 'education.masters.startDate', endPath: 'education.masters.endDate', startDate: e.masters.startDate, endDate: e.masters.endDate },
+      ...e.additionalQualifications.map((item, idx) => ({
+        label: `Additional qualification ${idx + 1}`,
+        startPath: `education.additionalQualifications.${idx}.startDate`,
+        endPath: `education.additionalQualifications.${idx}.endDate`,
+        startDate: item.startDate,
+        endDate: item.endDate,
+      })),
+    ];
+
+    educationPairs.forEach((pair) => {
+      if (monthYearRegex.test(pair.startDate) && monthYearRegex.test(pair.endDate) && isEndBeforeStart(pair.startDate, pair.endDate)) {
+        addError(errors, pair.endPath, `${pair.label} end date must be after start date.`);
+        summary ||= `${pair.label} end date must be after start date.`;
+      }
+      if (monthYearRegex.test(pair.endDate) && isEndAfterCurrentMonth(pair.endDate)) {
+        addError(errors, pair.endPath, `${pair.label} end date cannot be in the future.`);
+        summary ||= `${pair.label} end date cannot be in the future.`;
+      }
+    });
+
+    if (e.additionalQualifications.length > 3) {
+      summary ||= 'Additional qualifications max is 3.';
+    }
+  }
+
+  if (step === 3) {
+    if (form.certifications.length > 10) {
+      summary = 'Certifications max is 10.';
+    }
+
+    form.certifications.forEach((cert, idx) => {
+      const touched = [cert.certificationName, cert.issuingOrganization, cert.yearCompleted].some(hasValue);
+      if (!touched) return;
+
+      if (!hasValue(cert.certificationName)) addError(errors, `certifications.${idx}.certificationName`, `Certification name is required for entry ${idx + 1}.`);
+      if (!hasValue(cert.issuingOrganization)) addError(errors, `certifications.${idx}.issuingOrganization`, `Issuing organization is required for entry ${idx + 1}.`);
+      if (!hasValue(cert.yearCompleted)) addError(errors, `certifications.${idx}.yearCompleted`, `Year completed is required for entry ${idx + 1}.`);
+      if (hasValue(cert.yearCompleted) && !/^\d{4}$/.test(cert.yearCompleted)) {
+        addError(errors, `certifications.${idx}.yearCompleted`, `Certification year for entry ${idx + 1} must be in YYYY format.`);
+        summary ||= 'Certification year must be in YYYY format.';
+      }
+    });
+
+    if (Object.keys(errors).length && !summary) {
+      summary = 'Please complete all fields for each certification entry.';
+    }
+  }
+
+  if (step === 4) {
+    if (form.workExperience.length > 10) {
+      summary = 'Work experience max is 10.';
+    }
+
+    form.workExperience.forEach((work, idx) => {
+      const touched = idx === 0 || [work.organizationName, work.jobTitle, work.responsibilities, work.startDate, work.endDate, work.country].some(hasValue) || work.currentlyWorkingHere;
+      if (!touched) return;
+
+      if (!hasValue(work.organizationName)) addError(errors, `workExperience.${idx}.organizationName`, `Organization name is required for work experience ${idx + 1}.`);
+      if (!hasValue(work.jobTitle)) addError(errors, `workExperience.${idx}.jobTitle`, `Job title is required for work experience ${idx + 1}.`);
+      if (!hasValue(work.responsibilities)) addError(errors, `workExperience.${idx}.responsibilities`, `Key responsibilities are required for work experience ${idx + 1}.`);
+      if (!hasValue(work.country)) addError(errors, `workExperience.${idx}.country`, `Country is required for work experience ${idx + 1}.`);
+      if (!hasValue(work.startDate)) addError(errors, `workExperience.${idx}.startDate`, `Start date is required for work experience ${idx + 1}.`);
+      if (!work.currentlyWorkingHere && !hasValue(work.endDate)) addError(errors, `workExperience.${idx}.endDate`, `End date is required unless you are currently working here for work experience ${idx + 1}.`);
+
+      if (hasValue(work.startDate) && !monthYearRegex.test(work.startDate)) {
+        addError(errors, `workExperience.${idx}.startDate`, `Work experience ${idx + 1} start date must use MM/YYYY format.`);
+        summary ||= 'Use MM/YYYY format for work dates.';
+      }
+      if (!work.currentlyWorkingHere && hasValue(work.endDate) && !monthYearRegex.test(work.endDate)) {
+        addError(errors, `workExperience.${idx}.endDate`, `Work experience ${idx + 1} end date must use MM/YYYY format.`);
+        summary ||= 'Use MM/YYYY format for work dates.';
+      }
+      if (
+        monthYearRegex.test(work.startDate) &&
+        monthYearRegex.test(work.endDate) &&
+        !work.currentlyWorkingHere &&
+        isEndBeforeStart(work.startDate, work.endDate)
+      ) {
+        addError(errors, `workExperience.${idx}.endDate`, `Work experience ${idx + 1} end date must be after start date.`);
+        summary ||= `Work experience ${idx + 1} end date must be after start date.`;
+      }
+      if (!work.currentlyWorkingHere && monthYearRegex.test(work.endDate) && isEndAfterCurrentMonth(work.endDate)) {
+        addError(errors, `workExperience.${idx}.endDate`, `Work experience ${idx + 1} end date cannot be in the future.`);
+        summary ||= `Work experience ${idx + 1} end date cannot be in the future.`;
+      }
+    });
+
+    if (
+      ['organizationName', 'jobTitle', 'responsibilities', 'startDate', 'country'].some(
+        (field) => errors[`workExperience.0.${field}`],
+      ) &&
+      !summary
+    ) {
+      summary = 'Please complete the first work experience entry before continuing.';
+    }
+    if (Object.keys(errors).length && !summary) {
+      summary = 'Please complete all highlighted work experience fields before continuing.';
+    }
+  }
+
+  if (step === 5) {
+    if (!technicalSkills.length) {
+      addError(errors, 'skills.technical', 'At least one technical skill is required.');
+      summary = 'Technical skills are mandatory.';
+    }
+  }
+
+  if (step === 6) {
+    form.languages.forEach((lang, idx) => {
+      const touched = idx === 0 || hasValue(lang.language) || hasValue(lang.proficiencyLevel) || hasValue(lang.certificateTitle) || lang.certified === 'Yes';
+      if (!touched) return;
+
+      if (!hasValue(lang.language)) addError(errors, `languages.${idx}.language`, `Language is required for entry ${idx + 1}.`);
+      if (!hasValue(lang.proficiencyLevel)) addError(errors, `languages.${idx}.proficiencyLevel`, `Proficiency level is required for entry ${idx + 1}.`);
+      if (lang.certified === 'Yes' && !hasValue(lang.certificateTitle)) {
+        addError(errors, `languages.${idx}.certificateTitle`, `Certificate title is required for certified language entry ${idx + 1}.`);
+      }
+    });
+
+    if (errors['languages.0.language'] || errors['languages.0.proficiencyLevel']) {
+      summary = 'Please complete at least one language proficiency entry.';
+    } else if (Object.keys(errors).length && !summary) {
+      summary = 'Please complete all highlighted language fields before continuing.';
+    }
+  }
+
+  if (step === 8) {
+    if (!financialAccepted) {
+      summary = 'Financial disclosure acceptance is required.';
+    }
+    if (!providedSignature?.value) {
+      summary ||= 'Acknowledgement signature is required.';
+    }
+  }
+
+  return { summary, fieldErrors: errors };
+};
 const clampStep = (value, fallback = 1) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -178,6 +521,7 @@ const hydrateFormFromProfile = (profile) => {
 
 export default function ProfileSubmissionPage() {
   const [currentStep, setCurrentStep] = useState(1);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [showFinancialModal, setShowFinancialModal] = useState(false);
   const [financialAccepted, setFinancialAccepted] = useState(false);
   const [showAckModal, setShowAckModal] = useState(false);
@@ -190,6 +534,11 @@ export default function ProfileSubmissionPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState(createDefaultForm);
+  const getFieldError = (path) => fieldErrors[path];
+  const goToStep = (step) => {
+    setFieldErrors({});
+    setCurrentStep(step);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -246,40 +595,21 @@ You acknowledge that any incorrect, misleading, or incomplete information may im
 
 By signing below, you accept full responsibility for the authenticity of the details submitted.`;
 
-  const allDatesValid = useMemo(() => {
-    const highSchoolDates = [form.education.highSchool.startDate, form.education.highSchool.endDate];
-    const diplomaDates = [form.education.diploma.startDate, form.education.diploma.endDate];
-    const bachelorsDates = [form.education.bachelors.startDate, form.education.bachelors.endDate];
-    const mastersDates = [form.education.masters.startDate, form.education.masters.endDate];
-    const additionalDates = form.education.additionalQualifications.flatMap((q) => [q.startDate, q.endDate]);
-    const certYears = form.certifications.map((c) => c.yearCompleted).filter(Boolean);
-    const workDates = form.workExperience.flatMap((w) => [w.startDate, w.endDate]).filter(Boolean);
-    return [...highSchoolDates, ...diplomaDates, ...bachelorsDates, ...mastersDates, ...additionalDates, ...workDates].every((d) => !d || monthYearRegex.test(d)) && certYears.every((y) => /^\d{4}$/.test(y));
-  }, [form]);
   const technicalSkills = useMemo(
     () => form.skills.technical.split(',').map((skill) => skill.trim()).filter(Boolean),
     [form.skills.technical],
   );
-  const getLanguagesError = (languages) => {
-    if (!languages[0]?.language || !languages[0]?.proficiencyLevel) {
-      return 'Please complete at least one language proficiency entry.';
-    }
+  useEffect(() => {
+    if (!Object.keys(fieldErrors).length) return;
+    const nextErrors = getStepValidation(currentStep, form, {
+      requireVisa,
+      technicalSkills,
+      financialAccepted,
+      providedSignature: signature,
+    }).fieldErrors;
+    setFieldErrors((prev) => (areErrorMapsEqual(prev, nextErrors) ? prev : nextErrors));
+  }, [currentStep, fieldErrors, financialAccepted, form, requireVisa, signature, technicalSkills]);
 
-    for (let i = 0; i < languages.length; i += 1) {
-      const item = languages[i];
-      const touched = item.language || item.proficiencyLevel || item.certificateTitle || item.certified === 'Yes';
-      if (!touched) continue;
-
-      if (!item.language || !item.proficiencyLevel) {
-        return `Please complete language and proficiency for language entry ${i + 1}.`;
-      }
-      if (item.certified === 'Yes' && !item.certificateTitle.trim()) {
-        return `Certificate title is required for certified language entry ${i + 1}.`;
-      }
-    }
-
-    return null;
-  };
   const addTechnicalSkill = () => {
     const nextSkill = technicalSkillInput.trim();
     if (!nextSkill) return;
@@ -303,151 +633,13 @@ By signing below, you accept full responsibility for the authenticity of the det
     });
   };
 
-  const validateRequired = (providedSignature = signature) => {
-    if (!financialAccepted) return 'Financial disclosure acceptance is required.';
-    if (!form.personalDetails.firstName || !form.personalDetails.lastName) return 'First and last name are required.';
-    if (!form.personalDetails.dateOfBirth || !form.personalDetails.countryOfBirth || !form.personalDetails.citizenship) return 'Complete personal details are required.';
-    if (requireVisa && !form.personalDetails.currentVisaStatus) return 'Current visa status is required.';
-    if (!form.education.highSchool.startDate || !form.education.highSchool.endDate) return 'High school dates are required.';
-    if (form.education.diploma.notApplicable && (!form.education.bachelors.startDate || !form.education.bachelors.endDate || !form.education.bachelors.field)) {
-      return "Bachelor's details are required when diploma is not applicable.";
-    }
-    if (!allDatesValid) return 'Use MM/YYYY format for dates and YYYY for certification year.';
-    const educationDateOrderError = getEducationDateOrderError(form.education);
-    if (educationDateOrderError) return educationDateOrderError;
-    const educationFutureEndDateError = getEducationFutureEndDateError(form.education);
-    if (educationFutureEndDateError) return educationFutureEndDateError;
-    const workDateOrderError = getWorkDateOrderError(form.workExperience);
-    if (workDateOrderError) return workDateOrderError;
-    const workFutureEndDateError = getWorkFutureEndDateError(form.workExperience);
-    if (workFutureEndDateError) return workFutureEndDateError;
-    if (form.education.additionalQualifications.length > 3) return 'Additional qualifications max is 3.';
-    if (form.certifications.length > 10) return 'Certifications max is 10.';
-    if (form.workExperience.length > 10) return 'Work experience max is 10.';
-    if (!providedSignature?.value) return 'Acknowledgement signature is required.';
-    return null;
-  };
-
-  const validateCurrentStep = () => {
-    if (currentStep === 1) {
-      const p = form.personalDetails;
-      if (!p.firstName || !p.lastName || !p.dateOfBirth || !p.countryOfBirth || !p.citizenship || !p.currentCountryOfResidence) {
-        return 'Please complete all mandatory personal details before continuing.';
-      }
-      if (requireVisa && !p.currentVisaStatus) {
-        return 'Current visa status is required when residence and citizenship differ.';
-      }
-      if (p.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) {
-        return 'Please enter a valid email format.';
-      }
-      return null;
-    }
-
-    if (currentStep === 2) {
-      const e = form.education;
-      if (!e.highSchool.startDate || !e.highSchool.endDate || !e.highSchool.track || !e.highSchool.country) {
-        return 'Please complete all mandatory high school fields.';
-      }
-      if (!monthYearRegex.test(e.highSchool.startDate) || !monthYearRegex.test(e.highSchool.endDate)) {
-        return 'Use MM/YYYY format for high school dates.';
-      }
-
-      if (!e.diploma.notApplicable) {
-        if (!e.diploma.duration || !e.diploma.hasTraining || !e.diploma.startDate || !e.diploma.endDate || !e.diploma.field || !e.diploma.country) {
-          return 'Please complete all diploma fields or mark diploma as not applicable.';
-        }
-      } else {
-        if (!e.bachelors.startDate || !e.bachelors.endDate || !e.bachelors.field || !e.bachelors.country) {
-          return "Bachelor's details are mandatory when diploma is not applicable.";
-        }
-      }
-
-      const datePool = [
-        e.diploma.startDate,
-        e.diploma.endDate,
-        e.bachelors.startDate,
-        e.bachelors.endDate,
-        e.masters.startDate,
-        e.masters.endDate,
-        ...e.additionalQualifications.flatMap((q) => [q.startDate, q.endDate]),
-      ].filter(Boolean);
-
-      if (!datePool.every((d) => monthYearRegex.test(d))) {
-        return 'Use MM/YYYY format for education dates.';
-      }
-      const educationDateOrderError = getEducationDateOrderError(e);
-      if (educationDateOrderError) {
-        return educationDateOrderError;
-      }
-      const educationFutureEndDateError = getEducationFutureEndDateError(e);
-      if (educationFutureEndDateError) {
-        return educationFutureEndDateError;
-      }
-      if (e.additionalQualifications.length > 3) {
-        return 'Additional qualifications max is 3.';
-      }
-      return null;
-    }
-
-    if (currentStep === 3) {
-      if (form.certifications.length > 10) return 'Certifications max is 10.';
-      for (const cert of form.certifications) {
-        const touched = cert.certificationName || cert.issuingOrganization || cert.yearCompleted;
-        if (touched) {
-          if (!cert.certificationName || !cert.issuingOrganization || !cert.yearCompleted) {
-            return 'Please complete all fields for each certification entry.';
-          }
-          if (!/^\d{4}$/.test(cert.yearCompleted)) {
-            return 'Certification year must be in YYYY format.';
-          }
-        }
-      }
-      return null;
-    }
-
-    if (currentStep === 4) {
-      if (form.workExperience.length > 10) return 'Work experience max is 10.';
-      const first = form.workExperience[0];
-      if (!first.organizationName || !first.jobTitle || !first.responsibilities || !first.startDate || !first.country) {
-        return 'Please complete the first work experience entry before continuing.';
-      }
-      if (!monthYearRegex.test(first.startDate)) {
-        return 'Use MM/YYYY format for work start date.';
-      }
-      if (!first.currentlyWorkingHere) {
-        if (!first.endDate) return 'End date is required unless currently working here is checked.';
-        if (!monthYearRegex.test(first.endDate)) return 'Use MM/YYYY format for work end date.';
-      }
-      const workDateOrderError = getWorkDateOrderError(form.workExperience);
-      if (workDateOrderError) {
-        return workDateOrderError;
-      }
-      const workFutureEndDateError = getWorkFutureEndDateError(form.workExperience);
-      if (workFutureEndDateError) {
-        return workFutureEndDateError;
-      }
-      return null;
-    }
-
-    if (currentStep === 5) {
-      if (!technicalSkills.length) {
-        return 'Technical skills are mandatory.';
-      }
-      return null;
-    }
-
-    if (currentStep === 6) {
-      return getLanguagesError(form.languages);
-    }
-
-    return null;
-  };
-
-  const handleNext = () => {
-    const error = validateCurrentStep();
-    if (error) return alert(error);
-    setCurrentStep((s) => s + 1);
-  };
+  const getCurrentStepValidation = () =>
+    getStepValidation(currentStep, form, {
+      requireVisa,
+      technicalSkills,
+      financialAccepted,
+      providedSignature: signature,
+    });
 
   const saveDraft = async ({ nextStep = currentStep, successMessage = 'Draft saved.', showSuccessMessage = true } = {}) => {
     setSavingDraft(true);
@@ -464,6 +656,7 @@ By signing below, you accept full responsibility for the authenticity of the det
       const request = hasExistingProfile ? api.put('/profile/me', payload) : api.post('/profile', payload);
       await request;
       setHasExistingProfile(true);
+      setFieldErrors({});
       setCurrentStep(clampStep(nextStep, currentStep));
       if (showSuccessMessage && successMessage) {
         alert(successMessage);
@@ -476,20 +669,58 @@ By signing below, you accept full responsibility for the authenticity of the det
   };
 
   const handleSaveAndContinue = async () => {
-    const error = validateCurrentStep();
-    if (error) return alert(error);
+    const validation = getCurrentStepValidation();
+    setFieldErrors(validation.fieldErrors);
+    if (validation.summary) return alert(validation.summary);
     const nextStep = clampStep(currentStep + 1, 8);
     await saveDraft({
       nextStep,
       showSuccessMessage: false,
     });
+    setFieldErrors({});
+  };
+
+  const handleSaveDraft = async () => {
+    const validation = getCurrentStepValidation();
+    setFieldErrors(validation.fieldErrors);
+    if (validation.summary) return alert(validation.summary);
+    await saveDraft();
+    setFieldErrors({});
+  };
+
+  const getSubmissionValidation = (providedSignature = signature) => {
+    if (!financialAccepted) {
+      return { step: currentStep, summary: 'Financial disclosure acceptance is required.', fieldErrors: {} };
+    }
+
+    for (let step = 1; step <= 6; step += 1) {
+      const validation = getStepValidation(step, form, {
+        requireVisa,
+        technicalSkills,
+        financialAccepted,
+        providedSignature,
+      });
+      if (validation.summary || Object.keys(validation.fieldErrors).length) {
+        return { step, ...validation };
+      }
+    }
+
+    if (!providedSignature?.value) {
+      return { step: 8, summary: 'Acknowledgement signature is required.', fieldErrors: {} };
+    }
+
+    return null;
   };
 
   const submitProfile = async (providedSignature = signature) => {
-    const error = validateRequired(providedSignature);
-    if (error) return alert(error);
-    const languagesError = getLanguagesError(form.languages);
-    if (languagesError) return alert(languagesError);
+    const validation = getSubmissionValidation(providedSignature);
+    if (validation) {
+      if (validation.step !== currentStep) {
+        goToStep(validation.step);
+      }
+      setFieldErrors(validation.fieldErrors);
+      return alert(validation.summary);
+    }
 
     setLoading(true);
     try {
@@ -530,7 +761,7 @@ By signing below, you accept full responsibility for the authenticity of the det
     <div className="nst-shell min-h-screen">
       <Navbar />
       <CandidatePortalSidebar />
-      <main className="px-6 pb-16 pt-28 lg:ml-64">
+      <main className="flex-1 px-6 pb-16 pt-28 lg:ml-64">
         <div className="mx-auto max-w-[1200px]">
           <div className="flex flex-col gap-6 lg:flex-row">
             {!isApprovedProfileView && (
@@ -567,25 +798,34 @@ By signing below, you accept full responsibility for the authenticity of the det
 
           {currentStep === 1 && (
             <div className="grid gap-3 md:grid-cols-2">
-              <Input required label="First Name as per passport" value={form.personalDetails.firstName} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, firstName: e.target.value })} />
+              <Input required label="First Name as per passport" error={getFieldError('personalDetails.firstName')} value={form.personalDetails.firstName} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, firstName: e.target.value })} />
               <Input label="Middle Name (optional)" value={form.personalDetails.middleName} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, middleName: e.target.value })} />
-              <Input required label="Last Name as per passport" value={form.personalDetails.lastName} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, lastName: e.target.value })} />
-              <Input required label="Date of Birth" type="date" value={form.personalDetails.dateOfBirth} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, dateOfBirth: e.target.value })} />
-              <Input required label="Country of Birth" value={form.personalDetails.countryOfBirth} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, countryOfBirth: e.target.value })} />
-              <Input required label="Citizenship" value={form.personalDetails.citizenship} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, citizenship: e.target.value })} />
-              <Input required label="Current Country of Residence" value={form.personalDetails.currentCountryOfResidence} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, currentCountryOfResidence: e.target.value })} />
-              <Input label="Email" type="email" value={form.personalDetails.email} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, email: e.target.value })} />
-              {requireVisa && <Input required label="Current Visa Status" value={form.personalDetails.currentVisaStatus} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, currentVisaStatus: e.target.value })} />}
+              <Input required label="Last Name as per passport" error={getFieldError('personalDetails.lastName')} value={form.personalDetails.lastName} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, lastName: e.target.value })} />
+              <Input required label="Date of Birth" error={getFieldError('personalDetails.dateOfBirth')} type="date" value={form.personalDetails.dateOfBirth} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, dateOfBirth: e.target.value })} />
+              <Input required label="Country of Birth" error={getFieldError('personalDetails.countryOfBirth')} value={form.personalDetails.countryOfBirth} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, countryOfBirth: e.target.value })} />
+              <Input required label="Citizenship" error={getFieldError('personalDetails.citizenship')} value={form.personalDetails.citizenship} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, citizenship: e.target.value })} />
+              <Input required label="Current Country of Residence" error={getFieldError('personalDetails.currentCountryOfResidence')} value={form.personalDetails.currentCountryOfResidence} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, currentCountryOfResidence: e.target.value })} />
+              <Input label="Email" error={getFieldError('personalDetails.email')} type="email" value={form.personalDetails.email} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, email: e.target.value })} />
+              {requireVisa && (
+                <Select
+                  required
+                  label="Current Visa Status"
+                  error={getFieldError('personalDetails.currentVisaStatus')}
+                  options={['Applied', 'Approved', 'Rejected']}
+                  value={form.personalDetails.currentVisaStatus}
+                  onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, currentVisaStatus: e.target.value })}
+                />
+              )}
             </div>
           )}
 
           {currentStep === 2 && (
             <div className="space-y-5">
               <div className="grid gap-3 md:grid-cols-2">
-                <Input required label="High School Start (MM/YYYY)" value={form.education.highSchool.startDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, startDate: formatMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
-                <Input required label="High School End (MM/YYYY)" value={form.education.highSchool.endDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, endDate: formatMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
-                <Select required label="Academic Track" value={form.education.highSchool.track} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, track: e.target.value } })} options={['Science', 'Commerce', 'Arts', 'Other']} />
-                <Input required label="High School Country" value={form.education.highSchool.country} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, country: e.target.value } })} />
+                <Input required label="High School Start (MM/YYYY)" error={getFieldError('education.highSchool.startDate')} value={form.education.highSchool.startDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, startDate: formatMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
+                <Input required label="High School End (MM/YYYY)" error={getFieldError('education.highSchool.endDate')} value={form.education.highSchool.endDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, endDate: formatMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
+                <Select required label="Academic Track" error={getFieldError('education.highSchool.track')} value={form.education.highSchool.track} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, track: e.target.value } })} options={['Science', 'Commerce', 'Arts', 'Other']} />
+                <Input required label="High School Country" error={getFieldError('education.highSchool.country')} value={form.education.highSchool.country} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, country: e.target.value } })} />
               </div>
 
               <div className="rounded-xl border border-slate-200 p-3">
@@ -607,6 +847,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     <Select
                       required
                       label="Diploma Duration"
+                      error={getFieldError('education.diploma.duration')}
                       options={['3-Year Diploma', 'Other']}
                       value={form.education.diploma.duration}
                       onChange={(e) =>
@@ -619,6 +860,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     <Select
                       required
                       label="Includes 1-year training"
+                      error={getFieldError('education.diploma.hasTraining')}
                       options={['Yes', 'No']}
                       value={form.education.diploma.hasTraining}
                       onChange={(e) =>
@@ -631,6 +873,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     <Input
                       required
                       label="Diploma Start (MM/YYYY)"
+                      error={getFieldError('education.diploma.startDate')}
                       placeholder="MM/YYYY"
                       maxLength={7}
                       inputMode="numeric"
@@ -645,6 +888,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     <Input
                       required
                       label="Diploma End (MM/YYYY)"
+                      error={getFieldError('education.diploma.endDate')}
                       placeholder="MM/YYYY"
                       maxLength={7}
                       inputMode="numeric"
@@ -659,6 +903,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     <Input
                       required
                       label="Diploma Field of Study"
+                      error={getFieldError('education.diploma.field')}
                       value={form.education.diploma.field}
                       onChange={(e) =>
                         updateSection('education', {
@@ -670,6 +915,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     <Input
                       required
                       label="Diploma Country"
+                      error={getFieldError('education.diploma.country')}
                       value={form.education.diploma.country}
                       onChange={(e) =>
                         updateSection('education', {
@@ -688,6 +934,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   <Input
                     required={form.education.diploma.notApplicable}
                     label="Bachelor's Start (MM/YYYY)"
+                    error={getFieldError('education.bachelors.startDate')}
                     placeholder="MM/YYYY"
                     maxLength={7}
                     inputMode="numeric"
@@ -702,6 +949,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   <Input
                     required={form.education.diploma.notApplicable}
                     label="Bachelor's End (MM/YYYY)"
+                    error={getFieldError('education.bachelors.endDate')}
                     placeholder="MM/YYYY"
                     maxLength={7}
                     inputMode="numeric"
@@ -716,6 +964,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   <Input
                     required={form.education.diploma.notApplicable}
                     label="Bachelor's Field of Study"
+                    error={getFieldError('education.bachelors.field')}
                     value={form.education.bachelors.field}
                     onChange={(e) =>
                       updateSection('education', {
@@ -727,6 +976,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   <Input
                     required={form.education.diploma.notApplicable}
                     label="Bachelor's Country"
+                    error={getFieldError('education.bachelors.country')}
                     value={form.education.bachelors.country}
                     onChange={(e) =>
                       updateSection('education', {
@@ -756,6 +1006,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <Input
                       label="Master's Start (MM/YYYY)"
+                      error={getFieldError('education.masters.startDate')}
                       placeholder="MM/YYYY"
                       maxLength={7}
                       inputMode="numeric"
@@ -769,6 +1020,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     />
                     <Input
                       label="Master's End (MM/YYYY)"
+                      error={getFieldError('education.masters.endDate')}
                       placeholder="MM/YYYY"
                       maxLength={7}
                       inputMode="numeric"
@@ -782,6 +1034,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     />
                     <Input
                       label="Master's Field of Study"
+                      error={getFieldError('education.masters.field')}
                       value={form.education.masters.field}
                       onChange={(e) =>
                         updateSection('education', {
@@ -792,6 +1045,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     />
                     <Input
                       label="Master's Country"
+                      error={getFieldError('education.masters.country')}
                       value={form.education.masters.country}
                       onChange={(e) =>
                         updateSection('education', {
@@ -823,22 +1077,22 @@ By signing below, you accept full responsibility for the authenticity of the det
                         x
                       </button>
                     )}
-                    <Input label="Qualification Name" value={q.qualificationName} onChange={(e) => {
+                    <Input label="Qualification Name" error={getFieldError(`education.additionalQualifications.${idx}.qualificationName`)} value={q.qualificationName} onChange={(e) => {
                       const next = [...form.education.additionalQualifications];
                       next[idx].qualificationName = e.target.value;
                       updateSection('education', { ...form.education, additionalQualifications: next });
                     }} />
-                    <Input label="Field" value={q.field} onChange={(e) => {
+                    <Input label="Field" error={getFieldError(`education.additionalQualifications.${idx}.field`)} value={q.field} onChange={(e) => {
                       const next = [...form.education.additionalQualifications];
                       next[idx].field = e.target.value;
                       updateSection('education', { ...form.education, additionalQualifications: next });
                     }} />
-                    <Input label="Start (MM/YYYY)" maxLength={7} inputMode="numeric" value={q.startDate} onChange={(e) => {
+                    <Input label="Start (MM/YYYY)" error={getFieldError(`education.additionalQualifications.${idx}.startDate`)} maxLength={7} inputMode="numeric" value={q.startDate} onChange={(e) => {
                       const next = [...form.education.additionalQualifications];
                       next[idx].startDate = formatMonthYearInput(e.target.value);
                       updateSection('education', { ...form.education, additionalQualifications: next });
                     }} />
-                    <Input label="End (MM/YYYY)" maxLength={7} inputMode="numeric" value={q.endDate} onChange={(e) => {
+                    <Input label="End (MM/YYYY)" error={getFieldError(`education.additionalQualifications.${idx}.endDate`)} maxLength={7} inputMode="numeric" value={q.endDate} onChange={(e) => {
                       const next = [...form.education.additionalQualifications];
                       next[idx].endDate = formatMonthYearInput(e.target.value);
                       updateSection('education', { ...form.education, additionalQualifications: next });
@@ -875,17 +1129,17 @@ By signing below, you accept full responsibility for the authenticity of the det
                       x
                     </button>
                   )}
-                  <Input label="Certification Name" value={c.certificationName} onChange={(e) => {
+                  <Input label="Certification Name" error={getFieldError(`certifications.${idx}.certificationName`)} value={c.certificationName} onChange={(e) => {
                     const next = [...form.certifications];
                     next[idx].certificationName = e.target.value;
                     updateSection('certifications', next);
                   }} />
-                  <Input label="Issuing Organization / Platform" value={c.issuingOrganization} onChange={(e) => {
+                  <Input label="Issuing Organization / Platform" error={getFieldError(`certifications.${idx}.issuingOrganization`)} value={c.issuingOrganization} onChange={(e) => {
                     const next = [...form.certifications];
                     next[idx].issuingOrganization = e.target.value;
                     updateSection('certifications', next);
                   }} />
-                  <Input label="Year Completed" value={c.yearCompleted} onChange={(e) => {
+                  <Input label="Year Completed" error={getFieldError(`certifications.${idx}.yearCompleted`)} value={c.yearCompleted} onChange={(e) => {
                     const next = [...form.certifications];
                     next[idx].yearCompleted = formatYearInput(e.target.value);
                     updateSection('certifications', next);
@@ -906,33 +1160,33 @@ By signing below, you accept full responsibility for the authenticity of the det
               <h3 className="font-semibold text-slate-900">Work Experience / Internships (max 10)</h3>
               {form.workExperience.map((w, idx) => (
                 <div key={idx} className="mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-2">
-                  <Input required={idx === 0} label="Organization Name" value={w.organizationName} onChange={(e) => {
+                  <Input required={idx === 0} label="Organization Name" error={getFieldError(`workExperience.${idx}.organizationName`)} value={w.organizationName} onChange={(e) => {
                     const next = [...form.workExperience];
                     next[idx].organizationName = e.target.value;
                     updateSection('workExperience', next);
                   }} />
-                  <Input required={idx === 0} label="Job Title" value={w.jobTitle} onChange={(e) => {
+                  <Input required={idx === 0} label="Job Title" error={getFieldError(`workExperience.${idx}.jobTitle`)} value={w.jobTitle} onChange={(e) => {
                     const next = [...form.workExperience];
                     next[idx].jobTitle = e.target.value;
                     updateSection('workExperience', next);
                   }} />
-                  <Input required={idx === 0} label="Key Responsibilities" value={w.responsibilities} onChange={(e) => {
+                  <Input required={idx === 0} label="Key Responsibilities" error={getFieldError(`workExperience.${idx}.responsibilities`)} value={w.responsibilities} onChange={(e) => {
                     const next = [...form.workExperience];
                     next[idx].responsibilities = e.target.value;
                     updateSection('workExperience', next);
                   }} />
-                  <Input required={idx === 0} label="Country" value={w.country} onChange={(e) => {
+                  <Input required={idx === 0} label="Country" error={getFieldError(`workExperience.${idx}.country`)} value={w.country} onChange={(e) => {
                     const next = [...form.workExperience];
                     next[idx].country = e.target.value;
                     updateSection('workExperience', next);
                   }} />
-                  <Input required={idx === 0} label="Start Date (MM/YYYY)" maxLength={7} inputMode="numeric" value={w.startDate} onChange={(e) => {
+                  <Input required={idx === 0} label="Start Date (MM/YYYY)" error={getFieldError(`workExperience.${idx}.startDate`)} maxLength={7} inputMode="numeric" value={w.startDate} onChange={(e) => {
                     const next = [...form.workExperience];
                     next[idx].startDate = formatMonthYearInput(e.target.value);
                     updateSection('workExperience', next);
                   }} />
                   {!w.currentlyWorkingHere && (
-                    <Input required={idx === 0} label="End Date (MM/YYYY)" maxLength={7} inputMode="numeric" value={w.endDate} onChange={(e) => {
+                    <Input required={idx === 0} label="End Date (MM/YYYY)" error={getFieldError(`workExperience.${idx}.endDate`)} maxLength={7} inputMode="numeric" value={w.endDate} onChange={(e) => {
                       const next = [...form.workExperience];
                       next[idx].endDate = formatMonthYearInput(e.target.value);
                       updateSection('workExperience', next);
@@ -972,7 +1226,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                 </label>
                 <div className="flex gap-2">
                   <input
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#002147] focus:ring-2 focus:ring-[#002147]/15"
+                    className={`w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#002147] focus:ring-2 focus:ring-[#002147]/15 ${getFieldError('skills.technical') ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20' : ''}`.trim()}
                     value={technicalSkillInput}
                     onChange={(e) => setTechnicalSkillInput(e.target.value)}
                     placeholder="Type a skill"
@@ -987,6 +1241,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     +
                   </Button>
                 </div>
+                {getFieldError('skills.technical') && <span className="mt-1 block text-xs text-rose-600">{getFieldError('skills.technical')}</span>}
                 <div className="mt-2 flex flex-wrap gap-2">
                   {technicalSkills.map((skill) => (
                     <span key={skill} className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-[#002147]">
@@ -1030,7 +1285,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                       x
                     </button>
                   )}
-                  <Input required={idx === 0} label="Language" value={lang.language} onChange={(e) => {
+                  <Input required={idx === 0} label="Language" error={getFieldError(`languages.${idx}.language`)} value={lang.language} onChange={(e) => {
                     const next = [...form.languages];
                     next[idx].language = e.target.value;
                     updateSection('languages', next);
@@ -1038,6 +1293,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   <Select
                     required={idx === 0}
                     label="Proficiency Level"
+                    error={getFieldError(`languages.${idx}.proficiencyLevel`)}
                     options={['Basic', 'Intermediate', 'Advance']}
                     value={lang.proficiencyLevel}
                     onChange={(e) => {
@@ -1048,6 +1304,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   />
                   <Select
                     label="Certified"
+                    error={getFieldError(`languages.${idx}.certified`)}
                     options={['Yes', 'No']}
                     value={lang.certified}
                     onChange={(e) => {
@@ -1063,6 +1320,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     <Input
                       required
                       label="Certificate Title"
+                      error={getFieldError(`languages.${idx}.certificateTitle`)}
                       value={lang.certificateTitle}
                       onChange={(e) => {
                         const next = [...form.languages];
@@ -1093,7 +1351,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Personal Details</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(1)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(1)}>Edit</Button>}
                 </div>
                 <div className="grid gap-3 text-sm md:grid-cols-2">
                   <div className="rounded-lg bg-white p-3"><p className="text-slate-500">First Name</p><p className="font-medium text-slate-900">{reviewValue(form.personalDetails.firstName)}</p></div>
@@ -1113,7 +1371,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Education</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(2)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(2)}>Edit</Button>}
                 </div>
 
                 <div className="space-y-4 text-sm">
@@ -1196,7 +1454,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Certifications</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(3)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(3)}>Edit</Button>}
                 </div>
                 {form.certifications.some((c) => c.certificationName || c.issuingOrganization || c.yearCompleted) ? (
                   <div className="space-y-3 text-sm">
@@ -1221,7 +1479,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Work Experience / Internships</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(4)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(4)}>Edit</Button>}
                 </div>
                 {form.workExperience.some((w) => w.organizationName || w.jobTitle || w.responsibilities || w.startDate || w.endDate || w.currentlyWorkingHere || w.country) ? (
                   <div className="space-y-3 text-sm">
@@ -1250,7 +1508,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Skills</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(5)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(5)}>Edit</Button>}
                 </div>
                 <div className="grid gap-3 text-sm md:grid-cols-2">
                   <div className="rounded-lg bg-white p-3">
@@ -1267,7 +1525,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Languages</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(6)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(6)}>Edit</Button>}
                 </div>
                 {form.languages.some((lang) => lang.language || lang.proficiencyLevel || lang.certified === 'Yes' || lang.certificateTitle) ? (
                   <div className="space-y-3 text-sm">
@@ -1295,7 +1553,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Additional Information</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => setCurrentStep(7)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(7)}>Edit</Button>}
                 </div>
                 <div className="rounded-lg bg-white p-4 text-sm">
                   <p className="text-slate-500">Notes</p>
@@ -1313,7 +1571,7 @@ By signing below, you accept full responsibility for the authenticity of the det
 
           <div className="mt-6 flex gap-2">
             {currentStep < 8 && (
-              <Button variant="secondary" onClick={() => saveDraft()} disabled={savingDraft || loading}>
+              <Button variant="secondary" onClick={handleSaveDraft} disabled={savingDraft || loading}>
                 {savingDraft ? 'Saving...' : 'Save Draft'}
               </Button>
             )}
@@ -1379,7 +1637,7 @@ By signing below, you accept full responsibility for the authenticity of the det
           submitProfile(sig);
         }}
       />
-      <div className="relative z-30">
+      <div className="relative z-30 lg:ml-64">
         <Footer />
       </div>
     </div>

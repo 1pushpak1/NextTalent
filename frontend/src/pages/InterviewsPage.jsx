@@ -18,7 +18,7 @@ export default function InterviewsPage() {
     <div className="nst-shell">
       <Navbar />
       <CandidatePortalSidebar />
-      <main className="pb-[430px] pt-28 md:pb-[240px] lg:ml-64">
+      <main className="flex-1 pb-16 pt-28 lg:ml-64">
         <div className="mx-auto max-w-5xl px-6">
           <div className="nst-card rounded-xl p-8">
             <h1 className="mb-3 text-3xl font-bold text-[#002147]">Interviews</h1>
@@ -52,7 +52,7 @@ export default function InterviewsPage() {
           </div>
         </div>
       </main>
-      <div className="fixed bottom-0 left-0 right-0 z-30 lg:left-64">
+      <div className="relative z-30 lg:ml-64">
         <Footer />
       </div>
     </div>

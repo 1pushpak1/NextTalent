@@ -114,7 +114,7 @@ export default function CandidateDashboardPage() {
       <Navbar />
       <CandidatePortalSidebar />
 
-      <main className="pb-20 pt-28 lg:ml-64">
+      <main className="flex-1 pb-20 pt-28 lg:ml-64">
         <div className="mx-auto max-w-[1200px] px-6">
           <section className="mb-10 flex flex-col justify-between gap-5 md:flex-row md:items-end">
             <div>
@@ -213,7 +213,7 @@ export default function CandidateDashboardPage() {
           </section>
         </div>
       </main>
-      <div className="relative z-30">
+      <div className="relative z-30 lg:ml-64">
         <Footer />
       </div>
     </div>

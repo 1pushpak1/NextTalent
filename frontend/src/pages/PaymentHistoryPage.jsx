@@ -28,7 +28,7 @@ export default function PaymentHistoryPage() {
       <Navbar />
       <CandidatePortalSidebar />
 
-      <main className="pb-20 pt-28 lg:ml-64">
+      <main className="flex-1 pb-20 pt-28 lg:ml-64">
         <div className="mx-auto max-w-[1200px] px-6">
           <section className="mb-8 flex items-end justify-between gap-4">
             <div>
@@ -76,7 +76,7 @@ export default function PaymentHistoryPage() {
         </div>
       </main>
 
-      <div className="relative z-30">
+      <div className="relative z-30 lg:ml-64">
         <Footer />
       </div>
     </div>
