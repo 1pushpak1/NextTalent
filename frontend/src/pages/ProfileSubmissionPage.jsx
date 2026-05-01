@@ -30,6 +30,10 @@ const getCurrentMonthNumber = () => {
   const now = new Date();
   return now.getFullYear() * 12 + (now.getMonth() + 1);
 };
+const getCurrentMonthYearValue = () => {
+  const now = new Date();
+  return `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+};
 const isEndBeforeStart = (startDate, endDate) => {
   const start = monthYearToNumber(startDate);
   const end = monthYearToNumber(endDate);
@@ -39,6 +43,11 @@ const isEndAfterCurrentMonth = (endDate) => {
   const end = monthYearToNumber(endDate);
   if (end === null) return false;
   return end > getCurrentMonthNumber();
+};
+const formatEndMonthYearInput = (value) => {
+  const formatted = formatMonthYearInput(value);
+  if (!monthYearRegex.test(formatted)) return formatted;
+  return isEndAfterCurrentMonth(formatted) ? getCurrentMonthYearValue() : formatted;
 };
 const getEducationDateOrderError = (education) => {
   const pairs = [
@@ -680,14 +689,6 @@ By signing below, you accept full responsibility for the authenticity of the det
     setFieldErrors({});
   };
 
-  const handleSaveDraft = async () => {
-    const validation = getCurrentStepValidation();
-    setFieldErrors(validation.fieldErrors);
-    if (validation.summary) return alert(validation.summary);
-    await saveDraft();
-    setFieldErrors({});
-  };
-
   const getSubmissionValidation = (providedSignature = signature) => {
     if (!financialAccepted) {
       return { step: currentStep, summary: 'Financial disclosure acceptance is required.', fieldErrors: {} };
@@ -823,7 +824,7 @@ By signing below, you accept full responsibility for the authenticity of the det
             <div className="space-y-5">
               <div className="grid gap-3 md:grid-cols-2">
                 <Input required label="High School Start (MM/YYYY)" error={getFieldError('education.highSchool.startDate')} value={form.education.highSchool.startDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, startDate: formatMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
-                <Input required label="High School End (MM/YYYY)" error={getFieldError('education.highSchool.endDate')} value={form.education.highSchool.endDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, endDate: formatMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
+                <Input required label="High School End (MM/YYYY)" error={getFieldError('education.highSchool.endDate')} value={form.education.highSchool.endDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, endDate: formatEndMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
                 <Select required label="Academic Track" error={getFieldError('education.highSchool.track')} value={form.education.highSchool.track} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, track: e.target.value } })} options={['Science', 'Commerce', 'Arts', 'Other']} />
                 <Input required label="High School Country" error={getFieldError('education.highSchool.country')} value={form.education.highSchool.country} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, country: e.target.value } })} />
               </div>
@@ -896,7 +897,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                       onChange={(e) =>
                         updateSection('education', {
                           ...form.education,
-                          diploma: { ...form.education.diploma, endDate: formatMonthYearInput(e.target.value) },
+                          diploma: { ...form.education.diploma, endDate: formatEndMonthYearInput(e.target.value) },
                         })
                       }
                     />
@@ -957,7 +958,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     onChange={(e) =>
                       updateSection('education', {
                         ...form.education,
-                        bachelors: { ...form.education.bachelors, endDate: formatMonthYearInput(e.target.value) },
+                        bachelors: { ...form.education.bachelors, endDate: formatEndMonthYearInput(e.target.value) },
                       })
                     }
                   />
@@ -1028,7 +1029,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                       onChange={(e) =>
                         updateSection('education', {
                           ...form.education,
-                          masters: { ...form.education.masters, endDate: formatMonthYearInput(e.target.value) },
+                          masters: { ...form.education.masters, endDate: formatEndMonthYearInput(e.target.value) },
                         })
                       }
                     />
@@ -1094,7 +1095,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     }} />
                     <Input label="End (MM/YYYY)" error={getFieldError(`education.additionalQualifications.${idx}.endDate`)} maxLength={7} inputMode="numeric" value={q.endDate} onChange={(e) => {
                       const next = [...form.education.additionalQualifications];
-                      next[idx].endDate = formatMonthYearInput(e.target.value);
+                      next[idx].endDate = formatEndMonthYearInput(e.target.value);
                       updateSection('education', { ...form.education, additionalQualifications: next });
                     }} />
                   </div>
@@ -1188,7 +1189,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   {!w.currentlyWorkingHere && (
                     <Input required={idx === 0} label="End Date (MM/YYYY)" error={getFieldError(`workExperience.${idx}.endDate`)} maxLength={7} inputMode="numeric" value={w.endDate} onChange={(e) => {
                       const next = [...form.workExperience];
-                      next[idx].endDate = formatMonthYearInput(e.target.value);
+                      next[idx].endDate = formatEndMonthYearInput(e.target.value);
                       updateSection('workExperience', next);
                     }} />
                   )}
@@ -1259,7 +1260,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                 </div>
               </div>
               <Input
-                label="Soft Skills (optional)"
+                label="Soft Skills"
                 value={form.skills.soft}
                 onChange={(e) => updateSection('skills', { ...form.skills, soft: e.target.value })}
               />
@@ -1570,9 +1571,9 @@ By signing below, you accept full responsibility for the authenticity of the det
           )}
 
           <div className="mt-6 flex gap-2">
-            {currentStep < 8 && (
-              <Button variant="secondary" onClick={handleSaveDraft} disabled={savingDraft || loading}>
-                {savingDraft ? 'Saving...' : 'Save Draft'}
+            {currentStep > 1 && currentStep < 8 && (
+              <Button variant="secondary" onClick={() => goToStep(currentStep - 1)} disabled={savingDraft || loading}>
+                Back
               </Button>
             )}
             {currentStep < 8 && (

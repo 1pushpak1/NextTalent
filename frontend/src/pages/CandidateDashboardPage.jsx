@@ -48,6 +48,7 @@ export default function CandidateDashboardPage() {
   const hasInitial = data?.paymentStatus?.some((p) => p.type === 'initial' && p.status === 'completed');
   const programPaid = data?.paymentStatus?.some((p) => p.type === 'program' && p.status === 'completed');
   const finalPaid = data?.paymentStatus?.some((p) => p.type === 'final' && p.status === 'completed');
+  const internalEvaluationPassed = data?.profileStatus === 'accepted';
   const interviewScheduled = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'scheduled');
   const interviewCompleted = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'completed');
   const testimonialSubmitted = Boolean(data?.testimonialSubmitted);
@@ -124,7 +125,7 @@ export default function CandidateDashboardPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              {!hasInitial && (
+              {internalEvaluationPassed && !hasInitial && (
                 <Link to="/initial-payment">
                   <Button>Pay USD 500</Button>
                 </Link>
@@ -195,7 +196,7 @@ export default function CandidateDashboardPage() {
               <h3 className="mb-3 text-2xl font-semibold text-[#002147]">Milestone Actions</h3>
               <div className="flex flex-wrap gap-3">
                 {interviewScheduled && <Link to="/interviews"><Button variant="secondary">View Interview Details</Button></Link>}
-                {!hasInitial && <Link to="/initial-payment"><Button>Pay Initial USD 500</Button></Link>}
+                {internalEvaluationPassed && !hasInitial && <Link to="/initial-payment"><Button>Pay Initial USD 500</Button></Link>}
                 {hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Link to="/payment/program-fee"><Button>Pay Program Fee</Button></Link>}
                 {selected && !finalPaid && <Link to="/payment/final-payment"><Button>Pay Final Program Fee</Button></Link>}
                 {selected && finalPaid && !testimonialSubmitted && <Link to="/testimonial"><Button variant="secondary">Share Testimonial</Button></Link>}
