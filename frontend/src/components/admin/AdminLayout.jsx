@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import Button from '../Button';
 import AdminSidebar from './AdminSidebar';
 
 export default function AdminLayout() {
@@ -16,25 +15,20 @@ export default function AdminLayout() {
         setPaymentsOpen={setPaymentsOpen}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
+        onLogout={logout}
       />
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-md border border-slate-200 p-2 lg:hidden"
-              onClick={() => setMobileOpen(true)}
-              aria-label="Open admin sidebar"
-            >
-              <span className="material-symbols-outlined text-base">menu</span>
-            </button>
-            <p className="text-sm font-semibold text-slate-900">Admin Workspace</p>
-          </div>
-          <Button variant="secondary" onClick={logout}>Logout</Button>
-        </header>
+        <button
+          type="button"
+          className="fixed left-4 top-4 z-30 rounded-md border border-slate-200 bg-white p-2 shadow-sm lg:hidden"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open admin sidebar"
+        >
+          <span className="material-symbols-outlined text-base">menu</span>
+        </button>
 
-        <main className="h-[calc(100vh-57px)] overflow-y-auto p-4">
+        <main className="min-h-screen overflow-y-auto p-4">
           <Outlet />
         </main>
       </div>

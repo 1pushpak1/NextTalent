@@ -793,7 +793,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                 <h1 className="text-3xl font-bold text-[#002147]">{isApprovedProfileView ? 'Profile Information' : 'Profile Submission'}</h1>
                 <p className="mb-4 mt-2 text-sm text-[#44474e]">
                   {isApprovedProfileView
-                    ? 'Your profile has been approved. Details are shown below in read-only mode.'
+                    ? 'Your profile has been approved.'
                     : 'Complete all sections carefully. Precision in your profile supports faster evaluation.'}
                 </p>
 

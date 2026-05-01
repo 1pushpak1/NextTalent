@@ -1,16 +1,46 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/axios';
 import Button from './Button';
 
 export default function Navbar() {
   const { isAuthenticated, logout, user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [firstName, setFirstName] = useState('');
   const menuRef = useRef(null);
   const navigate = useNavigate();
-  const displayName = user?.name?.trim()?.split(/\s+/)?.[0] || user?.email?.split('@')?.[0] || 'User';
+  const displayName = firstName || user?.name?.trim()?.split(/\s+/)?.[0] || user?.email?.split('@')?.[0] || 'User';
   const initials = displayName.slice(0, 2).toUpperCase();
   const dashboardPath = user?.role === 'admin' ? '/admin/dashboard' : '/candidate-dashboard';
+
+  useEffect(() => {
+    if (!isAuthenticated || user?.role === 'admin') return undefined;
+
+    const localFirstName = user?.profile?.personalDetails?.firstName?.trim?.();
+    if (localFirstName) {
+      setFirstName(localFirstName);
+      return undefined;
+    }
+
+    let ignore = false;
+    api
+      .get('/dashboard/me')
+      .then(({ data }) => {
+        if (ignore) return;
+        const nextFirstName = data?.profile?.personalDetails?.firstName?.trim?.() || '';
+        if (nextFirstName) {
+          setFirstName(nextFirstName);
+        }
+      })
+      .catch(() => {
+        if (!ignore) setFirstName('');
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [isAuthenticated, user?.profile?.personalDetails?.firstName, user?.role]);
 
   useEffect(() => {
     if (!open) return undefined;

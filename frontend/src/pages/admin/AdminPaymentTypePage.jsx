@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import Button from '../../components/Button';
+import Modal from '../../components/Modal';
+import Select from '../../components/Select';
 import api from '../../api/axios';
 
 const formatDate = (value) => {
@@ -9,11 +12,20 @@ const formatDate = (value) => {
 };
 
 const statusOptions = ['completed', 'pending', 'failed', 'refunded'];
+const formatStatus = (value) => {
+  if (!value) return '—';
+  return String(value)
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
 
 export default function AdminPaymentTypePage({ title, type }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -37,13 +49,18 @@ export default function AdminPaymentTypePage({ title, type }) {
     load();
   }, [type]);
 
-  const updateStatus = async (paymentId, key) => {
-    if (!paymentId) return;
+  const updateStatus = async () => {
+    if (!editingPayment?.paymentId) return;
     try {
-      await api.put(`/admin/payments/${paymentId}/status`, { status: draft[key] || 'pending' });
+      setSaving(true);
+      const key = editingPayment.paymentId || `pending-${editingPayment.candidateId}`;
+      await api.put(`/admin/payments/${editingPayment.paymentId}/status`, { status: draft[key] || 'pending' });
       await load();
+      setEditingPayment(null);
     } catch (error) {
       alert(error.response?.data?.message || 'Unable to update payment status');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -82,29 +99,18 @@ export default function AdminPaymentTypePage({ title, type }) {
                       <td className="px-4 py-3 text-slate-600">{row.email}</td>
                       <td className="px-4 py-3 text-slate-600">{row.paymentType}</td>
                       <td className="px-4 py-3 text-slate-600">USD {row.amount}</td>
-                      <td className="px-4 py-3 text-slate-600">{row.status}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatStatus(row.status)}</td>
                       <td className="px-4 py-3 text-slate-600">{formatDate(row.date)}</td>
                       <td className="px-4 py-3 text-slate-600">{row.transactionId}</td>
                       <td className="px-4 py-3">
                         {row.paymentId ? (
-                          <div className="flex items-center gap-2">
-                            <select
-                              className="rounded-md border border-slate-300 px-2 py-1 text-xs"
-                              value={draft[key] || 'pending'}
-                              onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.value }))}
-                            >
-                              {statusOptions.map((opt) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              className="rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold text-white"
-                              onClick={() => updateStatus(row.paymentId, key)}
-                            >
-                              Save
-                            </button>
-                          </div>
+                          <Button
+                            variant="secondary"
+                            className="px-3 py-2 text-xs"
+                            onClick={() => setEditingPayment(row)}
+                          >
+                            Edit Payment Status
+                          </Button>
                         ) : (
                           <span className="text-xs text-slate-500">No payment record</span>
                         )}
@@ -117,6 +123,56 @@ export default function AdminPaymentTypePage({ title, type }) {
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={Boolean(editingPayment)}
+        onClose={() => !saving && setEditingPayment(null)}
+        title="Edit Payment Status"
+      >
+        {editingPayment && (
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-md bg-slate-100 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Candidate</p>
+                <p className="mt-1 font-medium text-slate-900">{editingPayment.candidateName}</p>
+              </div>
+              <div className="rounded-md bg-slate-100 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Payment Type</p>
+                <p className="mt-1 font-medium text-slate-900">{editingPayment.paymentType}</p>
+              </div>
+              <div className="rounded-md bg-slate-100 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Amount</p>
+                <p className="mt-1 font-medium text-slate-900">USD {editingPayment.amount}</p>
+              </div>
+              <div className="rounded-md bg-slate-100 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Transaction ID</p>
+                <p className="mt-1 font-medium text-slate-900">{editingPayment.transactionId || '—'}</p>
+              </div>
+            </div>
+
+            <Select
+              label="Payment Status"
+              options={statusOptions}
+              value={draft[editingPayment.paymentId || `pending-${editingPayment.candidateId}`] || 'pending'}
+              onChange={(e) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  [editingPayment.paymentId || `pending-${editingPayment.candidateId}`]: e.target.value,
+                }))
+              }
+            />
+
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setEditingPayment(null)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={updateStatus} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Status'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </section>
   );
 }

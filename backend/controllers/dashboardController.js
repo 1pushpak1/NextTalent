@@ -14,7 +14,7 @@ const hasPassedInitialEligibility = ({ eligibility, user, profile, payments, doc
   docs.length > 0 ||
   interviews.length > 0;
 
-const buildStages = ({ eligibility, profile, user, docs, interviews, payments }) => {
+const buildStages = ({ eligibility, profile, user, docs, interviews, payments, testimonial }) => {
   const hasSubmittedProfile = Boolean(profile) && profile.status !== 'draft';
   const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
   const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed') || user.status === 'program_payment_complete';
@@ -106,7 +106,7 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments })
       name: 'Final Payment',
       status: selectionRejected ? 'Inactive' : hasFinal ? 'Completed' : selectionAccepted ? 'Pending' : 'Pending',
     },
-    { name: 'Testimonial', status: selectionRejected ? 'Inactive' : user.status === 'process_complete' ? 'Completed' : 'Pending' },
+    { name: 'Testimonial', status: selectionRejected ? 'Inactive' : testimonial ? 'Completed' : 'Pending' },
   ];
 };
 
@@ -153,7 +153,7 @@ const getDashboard = async (req, res) => {
     ]);
     const testimonial = await Testimonial.findOne({ userId: req.user._id }).sort({ createdAt: -1 });
 
-    const stages = buildStages({ eligibility, profile, user, docs, interviews, payments });
+    const stages = buildStages({ eligibility, profile, user, docs, interviews, payments, testimonial });
     const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed') || user.status === 'program_payment_complete';
     const effectiveHasProgram = hasProgram;
     const hasFinal = payments.some((p) => p.type === 'final' && p.status === 'completed');
@@ -172,7 +172,9 @@ const getDashboard = async (req, res) => {
       user.status === 'documents_submitted' ||
       docsReceived;
     let currentStage = stages.find((s) => s.status === 'Pending' || s.status === 'Under Review' || s.status === 'In Progress');
-    if (selectionDecision === 'accepted' || user.status === 'selected') {
+    if ((selectionDecision === 'accepted' || user.status === 'selected' || hasFinal) && !testimonial) {
+      currentStage = stages.find((s) => s.name === 'Testimonial') || currentStage;
+    } else if (selectionDecision === 'accepted' || user.status === 'selected') {
       currentStage = stages.find((s) => s.name === 'Final Payment' && s.status !== 'Completed') || stages.find((s) => s.name === 'Testimonial') || currentStage;
     } else if (selectionDecision === 'rejected' || user.status === 'not_selected') {
       currentStage = stages.find((s) => s.name === 'Selection Result') || currentStage;
@@ -197,9 +199,12 @@ const getDashboard = async (req, res) => {
       nextAction = 'Pay program and documentation verification fee';
     else if (user.status === 'selected' && !hasFinal)
       nextAction = 'Complete final payment';
+    else if (hasFinal && !testimonial)
+      nextAction = 'Share your testimonial';
 
     res.json({
       candidate: user,
+      profile,
       currentStage: currentStage?.name,
       nextAction,
       nextRoute: deriveNextRoute({ eligibility, profile, user, docs, payments }),

@@ -32,6 +32,7 @@ import AdminStageCandidatesPage from './pages/admin/AdminStageCandidatesPage';
 import AdminPaymentsOverviewPage from './pages/admin/AdminPaymentsOverviewPage';
 import AdminPaymentTypePage from './pages/admin/AdminPaymentTypePage';
 import AdminCandidateDetailPage from './pages/admin/AdminCandidateDetailPage';
+import AdminCandidatePage from './pages/AdminCandidatePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import CookiePolicyPage from './pages/CookiePolicyPage';
@@ -110,6 +111,7 @@ export default function App() {
           <Route path="payments/program" element={<AdminPaymentTypePage title="Program Payment ($3500)" type="program" />} />
           <Route path="payments/final" element={<AdminPaymentTypePage title="Final Payment ($4000)" type="final" />} />
           <Route path="candidate/:id" element={<AdminCandidateDetailPage />} />
+          <Route path="candidate/:id/edit" element={<AdminCandidatePage />} />
           <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
         </Route>
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

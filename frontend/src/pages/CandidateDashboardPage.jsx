@@ -26,12 +26,43 @@ const paymentRouteNotice = {
     cta: 'Pay Final Program Fee',
   },
 };
+const eligibilityBurstPieces = [
+  { left: '16%', delay: '0ms', duration: '2350ms', rotate: '-18deg', color: '#f59e0b' },
+  { left: '24%', delay: '120ms', duration: '2550ms', rotate: '22deg', color: '#ef4444' },
+  { left: '33%', delay: '60ms', duration: '2280ms', rotate: '-12deg', color: '#10b981' },
+  { left: '42%', delay: '180ms', duration: '2620ms', rotate: '16deg', color: '#3b82f6' },
+  { left: '50%', delay: '0ms', duration: '2450ms', rotate: '-6deg', color: '#8b5cf6' },
+  { left: '58%', delay: '200ms', duration: '2580ms', rotate: '18deg', color: '#ec4899' },
+  { left: '67%', delay: '90ms', duration: '2380ms', rotate: '-22deg', color: '#14b8a6' },
+  { left: '76%', delay: '160ms', duration: '2520ms', rotate: '12deg', color: '#f97316' },
+  { left: '84%', delay: '40ms', duration: '2300ms', rotate: '-16deg', color: '#eab308' },
+];
+const selectionBannerConfig = {
+  Accepted: {
+    eyebrow: 'Selection Result',
+    title: 'Congratulations, you have been selected.',
+    description: 'Your interview journey has paid off. You are now cleared for the next step in your pathway.',
+    className: 'border-emerald-300 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.25),_rgba(236,253,245,0.95)_45%,_rgba(255,255,255,1)_100%)] text-emerald-950',
+    eyebrowClassName: 'text-emerald-800',
+    iconWrapClassName: 'bg-white/80 text-emerald-700 ring-1 ring-emerald-200',
+  },
+  Rejected: {
+    eyebrow: 'Selection Result',
+    title: 'This application was not selected in the current cycle.',
+    description: 'We know this is disappointing. Your dashboard will continue to reflect the latest decision and any follow-up shared by the team.',
+    icon: 'sentiment_sad',
+    accentIcon: 'mail',
+    className: 'border-rose-300 bg-[radial-gradient(circle_at_top_left,_rgba(251,113,133,0.20),_rgba(255,241,242,0.95)_45%,_rgba(255,255,255,1)_100%)] text-rose-950',
+    eyebrowClassName: 'text-rose-700',
+    iconWrapClassName: 'bg-white/85 text-rose-700 ring-1 ring-rose-200',
+  },
+};
 
 export default function CandidateDashboardPage() {
   const [data, setData] = useState(null);
   const { user } = useAuth();
   const displayFirstName =
-    data?.candidate?.profile?.personalDetails?.firstName ||
+    data?.profile?.personalDetails?.firstName ||
     user?.name?.split?.(' ')?.[0] ||
     (user?.email?.split?.('@')?.[0] || 'Candidate');
 
@@ -52,11 +83,20 @@ export default function CandidateDashboardPage() {
   const interviewScheduled = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'scheduled');
   const interviewCompleted = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'completed');
   const testimonialSubmitted = Boolean(data?.testimonialSubmitted);
+  const testimonialPending = finalPaid && !testimonialSubmitted;
   const selected = data?.candidate?.status === 'selected';
   const requiredRoute = getCandidateNextRoute(data);
   const paymentNotice = paymentRouteNotice[requiredRoute] || null;
   const currentStageLabel =
     data?.currentStage === 'Interviews' && interviewCompleted ? 'Selection Result' : data?.currentStage || 'Pending';
+  const selectionStageStatus = useMemo(() => {
+    const fromStages = (data?.stages || []).find((stage) => stage.name === 'Selection Result')?.status;
+    if (fromStages) return fromStages;
+    if (data?.candidate?.status === 'selected') return 'Accepted';
+    if (['not_selected', 'rejected'].includes(String(data?.candidate?.status || '').toLowerCase())) return 'Rejected';
+    return '';
+  }, [data?.candidate?.status, data?.stages]);
+  const selectionBanner = selectionBannerConfig[selectionStageStatus] || null;
   const timelineStages = useMemo(() => {
     const stages = Array.isArray(data?.stages) ? data.stages : [];
     if (!stages.length) return stages;
@@ -143,6 +183,55 @@ export default function CandidateDashboardPage() {
             </div>
           </section>
 
+          {selectionBanner && (
+            selectionStageStatus === 'Accepted' ? (
+              <section className={`relative mb-8 overflow-hidden rounded-[28px] border p-8 text-center shadow-sm ${selectionBanner.className}`}>
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                  <div className="nst-burst-glow absolute left-1/2 top-6 h-24 w-24 -translate-x-1/2 rounded-full" />
+                  {eligibilityBurstPieces.map((piece, index) => (
+                    <span
+                      key={index}
+                      className="nst-burst-piece absolute h-4 w-2 rounded-full"
+                      style={{
+                        left: piece.left,
+                        backgroundColor: piece.color,
+                        '--nst-burst-rotate': piece.rotate,
+                        animationDelay: piece.delay,
+                        animationDuration: piece.duration,
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="relative">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-700">
+                    <span className="material-symbols-outlined text-3xl">check_circle</span>
+                  </div>
+                  <p className={`text-xs font-semibold uppercase tracking-[0.24em] ${selectionBanner.eyebrowClassName}`}>{selectionBanner.eyebrow}</p>
+                  <h2 className="mt-2 text-3xl font-bold text-[#002147]">{selectionBanner.title}</h2>
+                  <p className="mx-auto mt-3 max-w-2xl text-sm/6 text-[#44474e]">{selectionBanner.description}</p>
+                </div>
+              </section>
+            ) : (
+              <section className={`mb-8 overflow-hidden rounded-[28px] border p-6 shadow-sm ${selectionBanner.className}`}>
+                <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${selectionBanner.iconWrapClassName}`}>
+                      <span className="material-symbols-outlined text-3xl">{selectionBanner.icon}</span>
+                    </div>
+                    <div>
+                      <p className={`text-xs font-semibold uppercase tracking-[0.24em] ${selectionBanner.eyebrowClassName}`}>{selectionBanner.eyebrow}</p>
+                      <h2 className="mt-2 text-2xl font-bold">{selectionBanner.title}</h2>
+                      <p className="mt-2 max-w-2xl text-sm/6">{selectionBanner.description}</p>
+                    </div>
+                  </div>
+                  <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${selectionBanner.iconWrapClassName}`}>
+                    <span className="material-symbols-outlined text-4xl">{selectionBanner.accentIcon}</span>
+                  </div>
+                </div>
+              </section>
+            )
+          )}
+
           {paymentNotice && (
             <section className="mb-8 rounded-xl border border-amber-300 bg-amber-50 p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Action Required</p>
@@ -199,8 +288,8 @@ export default function CandidateDashboardPage() {
                 {internalEvaluationPassed && !hasInitial && <Link to="/initial-payment"><Button>Pay Initial USD 500</Button></Link>}
                 {hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Link to="/payment/program-fee"><Button>Pay Program Fee</Button></Link>}
                 {selected && !finalPaid && <Link to="/payment/final-payment"><Button>Pay Final Program Fee</Button></Link>}
-                {selected && finalPaid && !testimonialSubmitted && <Link to="/testimonial"><Button variant="secondary">Share Testimonial</Button></Link>}
-                {selected && finalPaid && testimonialSubmitted && <Button variant="secondary" disabled>Testimonial Shared</Button>}
+                {testimonialPending && <Link to="/testimonial"><Button variant="secondary">Share Testimonial</Button></Link>}
+                {finalPaid && testimonialSubmitted && <Button variant="secondary" disabled>Testimonial Shared</Button>}
               </div>
             </div>
             <div className="nst-card rounded-xl p-6">

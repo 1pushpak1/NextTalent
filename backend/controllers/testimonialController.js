@@ -1,12 +1,38 @@
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const Testimonial = require('../models/Testimonial');
 const User = require('../models/User');
 
+const uploadDir = path.join(__dirname, '..', 'uploads', 'testimonials');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${unique}-${file.originalname}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
 const createTestimonial = async (req, res) => {
   try {
-    const { fullName, country, selectedDestination, role, text, consent, photoUrl = '' } = req.body;
+    const body = req.body || {};
+    const { fullName = '', country = '', selectedDestination = '', role = '', text = '', consent, photoUrl = '' } = body;
+    const uploadedPhotoUrl = req.file ? `/uploads/testimonials/${req.file.filename}` : '';
 
-    if (!consent) {
+    if (String(consent) !== 'true') {
       return res.status(400).json({ message: 'Consent is required' });
+    }
+    if (!fullName || !country || !selectedDestination || !role || !text) {
+      return res.status(400).json({ message: 'Please complete all required testimonial fields' });
     }
 
     const testimonial = await Testimonial.create({
@@ -16,8 +42,8 @@ const createTestimonial = async (req, res) => {
       selectedDestination,
       role,
       text,
-      consent,
-      photoUrl,
+      consent: true,
+      photoUrl: uploadedPhotoUrl || photoUrl,
     });
 
     await User.findByIdAndUpdate(req.user._id, { status: 'process_complete' });
@@ -37,4 +63,4 @@ const listTestimonials = async (req, res) => {
   }
 };
 
-module.exports = { createTestimonial, listTestimonials };
+module.exports = { upload, createTestimonial, listTestimonials };
