@@ -93,19 +93,15 @@ export default function Navbar({ navigationLinks = defaultLinks }) {
     return isHome ? href : `/${href}`;
   };
 
-  const headerClass = isHome
-    ? scrolled
+  const headerClass = isAdminRoute
+    ? 'border-slate-200/80 bg-white/96 shadow-[0_8px_30px_-18px_rgba(0,0,0,0.25)] backdrop-blur-xl'
+    : scrolled
       ? 'border-[rgba(200,169,107,0.2)] bg-[rgba(7,7,8,0.82)] shadow-[0_20px_70px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl'
-      : 'border-transparent bg-transparent'
-    : isAdminRoute
-      ? 'border-slate-200/80 bg-white/96 shadow-[0_8px_30px_-18px_rgba(0,0,0,0.25)] backdrop-blur-xl'
-      : 'border-[rgba(200,169,107,0.16)] bg-[rgba(8,8,9,0.92)] shadow-[0_20px_70px_-40px_rgba(0,0,0,0.9)] backdrop-blur-xl';
+      : 'border-transparent bg-transparent';
 
-  const navLinkClass = isHome
-    ? 'nst-nav-link text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#c8a96b]'
-    : isAdminRoute
-      ? 'text-sm font-medium tracking-tight text-slate-600 transition hover:text-[#1f1f23]'
-      : 'nst-nav-link text-sm font-medium tracking-tight text-[#c8a96b]';
+  const navLinkClass = isAdminRoute
+    ? 'text-sm font-medium tracking-tight text-slate-600 transition hover:text-[#1f1f23]'
+    : 'nst-nav-link text-[0.76rem] font-semibold uppercase tracking-[0.24em] text-[#c8a96b]';
 
   return (
     <header className={`fixed top-0 z-50 w-full border-b transition-all duration-300 ${headerClass}`}>

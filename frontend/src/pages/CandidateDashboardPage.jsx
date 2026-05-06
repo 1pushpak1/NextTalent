@@ -42,9 +42,9 @@ const selectionBannerConfig = {
     eyebrow: 'Selection Result',
     title: 'Congratulations, you have been selected.',
     description: 'Your interview journey has paid off. You are now cleared for the next step in your pathway.',
-    className: 'border-emerald-300 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.25),_rgba(236,253,245,0.95)_45%,_rgba(255,255,255,1)_100%)] text-emerald-950',
-    eyebrowClassName: 'text-emerald-800',
-    iconWrapClassName: 'bg-white/80 text-emerald-700 ring-1 ring-emerald-200',
+    className: 'border-emerald-500 bg-emerald-600 text-white',
+    eyebrowClassName: 'text-emerald-100',
+    iconWrapClassName: 'bg-white/20 text-white ring-1 ring-white/30',
   },
   Rejected: {
     eyebrow: 'Selection Result',
@@ -54,7 +54,7 @@ const selectionBannerConfig = {
     accentIcon: 'mail',
     className: 'border-rose-300 bg-[radial-gradient(circle_at_top_left,_rgba(251,113,133,0.20),_rgba(255,241,242,0.95)_45%,_rgba(255,255,255,1)_100%)] text-rose-950',
     eyebrowClassName: 'text-rose-700',
-    iconWrapClassName: 'bg-white/85 text-rose-700 ring-1 ring-rose-200',
+    iconWrapClassName: 'bg-white/85 text-rose-900 ring-1 ring-rose-300',
   },
 };
 
@@ -75,10 +75,25 @@ export default function CandidateDashboardPage() {
       .catch(() => setData(null));
   }, []);
 
+  const latestProgramPayment = useMemo(() => {
+    const programPayments = (data?.paymentStatus || []).filter((p) => p.type === 'program');
+    if (!programPayments.length) return null;
+    return [...programPayments].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+  }, [data?.paymentStatus]);
+
+  const latestFinalPayment = useMemo(() => {
+    const finalPayments = (data?.paymentStatus || []).filter((p) => p.type === 'final');
+    if (!finalPayments.length) return null;
+    return [...finalPayments].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+  }, [data?.paymentStatus]);
+
   const docsIncomplete = !data?.documentStatus?.length;
   const hasInitial = data?.paymentStatus?.some((p) => p.type === 'initial' && p.status === 'completed');
-  const programPaid = data?.paymentStatus?.some((p) => p.type === 'program' && p.status === 'completed');
-  const finalPaid = data?.paymentStatus?.some((p) => p.type === 'final' && p.status === 'completed');
+  const programPaid = latestProgramPayment?.status === 'completed';
+  const programFailed = latestProgramPayment?.status === 'failed';
+  const finalPending = latestFinalPayment?.status === 'pending';
+  const finalFailed = latestFinalPayment?.status === 'failed';
+  const finalPaid = latestFinalPayment?.status === 'completed';
   const internalEvaluationPassed = data?.profileStatus === 'accepted';
   const interviewScheduled = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'scheduled');
   const interviewCompleted = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'completed');
@@ -87,6 +102,13 @@ export default function CandidateDashboardPage() {
   const selected = data?.candidate?.status === 'selected';
   const requiredRoute = getCandidateNextRoute(data);
   const paymentNotice = paymentRouteNotice[requiredRoute] || null;
+  const failedPaymentNotice = programFailed || finalFailed
+    ? {
+        title: 'Payment Not Received',
+        description: 'Please upload the correct payment receipt file or contact support to get this issue resolved.',
+        cta: programFailed ? 'Re-upload Program Fee Receipt' : 'Re-upload Final Payment Receipt',
+      }
+    : null;
   const currentStageLabel =
     data?.currentStage === 'Interviews' && interviewCompleted ? 'Selection Result' : data?.currentStage || 'Pending';
   const selectionStageStatus = useMemo(() => {
@@ -232,13 +254,13 @@ export default function CandidateDashboardPage() {
             )
           )}
 
-          {paymentNotice && (
-            <section className="mb-8 rounded-xl border border-amber-300 bg-amber-50 p-5">
+          {(failedPaymentNotice || paymentNotice) && (
+            <section className={`mb-8 rounded-xl border p-5 ${failedPaymentNotice ? 'border-rose-300 bg-rose-50' : 'border-amber-300 bg-amber-50'}`}>
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Action Required</p>
-              <h2 className="mt-1 text-xl font-bold text-amber-900">{paymentNotice.title}</h2>
-              <p className="mt-1 text-sm text-amber-900">{paymentNotice.description}</p>
+              <h2 className={`mt-1 text-xl font-bold ${failedPaymentNotice ? 'text-rose-900' : 'text-amber-900'}`}>{(failedPaymentNotice || paymentNotice).title}</h2>
+              <p className={`mt-1 text-sm ${failedPaymentNotice ? 'text-rose-900' : 'text-amber-900'}`}>{(failedPaymentNotice || paymentNotice).description}</p>
               <Link className="mt-3 inline-block" to={requiredRoute}>
-                <Button>{paymentNotice.cta}</Button>
+                <Button>{(failedPaymentNotice || paymentNotice).cta}</Button>
               </Link>
             </section>
           )}
@@ -284,12 +306,13 @@ export default function CandidateDashboardPage() {
             <div className="nst-card rounded-xl p-6 lg:col-span-2">
               <h3 className="mb-3 text-2xl font-semibold text-[#002147]">Milestone Actions</h3>
               <div className="flex flex-wrap gap-3">
-                {interviewScheduled && <Link to="/interviews"><Button variant="secondary">View Interview Details</Button></Link>}
+                {interviewScheduled && <Link to="/interviews"><Button className="text-white" variant="secondary">View Interview Details</Button></Link>}
                 {internalEvaluationPassed && !hasInitial && <Link to="/initial-payment"><Button>Pay Initial USD 500</Button></Link>}
-                {hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Link to="/payment/program-fee"><Button>Pay Program Fee</Button></Link>}
-                {selected && !finalPaid && <Link to="/payment/final-payment"><Button>Pay Final Program Fee</Button></Link>}
-                {testimonialPending && <Link to="/testimonial"><Button variant="secondary">Share Testimonial</Button></Link>}
-                {finalPaid && testimonialSubmitted && <Button variant="secondary" disabled>Testimonial Shared</Button>}
+                {hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Link to="/payment/program-fee"><Button>{programFailed ? 'Re-upload Program Fee Receipt' : 'Pay Program Fee'}</Button></Link>}
+                {selected && !finalPaid && !finalPending && <Link to="/payment/final-payment"><Button>{finalFailed ? 'Re-upload Final Payment Receipt' : 'Pay Final Program Fee'}</Button></Link>}
+                {selected && finalPending && <Button className="text-white" variant="secondary" disabled>Final Payment Under Verification</Button>}
+                {testimonialPending && <Link to="/testimonial"><Button className="text-white" variant="secondary">Share Testimonial</Button></Link>}
+                {finalPaid && testimonialSubmitted && <Button className="text-white" variant="secondary" disabled>Testimonial Shared</Button>}
               </div>
             </div>
             <div className="nst-card rounded-xl p-6">
@@ -298,7 +321,35 @@ export default function CandidateDashboardPage() {
                 <p>Profile status: {data?.profileStatus || 'not_submitted'}</p>
                 <p>Documents uploaded: {data?.documentStatus?.length || 0}</p>
                 <p>Payments made: {data?.paymentStatus?.length || 0}</p>
+                <p>Final payment status: {finalPaid ? 'Received' : finalPending ? 'Under Verification' : 'Not Submitted'}</p>
               </div>
+            </div>
+          </section>
+
+          <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="nst-card rounded-xl p-6">
+              <h3 className="mb-3 text-xl font-semibold text-[#002147]">Candidate Profile</h3>
+              <div className="space-y-2 text-sm text-[#44474e]">
+                <p>Email: {data?.contact?.email || data?.candidate?.email || 'Not available'}</p>
+                <p>Mobile: {data?.contact?.phone || data?.candidate?.phone || 'Not available'}</p>
+              </div>
+            </div>
+            <div className="nst-card rounded-xl p-6">
+              <h3 className="mb-3 text-xl font-semibold text-[#002147]">Eligibility Responses</h3>
+              {data?.eligibility ? (
+                <div className="space-y-2 text-sm text-[#44474e]">
+                  <p>Destination: {data.eligibility.destination}</p>
+                  <p>Country: {data.eligibility.country}</p>
+                  <p>IT Background: {data.eligibility.hasITBackground ? 'Yes' : 'No'}</p>
+                  <p>Qualification: {data.eligibility.qualification}</p>
+                  <p>Language: {data.eligibility.languageAnswer}</p>
+                  <p>Current Location: {data.eligibility.currentLocation}</p>
+                  <p>Willing To Relocate: {data.eligibility.willingToRelocate ? 'Yes' : 'No'}</p>
+                  <p>Comfortable With Fees: {data.eligibility.comfortableWithFees ? 'Yes' : 'No'}</p>
+                </div>
+              ) : (
+                <p className="text-sm text-[#44474e]">No eligibility response found.</p>
+              )}
             </div>
           </section>
         </div>

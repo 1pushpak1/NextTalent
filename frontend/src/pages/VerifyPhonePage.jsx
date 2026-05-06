@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { countries } from 'countries-list';
 import Input from '../components/Input';
@@ -57,11 +57,6 @@ export default function VerifyPhonePage() {
       .catch(() => {});
   }, []);
 
-  const selectedLabel = useMemo(() => {
-    const current = COUNTRY_CODE_OPTIONS.find((entry) => toOptionValue(entry) === selectedCountryValue);
-    return current ? current.label : '';
-  }, [selectedCountryValue]);
-
   const handleCountryChange = (event) => {
     const nextValue = event.target.value;
     const selected = COUNTRY_CODE_OPTIONS.find((entry) => toOptionValue(entry) === nextValue);
@@ -95,32 +90,34 @@ export default function VerifyPhonePage() {
   return (
     <AuthSplitLayout title="Phone Verification" subtitle="Enter your mobile number with country code to continue.">
       <div className="space-y-4">
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-[#d3d3d8]">Country Code</span>
-          <select
-            className="w-full rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.035)] px-3 py-2.5 text-sm text-[#f7f3ea] outline-none transition focus:border-[#c8a96b] focus:ring-2 focus:ring-[#c8a96b]/20"
-            value={selectedCountryValue}
-            onChange={handleCountryChange}
-          >
-            {COUNTRY_CODE_OPTIONS.map((entry) => (
-              <option key={toOptionValue(entry)} value={toOptionValue(entry)}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div>
+          <span className="mb-1.5 block text-sm font-medium text-[#d3d3d8]">Mobile Number</span>
+          <div className="grid grid-cols-10 gap-3">
+            <label className="col-span-3">
+              <span className="sr-only">Country code</span>
+              <select
+                className="w-full rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.035)] px-3 py-2.5 text-sm text-[#f7f3ea] outline-none transition focus:border-[#c8a96b] focus:ring-2 focus:ring-[#c8a96b]/20"
+                value={selectedCountryValue}
+                onChange={handleCountryChange}
+              >
+                {COUNTRY_CODE_OPTIONS.map((entry) => (
+                  <option key={toOptionValue(entry)} value={toOptionValue(entry)}>
+                    {entry.code}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <Input label="Selected Code" value={countryCode} readOnly />
-        <Input
-          label="Phone Number"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="Enter mobile number"
-        />
-
-        <p className="text-xs text-[#bdbdc3]">
-          Default country code is auto-selected from yWhat We Doed country: {selectedLabel || 'Not available'}.
-        </p>
+            <div className="col-span-7">
+              <Input
+                label=""
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Phone number"
+              />
+            </div>
+          </div>
+        </div>
 
         <Button className="w-full" onClick={submitPhone} disabled={loading}>
           {loading ? 'Saving phone...' : 'Continue'}

@@ -121,8 +121,8 @@ export default function DeclarationPage() {
               <div className="bg-slate-50 p-5">
                 <p className="text-sm text-[#44474e]">Status: {documentStatus('declaration', declarationSigned)}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="secondary" onClick={() => openPreview('declaration')}>View Declaration</Button>
-                  <Button disabled={!viewed.declaration} onClick={() => setActiveDoc('declaration')}>Sign Declaration</Button>
+                  <Button className="text-white" variant="secondary" onClick={() => openPreview('declaration')}>View Declaration</Button>
+                  <Button className="text-white" disabled={!viewed.declaration} onClick={() => setActiveDoc('declaration')}>Sign Declaration</Button>
                 </div>
               </div>
             </div>
@@ -138,16 +138,16 @@ export default function DeclarationPage() {
               <div className="bg-slate-50 p-5">
                 <p className="text-sm text-[#44474e]">Status: {documentStatus('contract', contractSigned)}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="secondary" onClick={() => openPreview('contract')}>View Contract</Button>
-                  <Button disabled={!viewed.contract} onClick={() => setActiveDoc('contract')}>Sign Contract</Button>
+                  <Button className="text-white" variant="secondary" onClick={() => openPreview('contract')}>View Contract</Button>
+                  <Button className="text-white" disabled={!viewed.contract} onClick={() => setActiveDoc('contract')}>Sign Contract</Button>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="mt-10 text-center">
-            <Button disabled={!(declarationSigned && contractSigned)} onClick={continueFlow}>
-              Continue to Team Contact / Onboarding
+            <Button className="text-white" disabled={!(declarationSigned && contractSigned)} onClick={continueFlow}>
+              Continue
             </Button>
           </div>
         </div>
@@ -173,7 +173,7 @@ export default function DeclarationPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Document Ref: {DOCUMENTS[previewDoc].ref}
             </p>
-            <div className="max-h-[50vh] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4 whitespace-pre-line text-[#334155]">
+            <div className="max-h-[50vh] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4 whitespace-pre-line text-white">
               {DOCUMENTS[previewDoc].body}
             </div>
             <div className="flex justify-end gap-2">

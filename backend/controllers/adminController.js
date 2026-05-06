@@ -175,9 +175,9 @@ const deriveAdminStageKey = (snapshot) => {
     return 'documents';
   }
 
-  if (docsUploaded && documentVerificationDecision !== 'accepted') return 'document-verification';
-  if (docsUploaded && documentVerificationDecision === 'accepted' && !hasProgram) return null;
-  if (docsUploaded && hasProgram && hiringDecision !== 'accepted') return 'hiring';
+  if (docsUploaded && !hasProgram) return null;
+  if (docsUploaded && hasProgram && documentVerificationDecision !== 'accepted') return 'document-verification';
+  if (docsUploaded && hasProgram && documentVerificationDecision === 'accepted' && hiringDecision !== 'accepted') return 'hiring';
 
   return null;
 };
@@ -390,6 +390,15 @@ const paymentExpectedAmount = {
   final: 4000,
 };
 
+const paymentStatusLabel = (rawStatus = '') => {
+  const normalized = String(rawStatus || '').toLowerCase();
+  if (normalized === 'completed') return 'Received';
+  if (normalized === 'failed') return 'Not Received';
+  if (normalized === 'pending') return 'Pending Verification';
+  if (normalized === 'refunded') return 'Refunded';
+  return 'Pending';
+};
+
 const listPaymentsByType = async (req, res) => {
   try {
     const type = String(req.params.type || '').toLowerCase();
@@ -410,10 +419,13 @@ const listPaymentsByType = async (req, res) => {
           paymentId: latest?._id || null,
           paymentType: type,
           amount: latest?.amount ?? paymentExpectedAmount[type],
-          status: paid ? 'Paid' : 'Pending',
+          status: latest ? paymentStatusLabel(latest.status) : 'Pending',
           rawStatus: latest?.status || 'pending',
           date: latest?.createdAt || null,
           transactionId: latest?.transactionId || '—',
+          method: latest?.method || '—',
+          receiptUrl: latest?.receiptUrl || '',
+          bankReference: latest?.bankReference || '',
         };
       });
 
@@ -552,8 +564,13 @@ const updatePaymentStatus = async (req, res) => {
     const payment = await Payment.findByIdAndUpdate(paymentId, { status }, { new: true });
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
 
-    if (payment.type === 'program' && status === 'completed') {
-      await User.findByIdAndUpdate(payment.userId, { status: 'program_payment_complete' });
+    if (status === 'completed') {
+      if (payment.type === 'program') {
+        await User.findByIdAndUpdate(payment.userId, { status: 'program_payment_complete' });
+      }
+      if (payment.type === 'final') {
+        await User.findByIdAndUpdate(payment.userId, { status: 'final_payment_complete' });
+      }
     }
 
     res.json(payment);

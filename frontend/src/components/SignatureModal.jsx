@@ -31,7 +31,7 @@ export default function SignatureModal({
     const ctx = canvas.getContext('2d');
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.lineWidth = 2;
-    ctx.strokeStyle = '#0f172a';
+    ctx.strokeStyle = '#ffffff';
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
   };
@@ -137,25 +137,22 @@ export default function SignatureModal({
           <canvas
             ref={canvasRef}
             height={180}
-            className="h-[180px] w-full touch-none rounded-xl border border-slate-300 bg-white"
+            className="h-[180px] w-full touch-none rounded-xl border border-slate-300 bg-[#111318]"
             onPointerDown={start}
             onPointerMove={move}
             onPointerUp={stop}
             onPointerLeave={stop}
             onPointerCancel={stop}
           />
-          <div className="mt-2">
-            <Button type="button" variant="secondary" onClick={clearCanvas}>
-              Clear
-            </Button>
-          </div>
         </div>
       )}
 
-      <div className="mt-4 flex justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
+      <div className="sticky bottom-0 mt-4 flex justify-end gap-2 border-t border-[rgba(200,169,107,0.22)] bg-[#080808] pt-3">
+        {tab === 'draw' && (
+          <Button type="button" variant="secondary" onClick={clearCanvas}>
+            Clear
+          </Button>
+        )}
         <Button type="button" onClick={submit}>
           Sign & Continue
         </Button>

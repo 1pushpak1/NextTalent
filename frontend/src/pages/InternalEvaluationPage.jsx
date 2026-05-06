@@ -68,7 +68,7 @@ export default function InternalEvaluationPage() {
             ) : (
               <div className="flex flex-wrap items-center justify-center gap-3">
                 <Button onClick={loadProfile}>Refresh Status</Button>
-                <Button variant="secondary" onClick={() => navigate('/candidate-dashboard')}>
+                <Button className="text-white" variant="secondary" onClick={() => navigate('/candidate-dashboard')}>
                   Go to Dashboard
                 </Button>
               </div>

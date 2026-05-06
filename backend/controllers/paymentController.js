@@ -1,8 +1,12 @@
 const Payment = require('../models/Payment');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
+const Document = require('../models/Document');
 const sendEmail = require('../utils/sendEmail');
 const Stripe = require('stripe');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 
 const amountByType = {
   initial: 500,
@@ -15,6 +19,23 @@ const statusByType = {
   program: 'program_payment_complete',
   final: 'final_payment_complete',
 };
+
+const paymentReceiptUploadDir = path.join(__dirname, '..', 'uploads', 'payment-receipts');
+const receiptStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    fs.mkdirSync(paymentReceiptUploadDir, { recursive: true });
+    cb(null, paymentReceiptUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${unique}-${file.originalname}`);
+  },
+});
+
+const uploadReceipt = multer({
+  storage: receiptStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 const getStripeClient = () => {
   if (!process.env.STRIPE_SECRET_KEY) {
@@ -69,33 +90,14 @@ const createPaymentIntent = async (req, res) => {
     if (!amountByType[type]) {
       return res.status(400).json({ message: 'Invalid payment type' });
     }
+    if (type !== 'initial') {
+      return res.status(400).json({ message: 'Use bank transfer flow for program and final payments' });
+    }
 
-    const [profile, payments, user] = await Promise.all([
-      Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }),
-      Payment.find({ userId: req.user._id }),
-      User.findById(req.user._id),
-    ]);
-    const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
-    const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed');
+    const profile = await Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 });
 
     if (type === 'initial' && profile?.status !== 'accepted') {
       return res.status(403).json({ message: 'Initial payment is available only after internal evaluation acceptance' });
-    }
-
-    if (type === 'program') {
-      if (!hasInitial) {
-        return res.status(403).json({ message: 'Complete initial payment first' });
-      }
-      if (!['documents_received', 'program_payment_complete', 'selected', 'final_payment_complete'].includes(user?.status || '')) {
-        return res.status(403).json({ message: 'Program payment opens only after all documents are confirmed by team' });
-      }
-      if (hasProgram) {
-        return res.status(400).json({ message: 'Program payment already completed' });
-      }
-    }
-
-    if (type === 'final' && user?.status !== 'selected') {
-      return res.status(403).json({ message: 'Final payment is available only after selection result is marked selected' });
     }
 
     const appUrl = req.body.returnBaseUrl || process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -136,6 +138,55 @@ const createPaymentIntent = async (req, res) => {
       method,
       provider: 'stripe_checkout',
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const submitBankTransferPayment = async (req, res) => {
+  try {
+    const { type, bankReference = '' } = req.body || {};
+    if (!['program', 'final'].includes(type)) {
+      return res.status(400).json({ message: 'Bank transfer is supported only for program or final payment' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'Transfer receipt file is required' });
+    }
+
+    const [payments, user, docs] = await Promise.all([
+      Payment.find({ userId: req.user._id }),
+      User.findById(req.user._id),
+      Document.find({ userId: req.user._id }),
+    ]);
+    const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
+    const hasProgramCompleted = payments.some((p) => p.type === 'program' && p.status === 'completed');
+    const hasFinalCompleted = payments.some((p) => p.type === 'final' && p.status === 'completed');
+    const docsUploaded = docs.length > 0;
+
+    if (type === 'program') {
+      if (!hasInitial) return res.status(403).json({ message: 'Complete initial payment first' });
+      if (!docsUploaded) return res.status(403).json({ message: 'Upload documents before program payment' });
+      if (hasProgramCompleted) return res.status(400).json({ message: 'Program payment already completed' });
+    }
+
+    if (type === 'final') {
+      if (user?.status !== 'selected') return res.status(403).json({ message: 'Final payment is available only after selection' });
+      if (hasFinalCompleted) return res.status(400).json({ message: 'Final payment already completed' });
+    }
+
+    const payment = await Payment.create({
+      userId: req.user._id,
+      type,
+      amount: amountByType[type],
+      currency: 'USD',
+      method: 'bank_transfer',
+      status: 'pending',
+      transactionId: `BANK-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+      bankReference: String(bankReference || '').trim(),
+      receiptUrl: `/uploads/payment-receipts/${req.file.filename}`,
+    });
+
+    res.status(201).json({ message: 'Receipt uploaded. Awaiting admin verification.', payment });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -197,4 +248,4 @@ const getMyPayments = async (req, res) => {
   }
 };
 
-module.exports = { createPaymentIntent, confirmPayment, getMyPayments, stripeWebhook };
+module.exports = { createPaymentIntent, confirmPayment, submitBankTransferPayment, getMyPayments, stripeWebhook, uploadReceipt };

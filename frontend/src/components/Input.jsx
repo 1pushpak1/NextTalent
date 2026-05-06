@@ -1,4 +1,5 @@
 export default function Input({ label, error, required = false, inputClassName = '', rightIcon = null, ...props }) {
+  const isDateInput = props.type === 'date';
   return (
     <label className="block">
       {label && (
@@ -9,7 +10,7 @@ export default function Input({ label, error, required = false, inputClassName =
       )}
       <span className="relative block">
         <input
-          className={`w-full rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.035)] px-3 py-2.5 text-sm text-[#f7f3ea] outline-none transition placeholder:text-[#8f8f96] focus:border-[#c8a96b] focus:ring-2 focus:ring-[#c8a96b]/20 ${error ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20' : ''} ${rightIcon ? 'pr-10' : ''} ${inputClassName}`.trim()}
+          className={`w-full rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.035)] px-3 py-2.5 text-sm text-[#f7f3ea] outline-none transition placeholder:text-[#8f8f96] focus:border-[#c8a96b] focus:ring-2 focus:ring-[#c8a96b]/20 ${error ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20' : ''} ${rightIcon ? 'pr-10' : ''} ${isDateInput ? 'nst-date-input' : ''} ${inputClassName}`.trim()}
           required={required}
           {...props}
         />

@@ -4,7 +4,6 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import Button from '../components/Button';
 import Card from '../components/Card';
-import Modal from '../components/Modal';
 import Select from '../components/Select';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -31,10 +30,8 @@ const eligibilityBurstPieces = [
 
 export default function EligibilityCheckPage() {
   const [step, setStep] = useState(1);
-  const [popup, setPopup] = useState('');
   const [destination, setDestination] = useState('');
   const [country, setCountry] = useState('');
-  const [isCheckingEligibility, setIsCheckingEligibility] = useState(false);
   const [answers, setAnswers] = useState({
     hasITBackground: '',
     qualification: '',
@@ -63,56 +60,10 @@ export default function EligibilityCheckPage() {
   const handleDestination = (value) => {
     if (!value) return;
     setDestination(value);
-    if (value === 'Europe Active') return setStep(2);
-    if (value === 'United States Coming Soon') {
-      setPopup('Opportunities for the United States are not open yet. Please check back on May 5th, 2026.');
-      return;
-    }
-    setPopup('This destination is upcoming. Please check back in a future cycle.');
-  };
-
-  const validateEligibilityAnswers = () => {
-    if (!country) return 'Please Choose your preferred country.';
-    if (!answers.hasITBackground) return 'Please answer whether you have an IT background.';
-    if (country === 'Germany' && !answers.qualification) return 'Please select your highest qualification.';
-    if (!answers.languageAnswer) return 'Please answer the language eligibility question.';
-    if (!answers.currentLocation) return 'Please select your current location.';
-    if (!answers.willingToRelocate) return 'Please answer whether you are willing to relocate.';
-    if (!answers.comfortableWithFees) return 'Please answer whether you are comfortable with program/service fees.';
-
-    if (country === 'Germany') {
-      if (answers.languageAnswer !== 'Yes') return 'Germany requires certified German B2 or above.';
-      return null;
-    }
-
-    if (country === 'Switzerland') {
-      if (answers.languageAnswer === 'No') return 'Switzerland requires a certified B2 or above language option.';
-      if (answers.currentLocation !== 'Europe') return 'Switzerland requires your current location to be Europe.';
-      return null;
-    }
-
-    if (country === 'Austria') {
-      if (answers.languageAnswer !== 'Yes') return 'Austria requires certified German B2 or above.';
-      if (answers.currentLocation !== 'Europe') return 'Austria requires your current location to be Europe.';
-      return null;
-    }
-
-    if (country === 'Poland') {
-      if (answers.languageAnswer !== 'Yes') return 'Poland requires professional English proficiency.';
-      if (answers.currentLocation !== 'Europe') return 'Poland requires your current location to be Europe.';
-      return null;
-    }
-
-    return null;
+    setStep(2);
   };
 
   const submitEligibility = async () => {
-    const validationError = validateEligibilityAnswers();
-    if (validationError) {
-      alert(validationError);
-      return;
-    }
-
     const payload = {
       destination,
       country,
@@ -125,20 +76,19 @@ export default function EligibilityCheckPage() {
     };
 
     try {
-      setIsCheckingEligibility(true);
       const { data } = await api.post('/eligibility/check', payload);
-      setTimeout(() => {
-        setResult(data);
-        setStep(4);
-        setIsCheckingEligibility(false);
-      }, 4500);
+      setResult(data);
+      setStep(4);
       if (data.isEligible) {
         localStorage.setItem('nst_eligible', 'true');
         localStorage.setItem('nst_eligibility_id', data._id);
       }
     } catch (error) {
-      setIsCheckingEligibility(false);
-      alert(error.response?.data?.message || 'Failed to save eligibility');
+      setResult({
+        isEligible: false,
+        rejectionReason: error.response?.data?.message || 'Unable to evaluate eligibility right now.',
+      });
+      setStep(4);
     }
   };
 
@@ -287,26 +237,14 @@ export default function EligibilityCheckPage() {
                 >
                   Back
                 </Button>
-                <Button onClick={submitEligibility} disabled={isCheckingEligibility}>
+                <Button onClick={submitEligibility}>
                   Check Eligibility
                 </Button>
               </div>
             </Card>
           )}
 
-          {isCheckingEligibility && (
-            <Card className="nst-card rounded-xl p-8 text-center">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(200,169,107,0.32)] bg-[rgba(200,169,107,0.12)] text-[#f4dfb2]">
-                <span className="material-symbols-outlined text-3xl animate-pulse">hourglass_top</span>
-              </div>
-              <h2 className="mb-3 nst-display text-3xl font-bold text-white">Checking Your Eligibility</h2>
-              <p className="mx-auto max-w-2xl text-[#d1d2d7]">
-                Please wait while we review your responses against the current country requirements.
-              </p>
-            </Card>
-          )}
-
-          {step === 4 && result && !isCheckingEligibility && (
+          {step === 4 && result && (
             <Card className="nst-card relative overflow-hidden rounded-xl p-8 text-center">
               {result.isEligible ? (
                 <>
@@ -350,8 +288,7 @@ export default function EligibilityCheckPage() {
                   </div>
                   <h2 className="mb-3 nst-display text-3xl font-bold text-[#002147]">Not Eligible Right Now</h2>
                   <p className="mx-auto mb-6 max-w-2xl text-[#44474e]">
-                    Based on your responses, you do not meet the current eligibility criteria for this program. You may
-                    reapply when requirements are met or explore other destinations as they open.
+                    {result.rejectionReason || 'Based on your responses, you do not meet the current eligibility criteria for this program.'}
                   </p>
                   <div className="flex justify-center gap-3">
                     <Button
@@ -370,9 +307,6 @@ export default function EligibilityCheckPage() {
         </div>
       </main>
 
-      <Modal isOpen={Boolean(popup)} onClose={() => setPopup('')} title="Notice">
-        <p className="text-sm text-slate-600">{popup}</p>
-      </Modal>
       <Footer />
     </div>
   );

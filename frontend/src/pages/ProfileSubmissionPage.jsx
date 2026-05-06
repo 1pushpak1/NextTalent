@@ -13,7 +13,6 @@ import api from '../api/axios';
 
 const formSteps = ['Personal', 'Education', 'Certifications', 'Experience', 'Skills', 'Languages', 'Additional', 'Review'];
 const monthYearRegex = /^(0[1-9]|1[0-2])\/\d{4}$/;
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const formatMonthYearInput = (value) => {
   const digits = value.replace(/\D/g, '').slice(0, 6);
   if (!digits) return '';
@@ -118,8 +117,19 @@ const getWorkFutureEndDateError = (workExperience) => {
 
 const blankQualification = () => ({ qualificationName: '', field: '', startDate: '', endDate: '', country: '' });
 const blankCertification = () => ({ certificationName: '', issuingOrganization: '', yearCompleted: '' });
-const blankWork = () => ({ organizationName: '', jobTitle: '', responsibilities: '', startDate: '', endDate: '', currentlyWorkingHere: false, country: '' });
+const blankWork = (experienceType = 'work') => ({ experienceType, organizationName: '', jobTitle: '', responsibilities: '', startDate: '', endDate: '', currentlyWorkingHere: false, country: '' });
 const blankLanguage = () => ({ language: '', proficiencyLevel: '', certified: 'No', certificateTitle: '' });
+const ensureExperienceRows = (items = []) => {
+  const normalized = (Array.isArray(items) ? items : []).map((w) => ({
+    ...blankWork(w?.experienceType || 'work'),
+    ...(w || {}),
+  }));
+  const workRows = normalized.filter((item) => item.experienceType !== 'internship');
+  const internshipRows = normalized.filter((item) => item.experienceType === 'internship');
+  if (!workRows.length) workRows.push(blankWork('work'));
+  if (!internshipRows.length) internshipRows.push(blankWork('internship'));
+  return [...workRows, ...internshipRows];
+};
 const hasValue = (value) => {
   if (typeof value === 'string') return Boolean(value.trim());
   return Boolean(value);
@@ -173,10 +183,6 @@ const getStepValidation = (step, form, { requireVisa, technicalSkills, financial
     if (requireVisa && !hasValue(p.currentVisaStatus)) {
       addError(errors, 'personalDetails.currentVisaStatus', 'Current visa status is required when residence and citizenship differ.');
       summary ||= 'Current visa status is required when residence and citizenship differ.';
-    }
-    if (hasValue(p.email) && !emailRegex.test(p.email)) {
-      addError(errors, 'personalDetails.email', 'Please enter a valid email format.');
-      summary ||= 'Please enter a valid email format.';
     }
   }
 
@@ -374,12 +380,13 @@ const getStepValidation = (step, form, { requireVisa, technicalSkills, financial
   }
 
   if (step === 4) {
-    if (form.workExperience.length > 10) {
-      summary = 'Work experience max is 10.';
-    }
+    const workCount = form.workExperience.filter((item) => item.experienceType !== 'internship').length;
+    const internshipCount = form.workExperience.filter((item) => item.experienceType === 'internship').length;
+    if (workCount > 10) summary = 'Work experience max is 10.';
+    if (internshipCount > 10) summary ||= 'Internship max is 10.';
 
     form.workExperience.forEach((work, idx) => {
-      const touched = idx === 0 || [work.organizationName, work.jobTitle, work.responsibilities, work.startDate, work.endDate, work.country].some(hasValue) || work.currentlyWorkingHere;
+      const touched = [work.organizationName, work.jobTitle, work.responsibilities, work.startDate, work.endDate, work.country].some(hasValue) || work.currentlyWorkingHere;
       if (!touched) return;
 
       if (!hasValue(work.organizationName)) addError(errors, `workExperience.${idx}.organizationName`, `Organization name is required for work experience ${idx + 1}.`);
@@ -412,14 +419,6 @@ const getStepValidation = (step, form, { requireVisa, technicalSkills, financial
       }
     });
 
-    if (
-      ['organizationName', 'jobTitle', 'responsibilities', 'startDate', 'country'].some(
-        (field) => errors[`workExperience.0.${field}`],
-      ) &&
-      !summary
-    ) {
-      summary = 'Please complete the first work experience entry before continuing.';
-    }
     if (Object.keys(errors).length && !summary) {
       summary = 'Please complete all highlighted work experience fields before continuing.';
     }
@@ -477,7 +476,6 @@ const createDefaultForm = () => ({
     citizenship: '',
     currentCountryOfResidence: '',
     currentVisaStatus: '',
-    email: '',
   },
   education: {
     highSchool: { startDate: '', endDate: '', track: '', country: '' },
@@ -487,7 +485,7 @@ const createDefaultForm = () => ({
     additionalQualifications: [blankQualification()],
   },
   certifications: [blankCertification()],
-  workExperience: [blankWork()],
+  workExperience: [blankWork('work'), blankWork('internship')],
   skills: { technical: '', soft: '' },
   languages: [blankLanguage()],
   additionalInfo: '',
@@ -515,10 +513,7 @@ const hydrateFormFromProfile = (profile) => {
       ...blankCertification(),
       ...(c || {}),
     })),
-    workExperience: normalizeArray(profile?.workExperience, blankWork).map((w) => ({
-      ...blankWork(),
-      ...(w || {}),
-    })),
+    workExperience: ensureExperienceRows(normalizeArray(profile?.workExperience, () => blankWork('work'))),
     skills: { ...defaults.skills, ...(profile?.skills || {}) },
     languages: normalizeArray(profile?.languages, blankLanguage).map((lang) => ({
       ...blankLanguage(),
@@ -540,6 +535,7 @@ export default function ProfileSubmissionPage() {
   const [loading, setLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [technicalSkillInput, setTechnicalSkillInput] = useState('');
+  const [eligibilityDetails, setEligibilityDetails] = useState(null);
   const navigate = useNavigate();
 
   const [form, setForm] = useState(createDefaultForm);
@@ -554,6 +550,11 @@ export default function ProfileSubmissionPage() {
 
     const loadExistingProfile = async () => {
       try {
+        const { data: dashboardData } = await api.get('/dashboard/me');
+        if (isMounted) {
+          setEligibilityDetails(dashboardData?.eligibility || null);
+        }
+
         const { data: existingProfile } = await api.get('/profile/me');
         if (!isMounted) return;
 
@@ -733,7 +734,7 @@ By signing below, you accept full responsibility for the authenticity of the det
           ...(providedSignature || {}),
           fullName,
           signedAt: new Date().toISOString(),
-          location: 'Auto-captured placeholder',
+          location: 'Auto-captured',
         },
       };
 
@@ -752,6 +753,14 @@ By signing below, you accept full responsibility for the authenticity of the det
   };
 
   const updateSection = (section, value) => setForm((prev) => ({ ...prev, [section]: value }));
+  const splitExperience = () => {
+    const workRows = form.workExperience.filter((item) => item.experienceType !== 'internship');
+    const internshipRows = form.workExperience.filter((item) => item.experienceType === 'internship');
+    return { workRows, internshipRows };
+  };
+  const updateExperienceLists = (workRows, internshipRows) => {
+    updateSection('workExperience', [...workRows, ...internshipRows]);
+  };
   const reviewValue = (value) => {
     if (value === null || value === undefined) return 'Not provided';
     if (typeof value === 'string' && !value.trim()) return 'Not provided';
@@ -797,6 +806,22 @@ By signing below, you accept full responsibility for the authenticity of the det
                     : 'Complete all sections carefully. Precision in your profile supports faster evaluation.'}
                 </p>
 
+                {eligibilityDetails && (
+                  <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-white">Initial Eligibility Details</h3>
+                    <div className="mt-3 grid gap-2 text-sm text-white md:grid-cols-2">
+                      <p><b>Destination:</b> {eligibilityDetails.destination || '—'}</p>
+                      <p><b>Country:</b> {eligibilityDetails.country || '—'}</p>
+                      <p><b>IT Background:</b> {eligibilityDetails.hasITBackground ? 'Yes' : 'No'}</p>
+                      <p><b>Qualification:</b> {eligibilityDetails.qualification || '—'}</p>
+                      <p><b>Language:</b> {eligibilityDetails.languageAnswer || '—'}</p>
+                      <p><b>Current Location:</b> {eligibilityDetails.currentLocation || '—'}</p>
+                      <p><b>Willing To Relocate:</b> {eligibilityDetails.willingToRelocate ? 'Yes' : 'No'}</p>
+                      <p><b>Comfortable With Fees:</b> {eligibilityDetails.comfortableWithFees ? 'Yes' : 'No'}</p>
+                    </div>
+                  </div>
+                )}
+
           {currentStep === 1 && (
             <div className="grid gap-3 md:grid-cols-2">
               <Input required label="First Name as per passport" error={getFieldError('personalDetails.firstName')} value={form.personalDetails.firstName} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, firstName: e.target.value })} />
@@ -806,8 +831,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Input required label="Country of Birth" error={getFieldError('personalDetails.countryOfBirth')} value={form.personalDetails.countryOfBirth} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, countryOfBirth: e.target.value })} />
               <Input required label="Citizenship" error={getFieldError('personalDetails.citizenship')} value={form.personalDetails.citizenship} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, citizenship: e.target.value })} />
               <Input required label="Current Country of Residence" error={getFieldError('personalDetails.currentCountryOfResidence')} value={form.personalDetails.currentCountryOfResidence} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, currentCountryOfResidence: e.target.value })} />
-              <Input label="Email" error={getFieldError('personalDetails.email')} type="email" value={form.personalDetails.email} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, email: e.target.value })} />
-              {requireVisa && (
+                            {requireVisa && (
                 <Select
                   required
                   label="Current Visa Status"
@@ -1100,7 +1124,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     }} />
                   </div>
                 ))}
-                <Button className="mt-3" variant="secondary" onClick={() => {
+                <Button className="mt-3 text-white" variant="secondary" onClick={() => {
                   if (form.education.additionalQualifications.length >= 3) return;
                   updateSection('education', { ...form.education, additionalQualifications: [...form.education.additionalQualifications, blankQualification()] });
                 }}>
@@ -1147,7 +1171,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   }} placeholder="YYYY" maxLength={4} inputMode="numeric" />
                 </div>
               ))}
-              <Button className="mt-3" variant="secondary" onClick={() => {
+              <Button className="mt-3 text-white" variant="secondary" onClick={() => {
                 if (form.certifications.length >= 10) return;
                 updateSection('certifications', [...form.certifications, blankCertification()]);
               }}>
@@ -1158,39 +1182,59 @@ By signing below, you accept full responsibility for the authenticity of the det
 
           {currentStep === 4 && (
             <div>
-              <h3 className="font-semibold text-slate-900">Work Experience / Internships (max 10)</h3>
-              {form.workExperience.map((w, idx) => (
-                <div key={idx} className="mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-2">
-                  <Input required={idx === 0} label="Organization Name" error={getFieldError(`workExperience.${idx}.organizationName`)} value={w.organizationName} onChange={(e) => {
-                    const next = [...form.workExperience];
+              <h3 className="font-semibold text-slate-900">Work Experience (max 10)</h3>
+              {form.workExperience.filter((item) => item.experienceType !== 'internship').map((w, idx) => (
+                <div key={idx} className="relative mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-2">
+                  {idx > 0 && (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-sm font-bold text-rose-600 hover:bg-rose-50"
+                      onClick={() => {
+                        const { workRows, internshipRows } = splitExperience();
+                        const nextWorkRows = workRows.filter((_, workIdx) => workIdx !== idx);
+                        updateExperienceLists(nextWorkRows, internshipRows);
+                      }}
+                      aria-label="Remove experience"
+                    >
+                      x
+                    </button>
+                  )}
+                  <Input label="Organization Name" error={getFieldError(`workExperience.${idx}.organizationName`)} value={w.organizationName} onChange={(e) => {
+                    const { workRows, internshipRows } = splitExperience();
+                    const next = [...workRows];
                     next[idx].organizationName = e.target.value;
-                    updateSection('workExperience', next);
+                    updateExperienceLists(next, internshipRows);
                   }} />
-                  <Input required={idx === 0} label="Job Title" error={getFieldError(`workExperience.${idx}.jobTitle`)} value={w.jobTitle} onChange={(e) => {
-                    const next = [...form.workExperience];
+                  <Input label="Job Title" error={getFieldError(`workExperience.${idx}.jobTitle`)} value={w.jobTitle} onChange={(e) => {
+                    const { workRows, internshipRows } = splitExperience();
+                    const next = [...workRows];
                     next[idx].jobTitle = e.target.value;
-                    updateSection('workExperience', next);
+                    updateExperienceLists(next, internshipRows);
                   }} />
-                  <Input required={idx === 0} label="Key Responsibilities" error={getFieldError(`workExperience.${idx}.responsibilities`)} value={w.responsibilities} onChange={(e) => {
-                    const next = [...form.workExperience];
+                  <Input label="Key Responsibilities" error={getFieldError(`workExperience.${idx}.responsibilities`)} value={w.responsibilities} onChange={(e) => {
+                    const { workRows, internshipRows } = splitExperience();
+                    const next = [...workRows];
                     next[idx].responsibilities = e.target.value;
-                    updateSection('workExperience', next);
+                    updateExperienceLists(next, internshipRows);
                   }} />
-                  <Input required={idx === 0} label="Country" error={getFieldError(`workExperience.${idx}.country`)} value={w.country} onChange={(e) => {
-                    const next = [...form.workExperience];
+                  <Input label="Country" error={getFieldError(`workExperience.${idx}.country`)} value={w.country} onChange={(e) => {
+                    const { workRows, internshipRows } = splitExperience();
+                    const next = [...workRows];
                     next[idx].country = e.target.value;
-                    updateSection('workExperience', next);
+                    updateExperienceLists(next, internshipRows);
                   }} />
-                  <Input required={idx === 0} label="Start Date (MM/YYYY)" error={getFieldError(`workExperience.${idx}.startDate`)} maxLength={7} inputMode="numeric" value={w.startDate} onChange={(e) => {
-                    const next = [...form.workExperience];
+                  <Input label="Start Date (MM/YYYY)" error={getFieldError(`workExperience.${idx}.startDate`)} maxLength={7} inputMode="numeric" value={w.startDate} onChange={(e) => {
+                    const { workRows, internshipRows } = splitExperience();
+                    const next = [...workRows];
                     next[idx].startDate = formatMonthYearInput(e.target.value);
-                    updateSection('workExperience', next);
+                    updateExperienceLists(next, internshipRows);
                   }} />
                   {!w.currentlyWorkingHere && (
-                    <Input required={idx === 0} label="End Date (MM/YYYY)" error={getFieldError(`workExperience.${idx}.endDate`)} maxLength={7} inputMode="numeric" value={w.endDate} onChange={(e) => {
-                      const next = [...form.workExperience];
+                    <Input label="End Date (MM/YYYY)" error={getFieldError(`workExperience.${idx}.endDate`)} maxLength={7} inputMode="numeric" value={w.endDate} onChange={(e) => {
+                      const { workRows, internshipRows } = splitExperience();
+                      const next = [...workRows];
                       next[idx].endDate = formatEndMonthYearInput(e.target.value);
-                      updateSection('workExperience', next);
+                      updateExperienceLists(next, internshipRows);
                     }} />
                   )}
                   <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -1198,23 +1242,90 @@ By signing below, you accept full responsibility for the authenticity of the det
                       type="checkbox"
                       checked={w.currentlyWorkingHere}
                       onChange={(e) => {
-                        const next = [...form.workExperience];
+                        const { workRows, internshipRows } = splitExperience();
+                        const next = [...workRows];
                         next[idx].currentlyWorkingHere = e.target.checked;
                         if (e.target.checked) {
                           next[idx].endDate = '';
                         }
-                        updateSection('workExperience', next);
+                        updateExperienceLists(next, internshipRows);
                       }}
                     />
                     Currently Working Here
                   </label>
                 </div>
               ))}
-              <Button className="mt-3" variant="secondary" onClick={() => {
-                if (form.workExperience.length >= 10) return;
-                updateSection('workExperience', [...form.workExperience, blankWork()]);
+              <Button className="mt-3 text-white" variant="secondary" onClick={() => {
+                const workCount = form.workExperience.filter((item) => item.experienceType !== 'internship').length;
+                if (workCount >= 10) return;
+                updateSection('workExperience', [...form.workExperience, blankWork('work')]);
               }}>
                 Add Experience
+              </Button>
+
+              <h3 className="mt-6 font-semibold text-slate-900">Internships (max 10)</h3>
+              {form.workExperience.filter((item) => item.experienceType === 'internship').map((w, idx) => (
+                <div key={`intern-${idx}`} className="relative mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-2">
+                  {idx > 0 && (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-sm font-bold text-rose-600 hover:bg-rose-50"
+                      onClick={() => {
+                        const { workRows, internshipRows } = splitExperience();
+                        const nextInternships = internshipRows.filter((_, internIdx) => internIdx !== idx);
+                        updateExperienceLists(workRows, nextInternships);
+                      }}
+                      aria-label="Remove internship"
+                    >
+                      x
+                    </button>
+                  )}
+                  <Input label="Organization Name" value={w.organizationName} onChange={(e) => {
+                    const { workRows, internshipRows } = splitExperience();
+                    const next = [...internshipRows];
+                    next[idx].organizationName = e.target.value;
+                    updateExperienceLists(workRows, next);
+                  }} />
+                  <Input label="Role / Title" value={w.jobTitle} onChange={(e) => {
+                    const { workRows, internshipRows } = splitExperience();
+                    const next = [...internshipRows];
+                    next[idx].jobTitle = e.target.value;
+                    updateExperienceLists(workRows, next);
+                  }} />
+                  <Input label="Key Responsibilities" value={w.responsibilities} onChange={(e) => {
+                    const { workRows, internshipRows } = splitExperience();
+                    const next = [...internshipRows];
+                    next[idx].responsibilities = e.target.value;
+                    updateExperienceLists(workRows, next);
+                  }} />
+                  <Input label="Country" value={w.country} onChange={(e) => {
+                    const { workRows, internshipRows } = splitExperience();
+                    const next = [...internshipRows];
+                    next[idx].country = e.target.value;
+                    updateExperienceLists(workRows, next);
+                  }} />
+                  <Input label="Start Date (MM/YYYY)" maxLength={7} inputMode="numeric" value={w.startDate} onChange={(e) => {
+                    const { workRows, internshipRows } = splitExperience();
+                    const next = [...internshipRows];
+                    next[idx].startDate = formatMonthYearInput(e.target.value);
+                    updateExperienceLists(workRows, next);
+                  }} />
+                  {!w.currentlyWorkingHere && (
+                    <Input label="End Date (MM/YYYY)" maxLength={7} inputMode="numeric" value={w.endDate} onChange={(e) => {
+                      const { workRows, internshipRows } = splitExperience();
+                      const next = [...internshipRows];
+                      next[idx].endDate = formatEndMonthYearInput(e.target.value);
+                      updateExperienceLists(workRows, next);
+                    }} />
+                  )}
+                </div>
+              ))}
+              <Button className="mt-3 text-white" variant="secondary" onClick={() => {
+                const internshipCount = form.workExperience.filter((item) => item.experienceType === 'internship').length;
+                if (internshipCount >= 10) return;
+                updateSection('workExperience', [...form.workExperience, blankWork('internship')]);
+              }}>
+                Add Internship
               </Button>
             </div>
           )}
@@ -1332,7 +1443,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   )}
                 </div>
               ))}
-              <Button className="mt-3" variant="secondary" onClick={() => updateSection('languages', [...form.languages, blankLanguage()])}>
+              <Button className="mt-3 text-white" variant="secondary" onClick={() => updateSection('languages', [...form.languages, blankLanguage()])}>
                 Add Language
               </Button>
             </div>
@@ -1352,7 +1463,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Personal Details</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(1)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(1)}>Edit</Button>}
                 </div>
                 <div className="grid gap-3 text-sm md:grid-cols-2">
                   <div className="rounded-lg bg-white p-3"><p className="text-slate-500">First Name</p><p className="font-medium text-slate-900">{reviewValue(form.personalDetails.firstName)}</p></div>
@@ -1365,14 +1476,13 @@ By signing below, you accept full responsibility for the authenticity of the det
                   {requireVisa && (
                     <div className="rounded-lg bg-white p-3"><p className="text-slate-500">Current Visa Status</p><p className="font-medium text-slate-900">{reviewValue(form.personalDetails.currentVisaStatus)}</p></div>
                   )}
-                  <div className="rounded-lg bg-white p-3 md:col-span-2"><p className="text-slate-500">Email</p><p className="font-medium text-slate-900">{reviewValue(form.personalDetails.email)}</p></div>
-                </div>
+                                  </div>
               </Card>
 
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Education</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(2)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(2)}>Edit</Button>}
                 </div>
 
                 <div className="space-y-4 text-sm">
@@ -1455,7 +1565,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Certifications</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(3)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(3)}>Edit</Button>}
                 </div>
                 {form.certifications.some((c) => c.certificationName || c.issuingOrganization || c.yearCompleted) ? (
                   <div className="space-y-3 text-sm">
@@ -1480,7 +1590,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Work Experience / Internships</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(4)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(4)}>Edit</Button>}
                 </div>
                 {form.workExperience.some((w) => w.organizationName || w.jobTitle || w.responsibilities || w.startDate || w.endDate || w.currentlyWorkingHere || w.country) ? (
                   <div className="space-y-3 text-sm">
@@ -1509,7 +1619,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Skills</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(5)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(5)}>Edit</Button>}
                 </div>
                 <div className="grid gap-3 text-sm md:grid-cols-2">
                   <div className="rounded-lg bg-white p-3">
@@ -1526,7 +1636,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Languages</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(6)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(6)}>Edit</Button>}
                 </div>
                 {form.languages.some((lang) => lang.language || lang.proficiencyLevel || lang.certified === 'Yes' || lang.certificateTitle) ? (
                   <div className="space-y-3 text-sm">
@@ -1554,7 +1664,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-lg font-bold text-slate-900">Additional Information</h3>
-                  {!isApprovedProfileView && <Button variant="secondary" onClick={() => goToStep(7)}>Edit</Button>}
+                  {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(7)}>Edit</Button>}
                 </div>
                 <div className="rounded-lg bg-white p-4 text-sm">
                   <p className="text-slate-500">Notes</p>
@@ -1616,8 +1726,8 @@ By signing below, you accept full responsibility for the authenticity of the det
             <li>USD 3,500 includes verification fee, payable before document submission, refundable only if not selected post interview stage</li>
             <li>USD 4,000 payable upon successful selection</li>
           </ul>
-          <p className="mt-3 rounded-md bg-amber-50 p-2 text-amber-900">
-            Fees apply to program participation and support services and are not linked to job guarantees.
+          <p className="mt-3 rounded-md bg-amber-50 p-2 text-black">
+            This fee supports evaluation and process coordination services. It does not promise employment outcomes.
           </p>
         </div>
 
@@ -1636,7 +1746,7 @@ By signing below, you accept full responsibility for the authenticity of the det
         metaFields={{
           fullName: fullName || 'Not available',
           dateTime: signedDateTime,
-          location: 'Auto-captured placeholder',
+          location: 'Auto-captured',
         }}
         onConfirm={(sig) => {
           setSignature(sig);

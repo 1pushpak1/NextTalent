@@ -86,10 +86,16 @@ const printInvoice = (payment) => {
 export default function PaymentHistoryPage() {
   const [payments, setPayments] = useState([]);
   const [selectedPayment, setSelectedPayment] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('completed');
 
   useEffect(() => {
     api.get('/payments/me').then(({ data }) => setPayments(Array.isArray(data) ? data : [])).catch(() => setPayments([]));
   }, []);
+
+  const filteredPayments = payments.filter((payment) => {
+    if (statusFilter === 'all') return true;
+    return String(payment.status || '').toLowerCase() === statusFilter;
+  });
 
   return (
     <div className="nst-shell">
@@ -103,16 +109,32 @@ export default function PaymentHistoryPage() {
               <h1 className="text-4xl font-bold tracking-tight text-[#002147]">Payment History</h1>
               <p className="mt-2 text-base text-[#44474e]">All payment transactions and their latest statuses for your pathway.</p>
             </div>
+            <div className="w-full max-w-[260px]">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-[#44474e]">Filter by status</span>
+                <select
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#3a5f94] focus:ring-2 focus:ring-[#3a5f94]/20"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="completed">Received (Completed)</option>
+                  <option value="pending">Pending</option>
+                  <option value="failed">Not Received</option>
+                  <option value="refunded">Refunded</option>
+                  <option value="all">All</option>
+                </select>
+              </label>
+            </div>
             {/* removed completed-invoices count box as requested */}
           </section>
 
-          {!payments.length ? (
+          {!filteredPayments.length ? (
             <div className="rounded-xl border border-slate-200 bg-white p-8 text-slate-600">
-              No payment records yet.
+              No payment records found for the selected status.
             </div>
           ) : (
             <div className="grid gap-4">
-              {payments.map((payment) => (
+              {filteredPayments.map((payment) => (
                 <article key={payment._id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -131,10 +153,12 @@ export default function PaymentHistoryPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <Button variant="secondary" className="text-white" onClick={() => setSelectedPayment(payment)}>View</Button>
-                    <Button variant="secondary" className="text-white" onClick={() => printInvoice(payment)}>Download Invoice</Button>
-                  </div>
+                  {String(payment.status || '').toLowerCase() === 'completed' && (
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <Button variant="secondary" className="text-white" onClick={() => setSelectedPayment(payment)}>View</Button>
+                      <Button variant="secondary" className="text-white" onClick={() => printInvoice(payment)}>Download Invoice</Button>
+                    </div>
+                  )}
                 </article>
               ))}
             </div>

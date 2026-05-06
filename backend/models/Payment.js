@@ -9,6 +9,8 @@ const paymentSchema = new mongoose.Schema(
     method: { type: String, default: 'card' },
     status: { type: String, default: 'completed' },
     transactionId: { type: String, required: true },
+    receiptUrl: { type: String, default: '' },
+    bankReference: { type: String, default: '' },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } }
 );

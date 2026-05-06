@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import Button from '../../components/Button';
 import Modal from '../../components/Modal';
-import Select from '../../components/Select';
 import api from '../../api/axios';
 
 const formatDate = (value) => {
@@ -11,13 +10,27 @@ const formatDate = (value) => {
   return date.toLocaleDateString();
 };
 
-const statusOptions = ['completed', 'pending', 'failed', 'refunded'];
 const formatStatus = (value) => {
   if (!value) return '—';
   return String(value)
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+};
+const getStatusOptions = (paymentType) => {
+  if (paymentType === 'program' || paymentType === 'final') {
+    return [
+      { label: 'Received', value: 'completed' },
+      { label: 'Not Received', value: 'failed' },
+      { label: 'Pending Verification', value: 'pending' },
+    ];
+  }
+  return [
+    { label: 'Completed', value: 'completed' },
+    { label: 'Pending', value: 'pending' },
+    { label: 'Failed', value: 'failed' },
+    { label: 'Refunded', value: 'refunded' },
+  ];
 };
 
 export default function AdminPaymentTypePage({ title, type }) {
@@ -87,6 +100,8 @@ export default function AdminPaymentTypePage({ title, type }) {
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Transaction ID</th>
+                  <th className="px-4 py-3">Method</th>
+                  <th className="px-4 py-3">Receipt</th>
                   <th className="px-4 py-3">Action</th>
                 </tr>
               </thead>
@@ -102,6 +117,14 @@ export default function AdminPaymentTypePage({ title, type }) {
                       <td className="px-4 py-3 text-slate-600">{formatStatus(row.status)}</td>
                       <td className="px-4 py-3 text-slate-600">{formatDate(row.date)}</td>
                       <td className="px-4 py-3 text-slate-600">{row.transactionId}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatStatus(row.method)}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {row.receiptUrl ? (
+                          <a className="text-blue-700 underline" href={`${(import.meta.env.VITE_API_URL || 'http://localhost:5001/api').replace('/api', '')}${row.receiptUrl}`} target="_blank" rel="noreferrer">
+                            View Receipt
+                          </a>
+                        ) : '—'}
+                      </td>
                       <td className="px-4 py-3">
                         {row.paymentId ? (
                           <Button
@@ -109,7 +132,7 @@ export default function AdminPaymentTypePage({ title, type }) {
                             className="px-3 py-2 text-xs"
                             onClick={() => setEditingPayment(row)}
                           >
-                            Edit Payment Status
+                            {row.method === 'bank_transfer' ? 'Mark / Update Received' : 'Edit Payment Status'}
                           </Button>
                         ) : (
                           <span className="text-xs text-slate-500">No payment record</span>
@@ -150,17 +173,25 @@ export default function AdminPaymentTypePage({ title, type }) {
               </div>
             </div>
 
-            <Select
-              label="Payment Status"
-              options={statusOptions}
-              value={draft[editingPayment.paymentId || `pending-${editingPayment.candidateId}`] || 'pending'}
-              onChange={(e) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  [editingPayment.paymentId || `pending-${editingPayment.candidateId}`]: e.target.value,
-                }))
-              }
-            />
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-[#d3d3d8]">Payment Status</span>
+              <select
+                className="w-full rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.035)] px-3 py-2.5 text-sm text-[#f7f3ea] outline-none transition focus:border-[#c8a96b] focus:ring-2 focus:ring-[#c8a96b]/20"
+                value={draft[editingPayment.paymentId || `pending-${editingPayment.candidateId}`] || 'pending'}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    [editingPayment.paymentId || `pending-${editingPayment.candidateId}`]: e.target.value,
+                  }))
+                }
+              >
+                {getStatusOptions(editingPayment.paymentType).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <div className="flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setEditingPayment(null)} disabled={saving}>

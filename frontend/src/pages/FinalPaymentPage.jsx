@@ -1,32 +1,56 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import Select from '../components/Select';
 import Button from '../components/Button';
 import api from '../api/axios';
 
+const BANK_DETAILS = {
+  accountName: 'NextStep Talent Global LLC',
+  accountNumber: '123456789012',
+  bankName: 'Global Trust Bank',
+  branch: 'Berlin Main Branch',
+  swift: 'GTBKDEFFXXX',
+  iban: 'DE89370400440532013000',
+};
+
 export default function FinalPaymentPage() {
-  const [method, setMethod] = useState('Bank Transfer preferred');
   const [loading, setLoading] = useState(false);
+  const [bankReference, setBankReference] = useState('');
+  const [receipt, setReceipt] = useState(null);
+  const fileInputRef = useRef(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   const submit = async () => {
+    if (!receipt) {
+      alert('Please upload transfer receipt');
+      return;
+    }
+
     setLoading(true);
     try {
-      const { data } = await api.post('/payments/create', {
-        type: 'final',
-        method,
-        returnBaseUrl: window.location.origin,
+      const formData = new FormData();
+      formData.append('type', 'final');
+      formData.append('bankReference', bankReference);
+      formData.append('receipt', receipt);
+      await api.post('/payments/bank-transfer', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-      if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-        return;
-      }
-      alert('Stripe checkout URL was not returned.');
+      alert('Receipt uploaded. Admin will verify and update your payment status.');
+      navigate('/candidate-dashboard');
     } catch (error) {
-      alert(error.response?.data?.message || 'Payment failed');
+      alert(error.response?.data?.message || 'Unable to submit bank transfer receipt');
     } finally {
       setLoading(false);
     }
+  };
+
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
   };
 
   return (
@@ -36,15 +60,41 @@ export default function FinalPaymentPage() {
         <div className="mx-auto max-w-[900px] px-6">
           <section className="nst-card rounded-xl p-8">
             <h1 className="mb-2 text-4xl font-bold text-[#002147]">Final Onboarding Payment</h1>
-            <p className="mb-6 text-[#44474e]">This payment is payable only upon successful selection.</p>
-            <div className="mb-6 rounded-lg bg-[#f4f3f7] p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Milestone 03</p>
-              <p className="mt-2 text-3xl font-bold text-[#002147]">USD 4,000</p>
+            <p className="mb-6 text-[#44474e]">Transfer USD 4,000 to the account below, then upload your transfer receipt.</p>
+            <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm md:grid-cols-2">
+              <p><b>Account Name:</b> {BANK_DETAILS.accountName}</p>
+              <p><b>Account Number:</b> {BANK_DETAILS.accountNumber}</p>
+              <p><b>Bank Name:</b> {BANK_DETAILS.bankName}</p>
+              <p><b>Branch:</b> {BANK_DETAILS.branch}</p>
+              <p><b>SWIFT:</b> {BANK_DETAILS.swift}</p>
+              <p><b>IBAN:</b> {BANK_DETAILS.iban}</p>
             </div>
-            <div className="max-w-sm">
-              <Select label="Payment Option" options={['Bank Transfer preferred', 'Card Payment optional']} value={method} onChange={(e) => setMethod(e.target.value)} />
+            <div className="grid gap-3 md:grid-cols-2">
+              <input
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none"
+                placeholder="Bank transfer reference (optional)"
+                value={bankReference}
+                onChange={(e) => setBankReference(e.target.value)}
+              />
+              <div className="rounded-xl border border-slate-300 bg-white p-2.5">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.png,.jpg,.jpeg,.webp"
+                  onChange={(e) => setReceipt(e.target.files?.[0] || null)}
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <Button type="button" variant="secondary" className="text-white" onClick={openFilePicker}>
+                    Choose File
+                  </Button>
+                  <span className="truncate text-xs text-slate-600">
+                    {receipt?.name || 'No file selected'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <Button className="mt-6" onClick={submit} disabled={loading}>{loading ? 'Processing...' : 'Pay USD 4,000'}</Button>
+            <Button className="mt-6 text-white" onClick={submit} disabled={loading}>{loading ? 'Submitting...' : 'Submit Transfer Receipt'}</Button>
           </section>
         </div>
       </main>

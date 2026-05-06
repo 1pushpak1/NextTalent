@@ -45,7 +45,7 @@ export default function CandidatePortalSidebar() {
         </div>
         <div>
           <p className="text-sm font-semibold text-[#f7f3ea]">Candidate Portal</p>
-          <p className="text-xs text-[#c8a96b]">Elite Pathway</p>
+          {/* <p className="text-xs text-[#c8a96b]"></p> */}
         </div>
       </div>
       <nav className="space-y-1">

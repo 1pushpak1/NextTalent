@@ -87,8 +87,8 @@ export default function DocumentsPage() {
                     <span className="material-symbols-outlined">verified_user</span>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-[#1a1b1e]">Verification Progress</p>
-                    <p className="text-xs text-[#44474e]">{uploadedCount} of {documentChecklist.length} documents uploaded</p>
+                    <p className="text-sm font-semibold text-white">Verification Progress</p>
+                    <p className="text-xs text-white">{uploadedCount} of {documentChecklist.length} documents uploaded</p>
                   </div>
                 </div>
                 <div className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-slate-200">
@@ -125,7 +125,7 @@ export default function DocumentsPage() {
                 <p className="mb-4 text-sm text-[#44474e]">
                   Our document specialists are available to assist with upload or format issues.
                 </p>
-                <Button variant="secondary" className="w-full">Contact Support</Button>
+                <Button variant="secondary" className="w-full text-white">Contact Support</Button>
               </div>
             </aside>
           </div>
@@ -138,7 +138,7 @@ export default function DocumentsPage() {
 
       <Modal isOpen={showDone} onClose={() => setShowDone(false)} title="Success!">
         <p className="text-sm text-slate-600">All documents have been received.</p>
-        <Button className="mt-4 w-full" onClick={() => navigate('/candidate-dashboard')}>Go to Dashboard</Button>
+        <Button className="mt-4 w-full text-white" onClick={() => navigate('/candidate-dashboard')}>Go to Dashboard</Button>
       </Modal>
       <Footer />
     </div>

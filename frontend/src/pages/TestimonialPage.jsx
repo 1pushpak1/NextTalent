@@ -103,7 +103,7 @@ export default function TestimonialPage() {
                           accept=".png,.jpg,.jpeg,.webp"
                           onChange={handlePhotoUpload}
                         />
-                        <Button type="button" variant="secondary" onClick={openPhotoPicker}>
+                        <Button className="text-white" type="button" variant="secondary" onClick={openPhotoPicker}>
                           {selectedPhotoFile || photoPreviewUrl || form.photoUrl ? 'Change Photo' : 'Upload Photo'}
                         </Button>
                       </div>
@@ -127,7 +127,7 @@ export default function TestimonialPage() {
               ) : (
                 <>
                   <h1 className="mb-2 text-3xl font-bold text-[#002147]">Thank You for Sharing Your Story</h1>
-                  <Button className="mt-4" onClick={() => navigate('/candidate-dashboard')}>Go to Dashboard</Button>
+                  <Button className="mt-4 text-white" onClick={() => navigate('/candidate-dashboard')}>Go to Dashboard</Button>
                 </>
               )}
             </section>

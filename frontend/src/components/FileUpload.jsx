@@ -43,7 +43,7 @@ export default function FileUpload({ label, status = 'Pending', hasUploadedFile 
         onChange={handleUpload}
         accept=".pdf,.png,.jpg,.jpeg,.webp"
       />
-      <Button type="button" variant="secondary" disabled={uploading} onClick={openPicker}>
+      <Button className="text-white" type="button" variant="secondary" disabled={uploading} onClick={openPicker}>
         {uploading ? 'Uploading...' : hasUploadedFile ? 'Change File' : 'Upload File'}
       </Button>
       <StatusBadge status={status} />

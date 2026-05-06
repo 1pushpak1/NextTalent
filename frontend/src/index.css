@@ -384,3 +384,11 @@ a {
     transition: none;
   }
 }
+input.nst-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 1;
+}
+
+input.nst-date-input::-webkit-datetime-edit {
+  color: #f7f3ea;
+}

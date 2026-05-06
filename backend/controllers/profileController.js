@@ -33,7 +33,26 @@ const applyProfileFields = (profile, body = {}) => {
   if ('savedStep' in body) profile.savedStep = clampSavedStep(body.savedStep, profile.savedStep || 1);
 };
 
-const finalizeSubmission = async ({ profile, body, userId, isNewProfile }) => {
+const collectSignatureAudit = (req) => {
+  const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const ipAddress = forwardedFor || req.ip || req.socket?.remoteAddress || '';
+  const userAgent = req.headers['user-agent'] || '';
+  const sessionId =
+    String(req.headers['x-session-id'] || '').trim() ||
+    String(req.headers.authorization || '').replace('Bearer ', '').slice(-16);
+  return {
+    ipAddress,
+    userAgent,
+    sessionId,
+    signedFrom: {
+      platform: req.headers['sec-ch-ua-platform'] || '',
+      mobile: req.headers['sec-ch-ua-mobile'] || '',
+      language: req.headers['accept-language'] || '',
+    },
+  };
+};
+
+const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) => {
   if (!body.financialDisclosureAccepted) {
     const error = new Error('Financial disclosure must be accepted');
     error.statusCode = 400;
@@ -55,9 +74,20 @@ const finalizeSubmission = async ({ profile, body, userId, isNewProfile }) => {
 
   await User.findByIdAndUpdate(userId, { status: 'profile_submitted' });
 
-  if (body.personalDetails?.email) {
+  if (body.signature?.value) {
+    profile.signature = {
+      ...(body.signature || {}),
+      audit: {
+        ...(body.signature?.audit || {}),
+        ...collectSignatureAudit(req),
+      },
+    };
+  }
+
+  const recipientEmail = body.personalDetails?.email || req.user?.email;
+  if (recipientEmail) {
     await sendEmail({
-      to: body.personalDetails.email,
+      to: recipientEmail,
       subject: 'Profile Submitted - NextStep Talent',
       text: 'Your profile has been submitted and is now in internal evaluation.',
     });
@@ -90,6 +120,7 @@ const createProfile = async (req, res) => {
 
     const profile = existingProfile || new Profile({ userId });
     const { profile: savedProfile, statusCode } = await finalizeSubmission({
+      req,
       profile,
       body,
       userId,
@@ -135,6 +166,7 @@ const updateMyProfile = async (req, res) => {
     }
 
     const { profile: savedProfile } = await finalizeSubmission({
+      req,
       profile,
       body,
       userId,

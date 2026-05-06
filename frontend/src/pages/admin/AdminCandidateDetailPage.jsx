@@ -106,6 +106,7 @@ export default function AdminCandidateDetailPage() {
 
   const candidate = data?.candidate;
   const profile = data?.profile;
+  const eligibility = data?.eligibility || null;
   const documents = data?.documents || [];
   const payments = data?.payments || [];
   const testimonial = data?.testimonial || null;
@@ -534,6 +535,28 @@ export default function AdminCandidateDetailPage() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <h2 className="text-lg font-semibold text-slate-900">Initial Eligibility Details</h2>
+            {!eligibility ? (
+              <p className="mt-3 text-sm text-slate-500">No eligibility record found.</p>
+            ) : (
+              <div className="mt-3">
+                <FieldGrid rows={[
+                  { label: 'Destination', value: eligibility.destination },
+                  { label: 'Country', value: eligibility.country },
+                  { label: 'IT Background', value: eligibility.hasITBackground },
+                  { label: 'Qualification', value: eligibility.qualification },
+                  { label: 'Language', value: eligibility.languageAnswer },
+                  { label: 'Current Location', value: eligibility.currentLocation },
+                  { label: 'Willing To Relocate', value: eligibility.willingToRelocate },
+                  { label: 'Comfortable With Fees', value: eligibility.comfortableWithFees },
+                  { label: 'Eligible', value: eligibility.isEligible },
+                  { label: 'Rejection Reason', value: eligibility.rejectionReason },
+                ]} />
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="text-lg font-semibold text-slate-900">Education</h2>
             {!education ? (
               <p className="mt-3 text-sm text-slate-500">No education details submitted.</p>
@@ -711,6 +734,26 @@ export default function AdminCandidateDetailPage() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <h2 className="text-lg font-semibold text-slate-900">Signature Audit</h2>
+            {!profile?.signature?.value ? (
+              <p className="mt-3 text-sm text-slate-500">No signature captured.</p>
+            ) : (
+              <div className="mt-3">
+                <FieldGrid rows={[
+                  { label: 'Signature Type', value: profile.signature.type },
+                  { label: 'Signed At', value: profile.signature.signedAt },
+                  { label: 'IP Address', value: profile.signature?.audit?.ipAddress },
+                  { label: 'User Agent', value: profile.signature?.audit?.userAgent },
+                  { label: 'Session ID', value: profile.signature?.audit?.sessionId },
+                  { label: 'Platform', value: profile.signature?.audit?.signedFrom?.platform },
+                  { label: 'Mobile', value: profile.signature?.audit?.signedFrom?.mobile },
+                  { label: 'Accept Language', value: profile.signature?.audit?.signedFrom?.language },
+                ]} />
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="text-lg font-semibold text-slate-900">Documents</h2>
             {!documents.length ? (
               <p className="mt-3 text-sm text-slate-500">No documents uploaded.</p>
@@ -754,6 +797,9 @@ export default function AdminCandidateDetailPage() {
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Invoice — <span className="normal-case font-semibold text-emerald-700">{formatStatus(payment.status)}</span></p>
                         <h3 className="mt-1 text-xl font-bold text-[#002147]">{getPaymentTitle(payment.type)}</h3>
                         <p className="mt-1 text-xs text-slate-500">Transaction ID: {payment.transactionId || '—'}</p>
+                        {payment.receiptUrl && (
+                          <a className="mt-1 inline-block text-xs text-[#3a5f94] underline" href={`${getBackendBaseUrl()}${payment.receiptUrl}`} target="_blank" rel="noreferrer">View Receipt</a>
+                        )}
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="rounded-xl bg-slate-50 px-4 py-3">
@@ -805,6 +851,7 @@ export default function AdminCandidateDetailPage() {
             <div className="rounded-md bg-slate-100 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Method</p><p className="mt-1 font-medium text-slate-900">{selectedPayment.method || '—'}</p></div>
             <div className="rounded-md bg-slate-100 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Transaction ID</p><p className="mt-1 font-medium text-slate-900">{selectedPayment.transactionId || '—'}</p></div>
             <div className="rounded-md bg-slate-100 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Date</p><p className="mt-1 font-medium text-slate-900">{formatDate(selectedPayment.createdAt)}</p></div>
+            <div className="rounded-md bg-slate-100 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Receipt</p><p className="mt-1 font-medium text-slate-900">{selectedPayment.receiptUrl ? <a className="text-blue-700 underline" href={`${getBackendBaseUrl()}${selectedPayment.receiptUrl}`} target="_blank" rel="noreferrer">Open receipt</a> : '—'}</p></div>
           </div>
         )}
       </Modal>

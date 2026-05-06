@@ -14,6 +14,8 @@ const userSchema = new mongoose.Schema(
     assignedHiringPartner: { type: String, default: '' },
     adminNotes: { type: String, default: '' },
     phoneOtp: { type: String, default: '' },
+    emailVerificationTokenHash: { type: String, default: '' },
+    emailVerificationExpiresAt: { type: Date, default: null },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } }
 );

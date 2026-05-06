@@ -8,6 +8,7 @@ const acceptedQualifications = [
 ];
 
 const runEligibilityCheck = ({
+  destination,
   country,
   hasITBackground,
   qualification,
@@ -16,6 +17,16 @@ const runEligibilityCheck = ({
   willingToRelocate,
   comfortableWithFees,
 }) => {
+  if (!destination) {
+    return { isEligible: false, rejectionReason: 'Destination is required.' };
+  }
+  if (!country) {
+    return { isEligible: false, rejectionReason: 'Country is required.' };
+  }
+  if (destination !== 'Europe Active') {
+    return { isEligible: false, rejectionReason: 'Selected destination is not open yet.' };
+  }
+
   const baseChecks =
     hasITBackground === true &&
     acceptedQualifications.includes(qualification) &&
@@ -69,7 +80,16 @@ const runEligibilityCheck = ({
 
 const checkEligibility = async (req, res) => {
   try {
-    const payload = req.body;
+    const payload = {
+      destination: String(req.body?.destination || '').trim(),
+      country: String(req.body?.country || '').trim(),
+      hasITBackground: Boolean(req.body?.hasITBackground),
+      qualification: String(req.body?.qualification || '').trim(),
+      languageAnswer: String(req.body?.languageAnswer || '').trim(),
+      currentLocation: String(req.body?.currentLocation || '').trim(),
+      willingToRelocate: Boolean(req.body?.willingToRelocate),
+      comfortableWithFees: Boolean(req.body?.comfortableWithFees),
+    };
     const result = runEligibilityCheck(payload);
 
     const record = await Eligibility.create({

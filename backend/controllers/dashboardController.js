@@ -18,7 +18,11 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
   const hasSubmittedProfile = Boolean(profile) && profile.status !== 'draft';
   const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
   const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed') || user.status === 'program_payment_complete';
+  const hasProgramPending = payments.some((p) => p.type === 'program' && p.status === 'pending');
+  const hasProgramFailed = payments.some((p) => p.type === 'program' && p.status === 'failed');
   const hasFinal = payments.some((p) => p.type === 'final' && p.status === 'completed');
+  const hasFinalPending = payments.some((p) => p.type === 'final' && p.status === 'pending');
+  const hasFinalFailed = payments.some((p) => p.type === 'final' && p.status === 'failed');
   const docsUploaded = docs.length > 0;
   const docsUnderReview = docs.some((d) => d.status === 'Under Review');
   const docsAccepted = docs.length > 0 && docs.every((d) => d.status === 'Accepted');
@@ -56,11 +60,11 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
     user.status === 'process_complete';
   const docsReceived =
     user.status === 'documents_received' ||
-    hasProgram ||
+    (hasProgram && docsAccepted) ||
     hasFinal ||
     selected ||
     user.status === 'process_complete';
-  const programFeeActionRequired = docsReceived && !hasProgram;
+  const programFeeActionRequired = docsUploaded && !hasProgram && !hasProgramPending;
 
   return [
     { name: 'Eligibility Check', status: eligibilityDone ? 'Completed' : 'Pending' },
@@ -83,12 +87,22 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
     { name: 'Team Contact / Onboarding', status: onboardingDone ? 'Completed' : hasInitial ? 'In Progress' : 'Pending' },
     { name: 'Documents Uploaded', status: docsUploaded ? 'Completed' : 'Pending' },
     {
-      name: 'Document Verification',
-      status: docsReceived ? 'Accepted' : docsUnderReview ? 'Under Review' : docsAccepted ? 'In Progress' : 'Pending',
+      name: 'Program Fee Payment',
+      status: hasProgram
+        ? 'Completed'
+        : hasProgramFailed
+          ? 'Rejected'
+        : hasProgramPending
+          ? 'Under Review'
+          : programFeeActionRequired
+            ? 'Pending'
+            : hasFinal || selected || user.status === 'process_complete'
+              ? 'Completed'
+              : 'Pending',
     },
     {
-      name: 'Program Fee Payment',
-      status: programFeeActionRequired ? 'Pending' : hasProgram || hasFinal || selected || user.status === 'process_complete' ? 'Completed' : 'Pending',
+      name: 'Document Verification',
+      status: hasProgram ? (docsReceived ? 'Accepted' : docsUnderReview ? 'Under Review' : docsAccepted ? 'In Progress' : 'Pending') : 'Pending',
     },
     {
       name: 'Sent to Hiring Partners',
@@ -104,7 +118,7 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
     },
     {
       name: 'Final Payment',
-      status: selectionRejected ? 'Inactive' : hasFinal ? 'Completed' : selectionAccepted ? 'Pending' : 'Pending',
+      status: selectionRejected ? 'Inactive' : hasFinal ? 'Completed' : hasFinalFailed ? 'Rejected' : hasFinalPending ? 'Under Review' : selectionAccepted ? 'Pending' : 'Pending',
     },
     { name: 'Testimonial', status: selectionRejected ? 'Inactive' : testimonial ? 'Completed' : 'Pending' },
   ];
@@ -113,10 +127,18 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
 const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
   const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
   const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed') || user.status === 'program_payment_complete';
+  const hasProgramPending = payments.some((p) => p.type === 'program' && p.status === 'pending');
+  const hasProgramFailed = payments.some((p) => p.type === 'program' && p.status === 'failed');
   const hasFinal = payments.some((p) => p.type === 'final' && p.status === 'completed');
+  const hasFinalPending = payments.some((p) => p.type === 'final' && p.status === 'pending');
+  const hasFinalFailed = payments.some((p) => p.type === 'final' && p.status === 'failed');
   const docsUploaded = docs.length > 0;
   const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews: [] });
-  const docsReceived = user.status === 'documents_received' || hasProgram || hasFinal || user.status === 'selected' || user.status === 'process_complete';
+  const docsReceived =
+    user.status === 'documents_received' ||
+    hasFinal ||
+    user.status === 'selected' ||
+    user.status === 'process_complete';
   const declarationDone =
     user.status === 'declaration_signed' ||
     user.status === 'onboarding_complete' ||
@@ -135,8 +157,10 @@ const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
   if (hasInitial && !declarationDone) return '/declaration';
   if (hasInitial && declarationDone && !onboardingDone) return '/onboarding';
   if (hasInitial && onboardingDone && !docsUploaded) return '/documents';
-  if (docsReceived && !hasProgram) return '/payment/program-fee';
-  if (user.status === 'selected' && !hasFinal) return '/payment/final-payment';
+  if (hasInitial && onboardingDone && docsUploaded && !hasProgram && !hasProgramPending) return '/payment/program-fee';
+  if (hasInitial && onboardingDone && docsUploaded && hasProgramFailed) return '/payment/program-fee';
+  if (user.status === 'selected' && !hasFinal && !hasFinalPending) return '/payment/final-payment';
+  if (user.status === 'selected' && hasFinalFailed) return '/payment/final-payment';
 
   return '/candidate-dashboard';
 };
@@ -155,12 +179,20 @@ const getDashboard = async (req, res) => {
 
     const stages = buildStages({ eligibility, profile, user, docs, interviews, payments, testimonial });
     const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed') || user.status === 'program_payment_complete';
+    const hasProgramPending = payments.some((p) => p.type === 'program' && p.status === 'pending');
+    const hasProgramFailed = payments.some((p) => p.type === 'program' && p.status === 'failed');
     const effectiveHasProgram = hasProgram;
     const hasFinal = payments.some((p) => p.type === 'final' && p.status === 'completed');
+    const hasFinalPending = payments.some((p) => p.type === 'final' && p.status === 'pending');
+    const hasFinalFailed = payments.some((p) => p.type === 'final' && p.status === 'failed');
     const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
     const docsUploaded = docs.length > 0;
     const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews });
-    const docsReceived = user.status === 'documents_received' || effectiveHasProgram || hasFinal || user.status === 'selected' || user.status === 'process_complete';
+    const docsReceived =
+      user.status === 'documents_received' ||
+      hasFinal ||
+      user.status === 'selected' ||
+      user.status === 'process_complete';
     const selectionDecision = String(user?.stageStatuses?.get ? user.stageStatuses.get('selection') : user?.stageStatuses?.selection || '').toLowerCase();
     const declarationDone =
       user.status === 'declaration_signed' ||
@@ -194,9 +226,17 @@ const getDashboard = async (req, res) => {
     else if (hasInitial && !declarationDone) nextAction = 'Sign declaration and contract';
     else if (hasInitial && declarationDone && !onboardingDone) nextAction = 'Complete team contact/onboarding';
     else if (hasInitial && onboardingDone && !docsUploaded) nextAction = 'Upload required documents';
-    else if (docsUploaded && !docsReceived) nextAction = 'Await document review and all-documents-received confirmation';
-    else if (docsReceived && !effectiveHasProgram)
-      nextAction = 'Pay program and documentation verification fee';
+    else if (docsUploaded && hasProgramFailed)
+      nextAction = 'Payment not received. Please upload the correct receipt file or contact support to resolve this issue.';
+    else if (docsUploaded && hasProgramPending)
+      nextAction = 'Waiting for payment confirmation';
+    else if (docsUploaded && !effectiveHasProgram)
+      nextAction = 'Pay program fee (USD 3,500) and upload transfer receipt';
+    else if (effectiveHasProgram && !docsReceived) nextAction = 'Await document verification';
+    else if (user.status === 'selected' && hasFinalFailed)
+      nextAction = 'Payment not received. Please upload the correct receipt file or contact support to resolve this issue.';
+    else if (user.status === 'selected' && hasFinalPending)
+      nextAction = 'Final payment under verification';
     else if (user.status === 'selected' && !hasFinal)
       nextAction = 'Complete final payment';
     else if (hasFinal && !testimonial)
@@ -204,6 +244,24 @@ const getDashboard = async (req, res) => {
 
     res.json({
       candidate: user,
+      contact: {
+        email: user?.email || '',
+        phone: user?.phone || '',
+      },
+      eligibility: eligibility
+        ? {
+            destination: eligibility.destination,
+            country: eligibility.country,
+            hasITBackground: eligibility.hasITBackground,
+            qualification: eligibility.qualification,
+            languageAnswer: eligibility.languageAnswer,
+            currentLocation: eligibility.currentLocation,
+            willingToRelocate: eligibility.willingToRelocate,
+            comfortableWithFees: eligibility.comfortableWithFees,
+            isEligible: eligibility.isEligible,
+            rejectionReason: eligibility.rejectionReason,
+          }
+        : null,
       profile,
       currentStage: currentStage?.name,
       nextAction,

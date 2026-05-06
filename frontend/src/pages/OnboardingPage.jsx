@@ -59,7 +59,7 @@ export default function OnboardingPage() {
               <p>3. Candidate readiness confirmation for document collection</p>
             </div>
             <div className="mt-8 flex gap-3">
-              <Button variant="secondary" onClick={() => navigate('/candidate-dashboard')}>Back to Dashboard</Button>
+              <Button className="text-white" variant="secondary" onClick={() => navigate('/candidate-dashboard')}>Back to Dashboard</Button>
               <Button onClick={continueFlow} disabled={loading || saving}>{saving ? 'Saving...' : 'Continue to Document Upload'}</Button>
             </div>
           </Card>
