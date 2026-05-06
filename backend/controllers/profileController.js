@@ -2,7 +2,7 @@ const Profile = require('../models/Profile');
 const User = require('../models/User');
 const Eligibility = require('../models/Eligibility');
 const generatePdf = require('../utils/generatePdf');
-const sendEmail = require('../utils/sendEmail');
+const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const clampSavedStep = (value, fallback = 1) => {
   const numeric = Number(value);
@@ -85,13 +85,19 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
   }
 
   const recipientEmail = body.personalDetails?.email || req.user?.email;
-  if (recipientEmail) {
-    await sendEmail({
-      to: recipientEmail,
-      subject: 'Profile Submitted - NextStep Talent',
-      text: 'Your profile has been submitted and is now in internal evaluation.',
-    });
-  }
+  await sendStepUpdateEmail({
+    to: recipientEmail,
+    candidateName: body.personalDetails?.firstName || req.user?.name || req.user?.email?.split('@')[0],
+    stepKey: 'profile',
+    heading: 'Profile submitted successfully',
+    message: 'Your profile has been submitted and moved to internal evaluation.',
+    status: 'submitted',
+    details: [
+      { label: 'Profile Status', value: 'Submitted' },
+      { label: 'Saved Step', value: '8' },
+    ],
+    cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+  });
 
   return { profile, statusCode: isNewProfile ? 201 : 200 };
 };
@@ -101,6 +107,16 @@ const saveDraftProfile = async ({ profile, body }) => {
   profile.status = 'draft';
   profile.generatedPdfUrl = '';
   await profile.save();
+  await sendStepUpdateEmail({
+    to: body?.personalDetails?.email || '',
+    candidateName: body?.personalDetails?.firstName || '',
+    stepKey: 'profile',
+    heading: 'Profile draft saved',
+    message: 'Your progress has been saved. You can continue from where you left off.',
+    status: 'pending',
+    details: [{ label: 'Saved Step', value: String(profile.savedStep || 1) }],
+    cta: { label: 'Continue Profile', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/profile-submission` },
+  });
   return profile;
 };
 

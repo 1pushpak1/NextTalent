@@ -2,7 +2,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
-const sendEmail = require('../utils/sendEmail');
+const Eligibility = require('../models/Eligibility');
+const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const getEnvAdminEmail = () => String(process.env.ADMIN_EMAIL || '').toLowerCase().trim();
 const getEnvAdminPassword = () => String(process.env.ADMIN_PASSWORD || '');
@@ -29,11 +30,15 @@ const sendVerificationEmail = async (user) => {
   await user.save();
 
   const verifyUrl = `${getFrontendBaseUrl()}/verify-email?token=${encodeURIComponent(token)}`;
-  await sendEmail({
+  await sendStepUpdateEmail({
     to: user.email,
-    subject: 'Verify your email - NextStep Talent',
-    text: `Please verify your email to continue: ${verifyUrl}`,
-    html: `<p>Please verify your email to continue.</p><p><a href="${verifyUrl}">Verify Email</a></p><p>This link expires in 30 minutes.</p>`,
+    candidateName: user.name || user.email.split('@')[0],
+    stepKey: 'account',
+    heading: 'Verify your email address',
+    message: 'Please verify your email to continue your application. This link will expire in 30 minutes.',
+    status: 'pending',
+    details: [{ label: 'Verification Link Expiry', value: '30 minutes' }],
+    cta: { label: 'Verify Email', url: verifyUrl },
   });
 };
 
@@ -59,6 +64,11 @@ const signup = async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
     }
 
+    const latestEligibilityForEmail = await Eligibility.findOne({ email: normalizedEmail }).sort({ createdAt: -1 });
+    if (!latestEligibilityForEmail || !latestEligibilityForEmail.isEligible) {
+      return res.status(403).json({ message: 'Please complete and pass initial eligibility using this email before signup.' });
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await User.create({
       name: email.split('@')[0],
@@ -69,6 +79,17 @@ const signup = async (req, res) => {
     });
 
     await sendVerificationEmail(user);
+
+    await sendStepUpdateEmail({
+      to: user.email,
+      candidateName: user.name || user.email.split('@')[0],
+      stepKey: 'account',
+      heading: 'Account created successfully',
+      message: 'Your account has been created. Please verify your email to continue.',
+      status: 'completed',
+      details: [{ label: 'Email', value: user.email }],
+      cta: { label: 'Verify Email', url: `${getFrontendBaseUrl()}/verify-email` },
+    });
 
     res.status(201).json({
       message: 'Signup successful',
@@ -170,6 +191,17 @@ const verifyEmail = async (req, res) => {
     user.status = user.phoneVerified ? user.status : 'email_verified';
     await user.save();
 
+    await sendStepUpdateEmail({
+      to: user.email,
+      candidateName: user.name || user.email.split('@')[0],
+      stepKey: 'account',
+      heading: 'Email verified',
+      message: 'Your email verification is complete.',
+      status: 'completed',
+      details: [{ label: 'Verification', value: 'Email verified' }],
+      cta: { label: 'Continue', url: `${getFrontendBaseUrl()}/verify-phone` },
+    });
+
     res.json({ message: 'Email verified', user });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -200,6 +232,17 @@ const verifyPhone = async (req, res) => {
     user.phoneVerified = true;
     user.status = 'phone_verified';
     await user.save();
+
+    await sendStepUpdateEmail({
+      to: user.email,
+      candidateName: user.name || user.email.split('@')[0],
+      stepKey: 'account',
+      heading: 'Phone verified',
+      message: 'Your phone verification is complete and your account is fully verified.',
+      status: 'completed',
+      details: [{ label: 'Phone', value: user.phone || `${countryCode}${phone}` }],
+      cta: { label: 'Continue Profile', url: `${getFrontendBaseUrl()}/profile-submission` },
+    });
 
     res.json({ message: 'Phone verified', user });
   } catch (error) {

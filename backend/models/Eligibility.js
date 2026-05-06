@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const eligibilitySchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    email: { type: String, default: '' },
     destination: { type: String, required: true },
     country: { type: String, required: true },
     hasITBackground: { type: Boolean, required: true },

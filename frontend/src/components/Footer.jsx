@@ -2,6 +2,8 @@ import { Link, useLocation } from 'react-router-dom';
 
 export default function Footer() {
   const location = useLocation();
+  const hiddenFooterRoutes = new Set(['/candidate-dashboard', '/interviews', '/profile-submission', '/payment-history']);
+  if (hiddenFooterRoutes.has(location.pathname)) return null;
   const isHome = location.pathname === '/';
   const isAdminRoute = location.pathname.startsWith('/admin');
   const compactFooterRoutes = new Set(['/payment-history', '/interviews', '/candidate-dashboard', '/profile-submission']);

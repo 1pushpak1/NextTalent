@@ -41,10 +41,12 @@ import SupportPage from './pages/SupportPage';
 import ContactPage from './pages/ContactPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import GlobalAlertHost from './components/GlobalAlertHost';
+import ScrollToTop from './components/ScrollToTop';
 
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/evaluation-program" element={<EvaluationProgramPage />} />

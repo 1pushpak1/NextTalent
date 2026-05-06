@@ -9,6 +9,7 @@ import claimEligibilityIfPresent from '../utils/claimEligibility';
 
 export default function SignupPage() {
   const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' });
+  const [lockedEligibilityEmail, setLockedEligibilityEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [passwordPopupPlacement, setPasswordPopupPlacement] = useState('bottom');
@@ -24,6 +25,13 @@ export default function SignupPage() {
     if (localStorage.getItem('nst_eligible') === 'true') return;
     navigate('/eligibility-check', { replace: true });
   }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
+    const emailFromEligibility = String(localStorage.getItem('nst_eligibility_email') || '').toLowerCase().trim();
+    if (!emailFromEligibility) return;
+    setLockedEligibilityEmail(emailFromEligibility);
+    setForm((prev) => ({ ...prev, email: emailFromEligibility }));
+  }, []);
 
   useEffect(() => {
     if (!isPasswordFocused) return;
@@ -62,14 +70,19 @@ export default function SignupPage() {
 
   const submit = async (e) => {
     e.preventDefault();
+    const normalizedEmail = String(form.email || '').toLowerCase().trim();
+    if (lockedEligibilityEmail && normalizedEmail !== lockedEligibilityEmail) {
+      return alert('Please use the same email used during eligibility check.');
+    }
     if (!isPasswordStrong) return alert('Please choose a stronger password');
     if (form.password !== form.confirmPassword) return alert('Passwords do not match');
 
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/signup', form);
+      const { data } = await api.post('/auth/signup', { ...form, email: normalizedEmail });
       setAuth(data.token, data.user);
-      localStorage.setItem('nst_signup_email', form.email);
+      localStorage.setItem('nst_signup_email', normalizedEmail);
+      localStorage.removeItem('nst_eligibility_email');
       await claimEligibilityIfPresent();
       navigate(`/verify-email?next=${encodeURIComponent(next)}`);
     } catch (error) {
@@ -82,7 +95,21 @@ export default function SignupPage() {
   return (
     <AuthSplitLayout title="Join NextStep" subtitle="Create your candidate profile to begin the elite pathway.">
       <form className="space-y-4" onSubmit={submit}>
-        <Input label="Email Address" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <div>
+          <Input
+            label="Email Address"
+            type="email"
+            required
+            value={form.email}
+            readOnly={Boolean(lockedEligibilityEmail)}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
+          {lockedEligibilityEmail && (
+            <p className="mt-1 text-xs text-[#d3d3d8]">
+              {/* This email is locked to your eligibility check email. */}
+            </p>
+          )}
+        </div>
         <div className="relative z-[100]" ref={passwordFieldRef}>
           <Input
             label="Password"

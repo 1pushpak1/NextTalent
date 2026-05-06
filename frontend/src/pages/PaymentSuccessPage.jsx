@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import Button from '../components/Button';
@@ -29,8 +29,10 @@ export default function PaymentSuccessPage() {
   const sessionId = params.get('session_id') || '';
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(4);
   const c = contentByType[type] || contentByType.initial;
   const confirmKey = useMemo(() => `confirmed_${sessionId}`, [sessionId]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const run = async () => {
@@ -53,6 +55,23 @@ export default function PaymentSuccessPage() {
     run();
   }, [sessionId, type, confirmKey]);
 
+  useEffect(() => {
+    if (type !== 'initial' || !confirmed || confirming) return;
+    setRedirectCountdown(4);
+    const countdownTimer = window.setInterval(() => {
+      setRedirectCountdown((prev) => {
+        if (prev <= 1) {
+          window.clearInterval(countdownTimer);
+          navigate(c.cta, { replace: true });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(countdownTimer);
+  }, [c.cta, confirmed, confirming, navigate, type]);
+
   return (
     <div className="nst-shell">
       <Navbar />
@@ -66,6 +85,9 @@ export default function PaymentSuccessPage() {
             <p className="mb-6 text-[#44474e]">{c.message}</p>
             {confirming && <p className="mb-4 text-sm text-slate-500">Confirming payment record...</p>}
             {!confirming && sessionId && confirmed && <p className="mb-4 text-sm text-emerald-700">Payment record confirmed.</p>}
+            {!confirming && type === 'initial' && confirmed && (
+              <p className="mb-4 text-sm text-[#44474e]">Redirecting in {redirectCountdown}s...</p>
+            )}
             <Link to={c.cta}><Button>{c.label}</Button></Link>
           </div>
         </div>

@@ -433,14 +433,11 @@ const getStepValidation = (step, form, { requireVisa, technicalSkills, financial
 
   if (step === 6) {
     form.languages.forEach((lang, idx) => {
-      const touched = idx === 0 || hasValue(lang.language) || hasValue(lang.proficiencyLevel) || hasValue(lang.certificateTitle) || lang.certified === 'Yes';
+      const touched = idx === 0 || hasValue(lang.language) || hasValue(lang.proficiencyLevel) || lang.certified === 'Yes';
       if (!touched) return;
 
       if (!hasValue(lang.language)) addError(errors, `languages.${idx}.language`, `Language is required for entry ${idx + 1}.`);
       if (!hasValue(lang.proficiencyLevel)) addError(errors, `languages.${idx}.proficiencyLevel`, `Proficiency level is required for entry ${idx + 1}.`);
-      if (lang.certified === 'Yes' && !hasValue(lang.certificateTitle)) {
-        addError(errors, `languages.${idx}.certificateTitle`, `Certificate title is required for certified language entry ${idx + 1}.`);
-      }
     });
 
     if (errors['languages.0.language'] || errors['languages.0.proficiencyLevel']) {
@@ -543,6 +540,7 @@ export default function ProfileSubmissionPage() {
   const goToStep = (step) => {
     setFieldErrors({});
     setCurrentStep(step);
+    window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
   useEffect(() => {
@@ -688,6 +686,7 @@ By signing below, you accept full responsibility for the authenticity of the det
       showSuccessMessage: false,
     });
     setFieldErrors({});
+    window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
   const getSubmissionValidation = (providedSignature = signature) => {
@@ -773,31 +772,34 @@ By signing below, you accept full responsibility for the authenticity of the det
       <CandidatePortalSidebar />
       <main className="flex-1 px-6 pb-16 pt-28 lg:ml-64">
         <div className="mx-auto max-w-[1200px]">
-          <div className="flex flex-col gap-6 lg:flex-row">
+          <div className="flex flex-col gap-6">
             {!isApprovedProfileView && (
-              <aside className="w-full lg:w-1/4">
-                <div className="nst-card sticky top-28 rounded-xl border border-slate-200 p-5">
-                  <h3 className="mb-4 text-xl font-semibold text-[#002147]">Application Progress</h3>
-                  <div className="space-y-3">
+              <div className="w-full">
+                <div className="nst-card rounded-xl border border-slate-200 p-4">
+                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-700">Application Progress</h3>
+                  <div className="mb-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div className="h-full rounded-full bg-[#c8a96b] transition-all" style={{ width: `${(currentStep / formSteps.length) * 100}%` }} />
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-4">
                     {formSteps.map((stepName, idx) => {
                       const stepNo = idx + 1;
                       const active = stepNo === currentStep;
                       const done = stepNo < currentStep;
                       return (
-                        <div key={stepName} className="flex items-center gap-3">
-                          <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${done ? 'bg-green-600 text-white' : active ? 'bg-blue-100 text-[#002147]' : 'bg-slate-200 text-slate-600'}`}>
+                        <div key={stepName} className="flex items-center gap-2">
+                          <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${done ? 'bg-green-600 text-white' : active ? 'bg-blue-100 text-[#002147]' : 'bg-slate-200 text-slate-600'}`}>
                             {stepNo}
                           </span>
-                          <span className={`text-sm ${active ? 'font-semibold text-[#002147]' : 'text-slate-600'}`}>{stepName}</span>
+                          <span className={`text-xs ${active ? 'font-semibold text-[#002147]' : 'text-slate-600'}`}>{stepName}</span>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-              </aside>
+              </div>
             )}
 
-            <div className={isApprovedProfileView ? 'w-full' : 'w-full lg:w-3/4'}>
+            <div className="w-full">
               <Card className="nst-card border border-slate-200 rounded-xl p-6">
                 <h1 className="text-3xl font-bold text-[#002147]">{isApprovedProfileView ? 'Profile Information' : 'Profile Submission'}</h1>
                 <p className="mb-4 mt-2 text-sm text-[#44474e]">
@@ -806,10 +808,10 @@ By signing below, you accept full responsibility for the authenticity of the det
                     : 'Complete all sections carefully. Precision in your profile supports faster evaluation.'}
                 </p>
 
-                {eligibilityDetails && (
+                {isApprovedProfileView && eligibilityDetails && (
                   <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <h3 className="text-sm font-bold uppercase tracking-wide text-white">Initial Eligibility Details</h3>
-                    <div className="mt-3 grid gap-2 text-sm text-white md:grid-cols-2">
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-700">Initial Eligibility Details</h3>
+                    <div className="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
                       <p><b>Destination:</b> {eligibilityDetails.destination || '—'}</p>
                       <p><b>Country:</b> {eligibilityDetails.country || '—'}</p>
                       <p><b>IT Background:</b> {eligibilityDetails.hasITBackground ? 'Yes' : 'No'}</p>
@@ -1318,6 +1320,22 @@ By signing below, you accept full responsibility for the authenticity of the det
                       updateExperienceLists(workRows, next);
                     }} />
                   )}
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={w.currentlyWorkingHere}
+                      onChange={(e) => {
+                        const { workRows, internshipRows } = splitExperience();
+                        const next = [...internshipRows];
+                        next[idx].currentlyWorkingHere = e.target.checked;
+                        if (e.target.checked) {
+                          next[idx].endDate = '';
+                        }
+                        updateExperienceLists(workRows, next);
+                      }}
+                    />
+                    Currently Working Here
+                  </label>
                 </div>
               ))}
               <Button className="mt-3 text-white" variant="secondary" onClick={() => {
@@ -1343,7 +1361,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     onChange={(e) => setTechnicalSkillInput(e.target.value)}
                     placeholder="Type a skill"
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === 'Enter' || e.key === 'NumpadEnter') {
                         e.preventDefault();
                         addTechnicalSkill();
                       }
@@ -1406,7 +1424,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     required={idx === 0}
                     label="Proficiency Level"
                     error={getFieldError(`languages.${idx}.proficiencyLevel`)}
-                    options={['Basic', 'Intermediate', 'Advance']}
+                    options={['B1', 'B2', 'C1', 'C2']}
                     value={lang.proficiencyLevel}
                     onChange={(e) => {
                       const next = [...form.languages];
@@ -1422,25 +1440,10 @@ By signing below, you accept full responsibility for the authenticity of the det
                     onChange={(e) => {
                       const next = [...form.languages];
                       next[idx].certified = e.target.value;
-                      if (e.target.value !== 'Yes') {
-                        next[idx].certificateTitle = '';
-                      }
+                      if (e.target.value !== 'Yes') next[idx].certificateTitle = '';
                       updateSection('languages', next);
                     }}
                   />
-                  {lang.certified === 'Yes' && (
-                    <Input
-                      required
-                      label="Certificate Title"
-                      error={getFieldError(`languages.${idx}.certificateTitle`)}
-                      value={lang.certificateTitle}
-                      onChange={(e) => {
-                        const next = [...form.languages];
-                        next[idx].certificateTitle = e.target.value;
-                        updateSection('languages', next);
-                      }}
-                    />
-                  )}
                 </div>
               ))}
               <Button className="mt-3 text-white" variant="secondary" onClick={() => updateSection('languages', [...form.languages, blankLanguage()])}>
@@ -1638,10 +1641,10 @@ By signing below, you accept full responsibility for the authenticity of the det
                   <h3 className="text-lg font-bold text-slate-900">Languages</h3>
                   {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(6)}>Edit</Button>}
                 </div>
-                {form.languages.some((lang) => lang.language || lang.proficiencyLevel || lang.certified === 'Yes' || lang.certificateTitle) ? (
+                {form.languages.some((lang) => lang.language || lang.proficiencyLevel || lang.certified === 'Yes') ? (
                   <div className="space-y-3 text-sm">
                     {form.languages
-                      .filter((lang) => lang.language || lang.proficiencyLevel || lang.certified === 'Yes' || lang.certificateTitle)
+                      .filter((lang) => lang.language || lang.proficiencyLevel || lang.certified === 'Yes')
                       .map((lang, idx) => (
                         <div key={idx} className="rounded-lg bg-white p-4">
                           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Language {idx + 1}</p>
@@ -1649,9 +1652,6 @@ By signing below, you accept full responsibility for the authenticity of the det
                             <div><p className="text-slate-500">Language</p><p className="font-medium text-slate-900">{reviewValue(lang.language)}</p></div>
                             <div><p className="text-slate-500">Proficiency Level</p><p className="font-medium text-slate-900">{reviewValue(lang.proficiencyLevel)}</p></div>
                             <div><p className="text-slate-500">Certified</p><p className="font-medium text-slate-900">{reviewValue(lang.certified)}</p></div>
-                            {lang.certified === 'Yes' && (
-                              <div><p className="text-slate-500">Certificate Title</p><p className="font-medium text-slate-900">{reviewValue(lang.certificateTitle)}</p></div>
-                            )}
                           </div>
                         </div>
                       ))}

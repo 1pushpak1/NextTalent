@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import Button from '../components/Button';
 import Card from '../components/Card';
+import Input from '../components/Input';
 import Select from '../components/Select';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -30,6 +31,8 @@ const eligibilityBurstPieces = [
 
 export default function EligibilityCheckPage() {
   const [step, setStep] = useState(1);
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [destination, setDestination] = useState('');
   const [country, setCountry] = useState('');
   const [inactiveCorridor, setInactiveCorridor] = useState('');
@@ -63,7 +66,7 @@ export default function EligibilityCheckPage() {
     if (!value) return;
     if (value === 'Europe Active') {
       setDestination(value);
-      setStep(2);
+      setStep(3);
       return;
     }
     setInactiveCorridor(value.replace(' Coming Soon', '').replace(' Upcoming', ''));
@@ -85,7 +88,9 @@ export default function EligibilityCheckPage() {
   }, [answers, country]);
 
   const submitEligibility = async () => {
+    const normalizedEmail = String(email || '').toLowerCase().trim();
     const payload = {
+      email: normalizedEmail,
       destination,
       country,
       hasITBackground: answers.hasITBackground === 'Yes',
@@ -99,21 +104,22 @@ export default function EligibilityCheckPage() {
     try {
       const { data } = await api.post('/eligibility/check', payload);
       setResult(data);
-      setStep(4);
+      setStep(5);
       if (data.isEligible) {
         localStorage.setItem('nst_eligible', 'true');
         localStorage.setItem('nst_eligibility_id', data._id);
+        localStorage.setItem('nst_eligibility_email', normalizedEmail);
       }
     } catch (error) {
       setResult({
         isEligible: false,
         rejectionReason: error.response?.data?.message || 'Unable to evaluate eligibility right now.',
       });
-      setStep(4);
+      setStep(5);
     }
   };
 
-  const progressSteps = ['Destination Selection', 'Country Selection', 'Quick Questions', 'Result'];
+  const progressSteps = ['Email', 'Destination Selection', 'Country Selection', 'Quick Questions', 'Result'];
   const progress = (step / progressSteps.length) * 100;
 
   return (
@@ -121,6 +127,28 @@ export default function EligibilityCheckPage() {
       <Navbar />
       <main className="pt-28 pb-16">
         <div className="mx-auto max-w-[1200px] px-6">
+          {isAuthenticated ? (
+            <Card className="nst-card mx-auto max-w-3xl rounded-xl p-8 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-emerald-50">
+                <span className="material-symbols-outlined text-3xl">verified_user</span>
+              </div>
+              <h1 className="nst-display text-3xl font-bold text-white">Eligibility Already Completed</h1>
+              <p className="mx-auto mt-3 max-w-2xl text-[#d1d2d7]">
+                You are already logged in, which means your initial eligibility step is already completed. You can continue your application from your profile or dashboard.
+              </p>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                <Button onClick={() => navigate('/profile-submission')}>Go to Profile Submission</Button>
+                <Button
+                  variant="secondary"
+                  className="bg-transparent text-white hover:bg-[rgba(255,255,255,0.06)]"
+                  onClick={() => navigate('/candidate-dashboard')}
+                >
+                  Go to Dashboard
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <>
           <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <span className="mb-2 inline-block rounded-full border border-[rgba(200,169,107,0.45)] bg-[rgba(200,169,107,0.16)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#f4dfb2]">
@@ -137,11 +165,46 @@ export default function EligibilityCheckPage() {
           </div>
 
           {step === 1 && (
+            <Card className="nst-card mx-auto max-w-2xl rounded-xl p-6">
+              <h2 className="mb-4 nst-display text-2xl font-semibold text-white">Enter your email to begin</h2>
+              <Input
+                required
+                type="email"
+                label="Email Address"
+                value={email}
+                error={emailError}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (emailError) setEmailError('');
+                }}
+                placeholder="you@example.com"
+              />
+              <div className="mt-6 flex justify-end">
+                <Button
+                  onClick={() => {
+                    const normalized = String(email || '').toLowerCase().trim();
+                    const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+                    if (!isValid) {
+                      setEmailError('Please enter a valid email address.');
+                      return;
+                    }
+                    setEmailError('');
+                    setEmail(normalized);
+                    setStep(2);
+                  }}
+                >
+                  Continue
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {step === 2 && (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
               <button
                 onClick={() => {
                   setDestination('Europe Active');
-                  setStep(2);
+                  setStep(3);
                 }}
                 className="relative overflow-hidden rounded-xl border border-[rgba(200,169,107,0.28)] bg-[rgba(255,255,255,0.04)] text-left shadow-sm transition hover:shadow-[0_0_26px_rgba(200,169,107,0.18)] md:col-span-8"
               >
@@ -177,7 +240,7 @@ export default function EligibilityCheckPage() {
             </div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <Card className="nst-card rounded-xl p-6">
               <h2 className="mb-4 nst-display text-2xl font-semibold text-white">Choose your preferred country</h2>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -200,18 +263,18 @@ export default function EligibilityCheckPage() {
                 <Button
                   variant="secondary"
                   className="bg-transparent text-white hover:bg-[rgba(255,255,255,0.06)]"
-                  onClick={() => setStep(1)}
+                  onClick={() => setStep(2)}
                 >
                   Back
                 </Button>
-                <Button className="border-[#c8a96b] bg-[#c8a96b] text-black hover:bg-[#d4b87e]" onClick={() => country && setStep(3)}>
+                <Button className="border-[#c8a96b] bg-[#c8a96b] text-black hover:bg-[#d4b87e]" onClick={() => country && setStep(4)}>
                   Continue
                 </Button>
               </div>
             </Card>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <Card className="nst-card rounded-xl p-6">
               <h2 className="mb-4 nst-display text-2xl font-semibold text-white">Quick Eligibility Questions</h2>
               <div className="grid gap-3 md:grid-cols-2">
@@ -254,7 +317,7 @@ export default function EligibilityCheckPage() {
                 <Button
                   variant="secondary"
                   className="bg-transparent text-white hover:bg-[rgba(255,255,255,0.06)]"
-                  onClick={() => setStep(2)}
+                  onClick={() => setStep(3)}
                 >
                   Back
                 </Button>
@@ -280,7 +343,7 @@ export default function EligibilityCheckPage() {
             </Card>
           )}
 
-          {step === 4 && result && (
+          {step === 5 && result && (
             <Card className="nst-card relative overflow-hidden rounded-xl p-8 text-center">
               {result.isEligible ? (
                 <>
@@ -330,7 +393,7 @@ export default function EligibilityCheckPage() {
                     <Button
                       variant="secondary"
                       className="bg-transparent text-white hover:bg-[rgba(255,255,255,0.06)]"
-                      onClick={() => setStep(2)}
+                      onClick={() => setStep(3)}
                     >
                       Back to Europe Options
                     </Button>
@@ -340,9 +403,11 @@ export default function EligibilityCheckPage() {
               )}
             </Card>
           )}
+            </>
+          )}
         </div>
 
-        {inactiveCorridor && (
+        {!isAuthenticated && inactiveCorridor && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-6">
             <div className="w-full max-w-md rounded-xl border border-[rgba(200,169,107,0.32)] bg-[#071225] p-6 text-white shadow-2xl">
               <h3 className="nst-display text-2xl font-semibold">{inactiveCorridor}</h3>

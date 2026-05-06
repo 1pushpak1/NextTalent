@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const Document = require('../models/Document');
+const User = require('../models/User');
+const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const uploadDir = path.join(__dirname, '..', 'uploads', 'documents');
 
@@ -34,6 +36,20 @@ const uploadDocument = async (req, res) => {
       status: 'Uploaded',
     });
 
+    await sendStepUpdateEmail({
+      to: req.user?.email,
+      candidateName: req.user?.name || req.user?.email?.split('@')[0],
+      stepKey: 'documents',
+      heading: 'Document uploaded',
+      message: 'Your document has been uploaded successfully.',
+      status: 'uploaded',
+      details: [
+        { label: 'Document Type', value: documentType },
+        { label: 'Review Status', value: 'Uploaded' },
+      ],
+      cta: { label: 'View Documents', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/documents` },
+    });
+
     res.status(201).json(record);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -58,6 +74,22 @@ const updateDocumentStatus = async (req, res) => {
     }
     const doc = await Document.findOneAndUpdate(query, { status }, { new: true });
     if (!doc) return res.status(404).json({ message: 'Document not found' });
+
+    const owner = await User.findById(doc.userId).lean();
+    await sendStepUpdateEmail({
+      to: owner?.email,
+      candidateName: owner?.name || owner?.email?.split('@')[0],
+      stepKey: 'document_verification',
+      heading: 'Document status updated',
+      message: 'A document review status has been updated by the team.',
+      status: String(status || '').toLowerCase().replaceAll(' ', '_'),
+      details: [
+        { label: 'Document Type', value: doc.documentType || 'Document' },
+        { label: 'New Status', value: status },
+      ],
+      cta: { label: 'Open Documents', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/documents` },
+    });
+
     res.json(doc);
   } catch (error) {
     res.status(500).json({ message: error.message });

@@ -74,7 +74,7 @@ export default function InitialPaymentPage() {
                 You will be redirected to Stripe Checkout to enter card and billing details securely.
               </p>
 
-              <p className="mt-4 rounded-lg bg-[#f4f3f7] p-3 text-sm text-[#44474e]">
+              <p className="mt-4 rounded-lg bg-[#f4f3f7] p-3 text-sm text-black">
                 This fee supports evaluation and process coordination services. It does not promise employment outcomes.
               </p>
 

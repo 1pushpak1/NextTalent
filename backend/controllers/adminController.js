@@ -5,6 +5,7 @@ const Interview = require('../models/Interview');
 const Payment = require('../models/Payment');
 const Eligibility = require('../models/Eligibility');
 const Testimonial = require('../models/Testimonial');
+const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const validProfileStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 const validDocumentStatuses = ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'];
@@ -491,6 +492,17 @@ const updateCandidateProfileStatus = async (req, res) => {
       await candidate.save();
     }
 
+    await sendStepUpdateEmail({
+      to: candidate.email,
+      candidateName: candidate.name || candidate.email?.split('@')[0],
+      stepKey: 'evaluation',
+      heading: 'Profile review status updated',
+      message: 'Your profile review status has been updated by admin.',
+      status,
+      details: [{ label: 'Profile Status', value: status }],
+      cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+    });
+
     res.json(profile);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -512,6 +524,20 @@ const updateCandidateDocumentStatus = async (req, res) => {
 
     document.status = status;
     await document.save();
+
+    await sendStepUpdateEmail({
+      to: candidate.email,
+      candidateName: candidate.name || candidate.email?.split('@')[0],
+      stepKey: 'document_verification',
+      heading: 'Document verification update',
+      message: 'A document status has been updated by admin.',
+      status: String(status || '').toLowerCase().replaceAll(' ', '_'),
+      details: [
+        { label: 'Document Type', value: document.documentType || 'Document' },
+        { label: 'Status', value: status },
+      ],
+      cta: { label: 'Open Documents', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/documents` },
+    });
 
     res.json(document);
   } catch (error) {
@@ -547,6 +573,22 @@ const addCandidateInterview = async (req, res) => {
     candidate.status = 'interview_scheduled';
     await candidate.save();
 
+    await sendStepUpdateEmail({
+      to: candidate.email,
+      candidateName: candidate.name || candidate.email?.split('@')[0],
+      stepKey: 'interviews',
+      heading: 'Interview scheduled',
+      message: 'Your interview details are now available.',
+      status: 'under_review',
+      details: [
+        { label: 'Hiring Partner', value: hiringPartner },
+        { label: 'Role', value: role },
+        { label: 'Date', value: date },
+        { label: 'Time', value: time },
+      ],
+      cta: { label: 'View Interviews', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/interviews` },
+    });
+
     res.status(201).json(interview);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -563,6 +605,7 @@ const updatePaymentStatus = async (req, res) => {
 
     const payment = await Payment.findByIdAndUpdate(paymentId, { status }, { new: true });
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
+    const candidate = await User.findById(payment.userId);
 
     if (status === 'completed') {
       if (payment.type === 'program') {
@@ -572,6 +615,21 @@ const updatePaymentStatus = async (req, res) => {
         await User.findByIdAndUpdate(payment.userId, { status: 'final_payment_complete' });
       }
     }
+
+    await sendStepUpdateEmail({
+      to: candidate?.email,
+      candidateName: candidate?.name || candidate?.email?.split('@')[0],
+      stepKey: payment.type === 'initial' ? 'initial_payment' : payment.type === 'program' ? 'program_payment' : 'final_payment',
+      heading: 'Payment verification updated by admin',
+      message: 'Your payment verification status has been updated.',
+      status,
+      details: [
+        { label: 'Payment Type', value: payment.type },
+        { label: 'Amount', value: `${payment.currency || 'USD'} ${payment.amount || 0}` },
+        { label: 'Transaction ID', value: payment.transactionId || '—' },
+      ],
+      cta: { label: 'Open Payment History', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/payment-history` },
+    });
 
     res.json(payment);
   } catch (error) {
@@ -684,6 +742,33 @@ const updateCandidateStageDecision = async (req, res) => {
     }
 
     await candidate.save();
+
+    const stageToEmailStep = {
+      evaluation: 'evaluation',
+      declaration: 'declaration',
+      documents: 'documents',
+      'document-verification': 'document_verification',
+      hiring: 'hiring',
+      interviews: 'interviews',
+      selection: 'selection',
+      testimonials: 'testimonial',
+    };
+
+    await sendStepUpdateEmail({
+      to: candidate.email,
+      candidateName: candidate.name || candidate.email?.split('@')[0],
+      stepKey: stageToEmailStep[stageKey] || 'profile',
+      stepName: stagePageLabelMap[stageKey] || stageKey,
+      heading: 'Stage decision updated by admin',
+      message: 'A stage decision has been updated in your process.',
+      status,
+      details: [
+        { label: 'Stage', value: stagePageLabelMap[stageKey] || stageKey },
+        { label: 'Decision', value: status },
+        ...(hiringPartner ? [{ label: 'Hiring Partner', value: hiringPartner }] : []),
+      ],
+      cta: { label: 'Open Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+    });
 
     return res.json({
       candidateId: candidate._id,

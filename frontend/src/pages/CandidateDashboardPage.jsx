@@ -95,6 +95,7 @@ export default function CandidateDashboardPage() {
   const finalFailed = latestFinalPayment?.status === 'failed';
   const finalPaid = latestFinalPayment?.status === 'completed';
   const internalEvaluationPassed = data?.profileStatus === 'accepted';
+  const showEligibilityForCandidate = data?.profileStatus === 'accepted';
   const interviewScheduled = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'scheduled');
   const interviewCompleted = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'completed');
   const testimonialSubmitted = Boolean(data?.testimonialSubmitted);
@@ -332,11 +333,19 @@ export default function CandidateDashboardPage() {
               <div className="space-y-2 text-sm text-[#44474e]">
                 <p>Email: {data?.contact?.email || data?.candidate?.email || 'Not available'}</p>
                 <p>Mobile: {data?.contact?.phone || data?.candidate?.phone || 'Not available'}</p>
+                {showEligibilityForCandidate && data?.eligibility && (
+                  <>
+                    <p>Destination: {data.eligibility.destination || '—'}</p>
+                    <p>Country: {data.eligibility.country || '—'}</p>
+                    <p>IT Background: {data.eligibility.hasITBackground ? 'Yes' : 'No'}</p>
+                    <p>Qualification: {data.eligibility.qualification || '—'}</p>
+                  </>
+                )}
               </div>
             </div>
             <div className="nst-card rounded-xl p-6">
               <h3 className="mb-3 text-xl font-semibold text-[#002147]">Eligibility Responses</h3>
-              {data?.eligibility ? (
+              {showEligibilityForCandidate && data?.eligibility ? (
                 <div className="space-y-2 text-sm text-[#44474e]">
                   <p>Destination: {data.eligibility.destination}</p>
                   <p>Country: {data.eligibility.country}</p>
@@ -348,7 +357,7 @@ export default function CandidateDashboardPage() {
                   <p>Comfortable With Fees: {data.eligibility.comfortableWithFees ? 'Yes' : 'No'}</p>
                 </div>
               ) : (
-                <p className="text-sm text-[#44474e]">No eligibility response found.</p>
+                <p className="text-sm text-[#44474e]">Eligibility details will appear after profile verification is approved by admin.</p>
               )}
             </div>
           </section>

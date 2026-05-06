@@ -1,6 +1,18 @@
+import { useEffect } from 'react';
 import Button from './Button';
 
 export default function Modal({ isOpen, onClose, title, children, hideClose = false }) {
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[9000] grid place-items-center bg-black/80 p-4 backdrop-blur-md">

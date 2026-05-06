@@ -3,6 +3,7 @@ const path = require('path');
 const multer = require('multer');
 const Testimonial = require('../models/Testimonial');
 const User = require('../models/User');
+const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const uploadDir = path.join(__dirname, '..', 'uploads', 'testimonials');
 
@@ -47,6 +48,20 @@ const createTestimonial = async (req, res) => {
     });
 
     await User.findByIdAndUpdate(req.user._id, { status: 'process_complete' });
+
+    await sendStepUpdateEmail({
+      to: req.user?.email,
+      candidateName: fullName || req.user?.name || req.user?.email?.split('@')[0],
+      stepKey: 'testimonial',
+      heading: 'Testimonial submitted',
+      message: 'Thank you for sharing your testimonial. Your process is now marked as complete.',
+      status: 'completed',
+      details: [
+        { label: 'Selected Destination', value: selectedDestination },
+        { label: 'Country', value: country },
+      ],
+      cta: { label: 'Go to Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+    });
 
     res.status(201).json(testimonial);
   } catch (error) {

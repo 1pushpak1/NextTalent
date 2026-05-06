@@ -1,4 +1,5 @@
 const Eligibility = require('../models/Eligibility');
+const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const acceptedQualifications = [
   'Diploma with one year practical training',
@@ -80,6 +81,11 @@ const runEligibilityCheck = ({
 
 const checkEligibility = async (req, res) => {
   try {
+    const email = String(req.body?.email || '').toLowerCase().trim();
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+
     const payload = {
       destination: String(req.body?.destination || '').trim(),
       country: String(req.body?.country || '').trim(),
@@ -94,6 +100,7 @@ const checkEligibility = async (req, res) => {
 
     const record = await Eligibility.create({
       userId: req.user?._id || null,
+      email,
       destination: payload.destination,
       country: payload.country,
       hasITBackground: payload.hasITBackground,
@@ -104,6 +111,23 @@ const checkEligibility = async (req, res) => {
       comfortableWithFees: payload.comfortableWithFees,
       isEligible: result.isEligible,
       rejectionReason: result.rejectionReason,
+    });
+
+    await sendStepUpdateEmail({
+      to: email,
+      candidateName: email.split('@')[0],
+      stepKey: 'eligibility',
+      heading: result.isEligible ? 'You passed initial eligibility' : 'Eligibility result: not eligible right now',
+      message: result.isEligible
+        ? 'Your initial screening is complete. You can now continue to account creation using this same email.'
+        : 'Your current profile does not meet the active criteria at this time. You can try again later if your profile changes.',
+      status: result.isEligible ? 'accepted' : 'rejected',
+      details: [
+        { label: 'Destination', value: payload.destination },
+        { label: 'Country', value: payload.country },
+        { label: 'Reason', value: result.rejectionReason || 'Passed all active checks' },
+      ],
+      cta: result.isEligible ? { label: 'Continue to Signup', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/signup?next=/profile-submission` } : null,
     });
 
     res.status(201).json(record);

@@ -2,7 +2,7 @@ const Payment = require('../models/Payment');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Document = require('../models/Document');
-const sendEmail = require('../utils/sendEmail');
+const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const Stripe = require('stripe');
 const fs = require('fs');
 const path = require('path');
@@ -72,13 +72,20 @@ const saveCompletedPayment = async (session, fallback = {}) => {
 
   await User.findByIdAndUpdate(userId, { status: statusByType[type] });
   const user = await User.findById(userId);
-  if (user?.email) {
-    await sendEmail({
-      to: user.email,
-      subject: 'Payment Confirmation - NextStep Talent',
-      text: `Your ${type} payment of USD ${amountByType[type]} has been received.`,
-    });
-  }
+  await sendStepUpdateEmail({
+    to: user?.email,
+    candidateName: user?.name || user?.email?.split('@')[0],
+    stepKey: type === 'initial' ? 'initial_payment' : type === 'program' ? 'program_payment' : 'final_payment',
+    heading: 'Payment received successfully',
+    message: `Your ${type} payment has been successfully received and recorded.`,
+    status: 'completed',
+    details: [
+      { label: 'Payment Type', value: type },
+      { label: 'Amount', value: `USD ${amount}` },
+      { label: 'Transaction ID', value: transactionId },
+    ],
+    cta: { label: 'View Payment History', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/payment-history` },
+  });
 
   return payment;
 };
@@ -184,6 +191,21 @@ const submitBankTransferPayment = async (req, res) => {
       transactionId: `BANK-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
       bankReference: String(bankReference || '').trim(),
       receiptUrl: `/uploads/payment-receipts/${req.file.filename}`,
+    });
+
+    await sendStepUpdateEmail({
+      to: req.user?.email,
+      candidateName: req.user?.name || req.user?.email?.split('@')[0],
+      stepKey: type === 'program' ? 'program_payment' : 'final_payment',
+      heading: 'Payment receipt uploaded',
+      message: 'Your bank transfer receipt has been uploaded and is awaiting admin verification.',
+      status: 'pending',
+      details: [
+        { label: 'Payment Type', value: type },
+        { label: 'Amount', value: `USD ${amountByType[type]}` },
+        { label: 'Reference', value: String(bankReference || '—') },
+      ],
+      cta: { label: 'View Payment History', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/payment-history` },
     });
 
     res.status(201).json({ message: 'Receipt uploaded. Awaiting admin verification.', payment });

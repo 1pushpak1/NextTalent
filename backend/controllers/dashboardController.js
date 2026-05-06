@@ -5,6 +5,7 @@ const Document = require('../models/Document');
 const Interview = require('../models/Interview');
 const Testimonial = require('../models/Testimonial');
 const User = require('../models/User');
+const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const hasPassedInitialEligibility = ({ eligibility, user, profile, payments, docs, interviews }) =>
   Boolean(eligibility) ||
@@ -282,6 +283,27 @@ const updateMyStatus = async (req, res) => {
   try {
     const { status } = req.body;
     const user = await User.findByIdAndUpdate(req.user._id, { status }, { new: true });
+
+    const normalized = String(status || '').toLowerCase();
+    const stepKeyByStatus = {
+      declaration_signed: 'declaration',
+      onboarding_complete: 'onboarding',
+      documents_submitted: 'documents',
+    };
+    const stepKey = stepKeyByStatus[normalized];
+    if (stepKey) {
+      await sendStepUpdateEmail({
+        to: user?.email,
+        candidateName: user?.name || user?.email?.split('@')[0],
+        stepKey,
+        heading: 'Step completed successfully',
+        message: 'Your update has been recorded.',
+        status: 'completed',
+        details: [{ label: 'New Account Status', value: normalized }],
+        cta: { label: 'Open Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+      });
+    }
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: error.message });

@@ -49,6 +49,15 @@ a {
   text-decoration: none;
 }
 
+button:not(:disabled),
+a[href],
+[role='button'],
+input[type='button']:not(:disabled),
+input[type='submit']:not(:disabled),
+input[type='reset']:not(:disabled) {
+  cursor: pointer;
+}
+
 ::selection {
   background: rgba(200, 169, 107, 0.28);
 }
