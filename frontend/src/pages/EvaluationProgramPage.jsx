@@ -3,6 +3,34 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 
 export default function EvaluationProgramPage() {
+  const evaluationCriteria = [
+    'Your academic and professional background',
+    'Your eligibility for international roles',
+    'Your language proficiency and skill readiness',
+    'Your alignment with current global requirements',
+  ];
+
+  const includedItems = [
+    'Initial profile assessment',
+    'Eligibility screening aligned with current global requirements',
+    'Basic gap analysis (skills, education, language)',
+    'Direction on next steps within the process',
+  ];
+
+  const importantNotes = [
+    'This is an evaluation process, not a job application',
+    'This does not guarantee employment or placement',
+    'Progression is based on eligibility and external requirements',
+    'Only shortlisted candidates move forward to the next stage',
+  ];
+
+  const suitableFor = [
+    'Are serious about international career opportunities',
+    'Are open to relocation or global roles',
+    'Meet basic educational qualifications',
+    'Are willing to meet language or certification requirements where applicable',
+  ];
+
   return (
     <div className="nst-shell">
       <Navbar />
@@ -37,13 +65,19 @@ export default function EvaluationProgramPage() {
                 At NextStep Talent, we operate a structured International Career Evaluation &amp; Readiness Program designed to
                 assess and prepare candidates for global opportunities.
               </p>
-              <p className="mt-5 text-base leading-8 text-[#d1d2d7]">This initial stage helps us evaluate:</p>
-              <ul className="mt-4 space-y-2 text-base text-[#d1d2d7]">
-                <li>Your academic and professional background</li>
-                <li>Your eligibility for international roles</li>
-                <li>Your language proficiency and skill readiness</li>
-                <li>Your alignment with current global requirements</li>
-              </ul>
+              <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-[#d7bf92]">
+                This initial stage helps us evaluate
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {evaluationCriteria.map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.02)] p-4 text-sm leading-6 text-[#e5e6ea]"
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
               <p className="mt-5 text-base leading-8 text-[#d1d2d7]">
                 Only candidates who meet the evaluation criteria will progress to the next stage.
               </p>
@@ -52,33 +86,41 @@ export default function EvaluationProgramPage() {
             <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8 text-white">
               <h3 className="mb-5 nst-display text-2xl font-semibold">What This Step Includes</h3>
               <p className="mb-4 text-base text-[#d1d2d7]">By completing this evaluation process, you will receive:</p>
-              <ul className="space-y-2 text-base text-[#d1d2d7]">
-                <li>✔ Initial profile assessment</li>
-                <li>✔ Eligibility screening aligned with current global requirements</li>
-                <li>✔ Basic gap analysis (skills, education, language)</li>
-                <li>✔ Direction on next steps within the process</li>
-              </ul>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {includedItems.map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-start gap-3 rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(200,169,107,0.09)] p-4"
+                  >
+                    <span className="mt-0.5 material-symbols-outlined text-[#f4dfb2]">task_alt</span>
+                    <p className="text-sm leading-6 text-[#f2f3f6]">{item}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="nst-card rounded-xl border-l-4 border-l-[#c8a96b] p-8">
               <h3 className="mb-4 nst-display text-2xl font-semibold text-white">Important Information</h3>
-              <ul className="space-y-3 text-base text-[#d1d2d7]">
-                <li>This is an evaluation process, not a job application</li>
-                <li>This does not guarantee employment or placement</li>
-                <li>Progression is based on eligibility and external requirements</li>
-                <li>Only shortlisted candidates move forward to the next stage</li>
-              </ul>
+              <div className="grid gap-3 md:grid-cols-2">
+                {importantNotes.map((item) => (
+                  <div key={item} className="rounded-lg bg-[rgba(255,255,255,0.02)] p-4">
+                    <p className="text-sm leading-6 text-[#d1d2d7]">{item}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8">
               <h3 className="mb-4 nst-display text-2xl font-semibold text-white">Who This Is For</h3>
               <p className="mb-4 text-base text-[#d1d2d7]">This program is suitable for individuals who:</p>
-              <ul className="space-y-2 text-base text-[#d1d2d7]">
-                <li>✔ Are serious about international career opportunities</li>
-                <li>✔ Are open to relocation or global roles</li>
-                <li>✔ Meet basic educational qualifications</li>
-                <li>✔ Are willing to meet language or certification requirements where applicable</li>
-              </ul>
+              <div className="space-y-3">
+                {suitableFor.map((item) => (
+                  <div key={item} className="flex items-start gap-3 rounded-lg bg-[rgba(255,255,255,0.02)] p-4">
+                    <span className="mt-0.5 material-symbols-outlined text-[#c8a96b]">verified</span>
+                    <p className="text-sm leading-6 text-[#d1d2d7]">{item}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>

@@ -32,6 +32,8 @@ export default function EligibilityCheckPage() {
   const [step, setStep] = useState(1);
   const [destination, setDestination] = useState('');
   const [country, setCountry] = useState('');
+  const [inactiveCorridor, setInactiveCorridor] = useState('');
+  const [showValidationError, setShowValidationError] = useState(false);
   const [answers, setAnswers] = useState({
     hasITBackground: '',
     qualification: '',
@@ -59,9 +61,28 @@ export default function EligibilityCheckPage() {
 
   const handleDestination = (value) => {
     if (!value) return;
-    setDestination(value);
-    setStep(2);
+    if (value === 'Europe Active') {
+      setDestination(value);
+      setStep(2);
+      return;
+    }
+    setInactiveCorridor(value.replace(' Coming Soon', '').replace(' Upcoming', ''));
   };
+
+  const areAllRequiredAnswersFilled = useMemo(() => {
+    const baseRequired = [
+      answers.hasITBackground,
+      answers.languageAnswer,
+      answers.currentLocation,
+      answers.willingToRelocate,
+      answers.comfortableWithFees,
+    ];
+
+    if (country === 'Germany') baseRequired.push(answers.qualification);
+    if (country === 'Poland') baseRequired.push(answers.knowsGerman);
+
+    return baseRequired.every((value) => Boolean(value && String(value).trim()));
+  }, [answers, country]);
 
   const submitEligibility = async () => {
     const payload = {
@@ -127,7 +148,7 @@ export default function EligibilityCheckPage() {
                 <div className="h-80">
                   <img
                     className="h-full w-full object-cover"
-                    src="https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1400&q=80"
+                    src="/europe.jpg"
                     alt="Europe"
                   />
                 </div>
@@ -237,10 +258,25 @@ export default function EligibilityCheckPage() {
                 >
                   Back
                 </Button>
-                <Button onClick={submitEligibility}>
+                <Button
+                  onClick={() => {
+                    if (!areAllRequiredAnswersFilled) {
+                      setShowValidationError(true);
+                      return;
+                    }
+                    setShowValidationError(false);
+                    submitEligibility();
+                  }}
+                  disabled={!areAllRequiredAnswersFilled}
+                >
                   Check Eligibility
                 </Button>
               </div>
+              {showValidationError && (
+                <p className="mt-4 text-sm text-[#f4b3b3]">
+                  Please answer all Quick Eligibility Questions before checking eligibility.
+                </p>
+              )}
             </Card>
           )}
 
@@ -305,6 +341,25 @@ export default function EligibilityCheckPage() {
             </Card>
           )}
         </div>
+
+        {inactiveCorridor && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-6">
+            <div className="w-full max-w-md rounded-xl border border-[rgba(200,169,107,0.32)] bg-[#071225] p-6 text-white shadow-2xl">
+              <h3 className="nst-display text-2xl font-semibold">{inactiveCorridor}</h3>
+              <p className="mt-3 text-sm leading-6 text-[#d1d2d7]">
+                This corridor is not currently active. Please check back later.
+              </p>
+              <div className="mt-6 flex justify-end">
+                <Button
+                  className="border-[#c8a96b] bg-[#c8a96b] text-black hover:bg-[#d4b87e]"
+                  onClick={() => setInactiveCorridor('')}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <Footer />
