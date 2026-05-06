@@ -34,8 +34,8 @@ export default function FileUpload({ label, status = 'Pending', hasUploadedFile 
   };
 
   return (
-    <div className="grid items-center gap-2 rounded-xl border border-slate-200 p-3 md:grid-cols-[1fr_auto_auto]">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+    <div className="grid items-center gap-2 rounded-xl border border-[rgba(200,169,107,0.18)] bg-[rgba(255,255,255,0.025)] p-3 md:grid-cols-[1fr_auto_auto]">
+      <span className="text-sm font-medium text-[#e8e8ed]">{label}</span>
       <input
         ref={inputRef}
         type="file"

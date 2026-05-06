@@ -1,14 +1,13 @@
 export default function StatusBadge({ status }) {
   const cls = {
-    Pending: 'bg-slate-200 text-slate-700',
-    Completed: 'bg-emerald-100 text-emerald-800',
-    'Under Review': 'bg-amber-100 text-amber-800',
-    'In Progress': 'bg-sky-100 text-sky-800',
-    Pending: 'bg-amber-100 text-amber-800',
-    Accepted: 'bg-emerald-100 text-emerald-800',
-    Rejected: 'bg-rose-100 text-rose-800',
-    Inactive: 'bg-slate-100 text-slate-400',
-    Uploaded: 'bg-indigo-100 text-indigo-800',
+    Pending: 'border border-[rgba(200,169,107,0.24)] bg-[rgba(200,169,107,0.12)] text-[#e7d5ac]',
+    Completed: 'border border-[rgba(34,197,94,0.5)] bg-[rgba(34,197,94,0.22)] text-white',
+    'Under Review': 'border border-[rgba(200,169,107,0.24)] bg-[rgba(255,255,255,0.06)] text-[#d8c08c]',
+    'In Progress': 'border border-[rgba(200,169,107,0.24)] bg-[rgba(255,255,255,0.05)] text-[#efe9da]',
+    Accepted: 'border border-[rgba(200,169,107,0.3)] bg-[rgba(200,169,107,0.16)] text-[#f4dfb2]',
+    Rejected: 'border border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.06)] text-[#f3d9d9]',
+    Inactive: 'border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] text-[#9a9aa2]',
+    Uploaded: 'border border-[rgba(200,169,107,0.24)] bg-[rgba(200,169,107,0.14)] text-[#f4dfb2]',
   };
 
   return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${cls[status] || cls.Pending}`}>{status}</span>;

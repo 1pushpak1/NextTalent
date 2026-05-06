@@ -111,10 +111,10 @@ export default function SignatureModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
-      {description && <p className="mb-3 whitespace-pre-line text-sm text-slate-600">{description}</p>}
+      {description && <p className="mb-3 whitespace-pre-line text-sm text-white">{description}</p>}
 
       {metaFields && (
-        <div className="mb-3 grid gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+        <div className="mb-3 grid gap-2 rounded-xl border border-[rgba(200,169,107,0.24)] bg-[#101011] p-3 text-sm text-white">
           <p><b>Full Name:</b> {metaFields.fullName || '-'}</p>
           <p><b>Date & Time:</b> {metaFields.dateTime || '-'}</p>
           <p><b>Location:</b> {metaFields.location || '-'}</p>

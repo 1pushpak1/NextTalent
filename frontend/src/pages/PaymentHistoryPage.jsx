@@ -132,8 +132,8 @@ export default function PaymentHistoryPage() {
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-3">
-                    <Button variant="secondary" onClick={() => setSelectedPayment(payment)}>View</Button>
-                    <Button variant="secondary" onClick={() => printInvoice(payment)}>Download Invoice</Button>
+                    <Button variant="secondary" className="text-white" onClick={() => setSelectedPayment(payment)}>View</Button>
+                    <Button variant="secondary" className="text-white" onClick={() => printInvoice(payment)}>Download Invoice</Button>
                   </div>
                 </article>
               ))}

@@ -1,3 +1,9 @@
 export default function Card({ children, className = '' }) {
-  return <div className={`rounded-xl border border-[#c4c6cf] bg-white p-5 shadow-[0_4px_20px_-10px_rgba(0,33,71,0.08)] ${className}`}>{children}</div>;
+  return (
+    <div
+      className={`rounded-xl border border-[rgba(200,169,107,0.18)] bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] p-5 text-[#f7f3ea] shadow-[0_24px_70px_-42px_rgba(0,0,0,0.72)] backdrop-blur-xl ${className}`}
+    >
+      {children}
+    </div>
+  );
 }

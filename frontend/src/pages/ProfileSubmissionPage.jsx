@@ -1572,7 +1572,12 @@ By signing below, you accept full responsibility for the authenticity of the det
 
           <div className="mt-6 flex gap-2">
             {currentStep > 1 && currentStep < 8 && (
-              <Button variant="secondary" onClick={() => goToStep(currentStep - 1)} disabled={savingDraft || loading}>
+              <Button
+                variant="secondary"
+                className="bg-transparent text-white hover:bg-[rgba(255,255,255,0.06)]"
+                onClick={() => goToStep(currentStep - 1)}
+                disabled={savingDraft || loading}
+              >
                 Back
               </Button>
             )}

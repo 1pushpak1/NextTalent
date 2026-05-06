@@ -147,34 +147,14 @@ const verifyEmail = async (req, res) => {
   }
 };
 
-const sendPhoneOtp = async (req, res) => {
+const verifyPhone = async (req, res) => {
   try {
     const { email, countryCode, phone } = req.body;
     const user = await User.findOne({ email: email?.toLowerCase() });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     user.phone = `${countryCode}${phone}`;
-    user.phoneOtp = '123456';
-    await user.save();
-
-    res.json({ message: 'OTP sent (simulated)', otp: '123456' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-const verifyPhone = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    const user = await User.findOne({ email: email?.toLowerCase() });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    if (user.phoneOtp !== otp) {
-      return res.status(400).json({ message: 'Invalid OTP' });
-    }
-
     user.phoneVerified = true;
-    user.phoneOtp = '';
     user.status = 'phone_verified';
     await user.save();
 
@@ -184,4 +164,4 @@ const verifyPhone = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, verifyEmail, sendPhoneOtp, verifyPhone };
+module.exports = { signup, login, verifyEmail, verifyPhone };

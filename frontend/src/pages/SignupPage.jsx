@@ -83,7 +83,7 @@ export default function SignupPage() {
     <AuthSplitLayout title="Join NextStep" subtitle="Create your candidate profile to begin the elite pathway.">
       <form className="space-y-4" onSubmit={submit}>
         <Input label="Email Address" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <div className="relative" ref={passwordFieldRef}>
+        <div className="relative z-[100]" ref={passwordFieldRef}>
           <Input
             label="Password"
             type="password"
@@ -113,13 +113,13 @@ export default function SignupPage() {
           {isPasswordFocused && !isPasswordStrong && (
             <div
               ref={passwordPopupRef}
-              className={`absolute z-20 rounded-xl border border-[#d8dae2] bg-white p-3 text-xs shadow-lg ${
+              className={`absolute z-[9999] rounded-xl border border-[rgba(200,169,107,0.3)] bg-[#080808] p-3 text-xs text-white shadow-[0_18px_45px_rgba(0,0,0,0.55)] ${
                 passwordPopupPlacement === 'right'
                   ? 'left-full top-0 ml-4 w-72'
                   : 'left-0 right-0 top-full mt-2'
               }`}
             >
-              <div className="mb-2 font-medium text-[#44474e]">Password must include:</div>
+              <div className="mb-2 font-medium text-white">Password must include:</div>
               <div className="space-y-1">
                 {passwordChecks.map((check) => (
                   <div
