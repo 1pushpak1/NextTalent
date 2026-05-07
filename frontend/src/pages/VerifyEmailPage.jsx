@@ -22,8 +22,15 @@ export default function VerifyEmailPage() {
     setLoading(true);
     try {
       const { data } = await api.post('/auth/verify-email', { token: verificationToken });
-      setAuth(token, data.user);
-      navigate(`/verify-phone?next=${encodeURIComponent(next)}`);
+      const persistedToken = localStorage.getItem('nst_token') || '';
+      const nextToken = data?.token || token || persistedToken;
+      setAuth(nextToken, data.user);
+
+      if (data?.user?.phoneVerified) {
+        navigate(next, { replace: true });
+      } else {
+        navigate(`/verify-phone?next=${encodeURIComponent(next)}`, { replace: true });
+      }
     } catch (error) {
       alert(error.response?.data?.message || 'Unable to verify email');
     } finally {
@@ -32,21 +39,19 @@ export default function VerifyEmailPage() {
   };
 
   useEffect(() => {
-    // Check if email is already verified (page refresh case)
     if (user?.emailVerified) {
-      // If both email and phone are verified, go to next page
       if (user?.phoneVerified) {
-        navigate(next);
+        navigate(next, { replace: true });
       } else {
-        // If only email is verified, go to phone verification
-        navigate(`/verify-phone?next=${encodeURIComponent(next)}`);
+        navigate(`/verify-phone?next=${encodeURIComponent(next)}`, { replace: true });
       }
-    } else if (verificationToken) {
-      // If token exists and email is not verified, verify using token
+      return;
+    }
+
+    if (verificationToken) {
       verifyUsingToken();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verificationToken]);
+  }, [verificationToken, user?.emailVerified, user?.phoneVerified, next, navigate]);
 
   useEffect(() => {
     if (cooldown <= 0) return undefined;

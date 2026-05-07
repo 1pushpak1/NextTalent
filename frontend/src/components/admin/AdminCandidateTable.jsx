@@ -13,7 +13,7 @@ const stageReviewMap = {
   'document-verification': 'documents',
   interviews: 'interviews',
   selection: 'selection',
-  hiring: 'overview',
+  hiring: 'hiring',
   testimonials: 'history',
 };
 

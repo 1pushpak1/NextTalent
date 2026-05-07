@@ -44,8 +44,8 @@ const filterAuditEntriesForAdmin = (entries = [], req) => {
 
   const role = String(req.user?.adminRole || '');
   const allowedTypesByRole = {
-    evaluation_admin: ['profile_evaluation', 'document_verification', 'interview_selection', 'final_selection', 'stage_action'],
-    operations_admin: ['interview_selection', 'final_selection', 'stage_action'],
+    evaluation_admin: ['profile_evaluation', 'document_verification', 'interview_selection', 'final_selection', 'admin_notes', 'stage_action'],
+    operations_admin: ['interview_selection', 'final_selection', 'admin_notes', 'stage_action'],
   };
   const allowedTypes = allowedTypesByRole[role] || [];
 

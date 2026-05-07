@@ -12,6 +12,7 @@ const approvalAuditLogSchema = new mongoose.Schema(
         'payment_verification',
         'interview_selection',
         'final_selection',
+        'admin_notes',
         'stage_action',
       ],
       required: true,

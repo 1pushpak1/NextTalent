@@ -9,3 +9,4 @@ export const reviewCandidateDocument = (candidateId, documentId, payload) => api
 export const reviewPayment = (paymentId, payload) => api.put(`/admin/payments/${paymentId}/status`, payload);
 export const reviewCandidateStage = (candidateId, stageKey, payload) => api.put(`/admin/candidates/${candidateId}/stage/${stageKey}/decision`, payload);
 export const updateCandidateNotes = (candidateId, payload) => api.put(`/admin/candidates/${candidateId}/notes`, payload);
+export const scheduleCandidateInterview = (candidateId, payload) => api.post(`/admin/candidates/${candidateId}/interviews`, payload);

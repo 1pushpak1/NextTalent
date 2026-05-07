@@ -132,10 +132,25 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
     },
     {
       key: 'interviews',
-      done: ['completed'].includes(interviewStatus),
-      pendingFrom: interviewStatus === 'completed' ? 'completed' : interviewStatus === 'scheduled' ? 'admin' : 'admin',
-      action: interviewStatus === 'scheduled' ? 'Complete scheduled interview' : 'Schedule interview',
-      recommendation: 'Coordinate with hiring partner and update interview status',
+      done: ['completed'].includes(interviewStatus) || ['selected', 'rejected'].includes(selectionStatus),
+      pendingFrom:
+        ['selected', 'rejected'].includes(selectionStatus)
+          ? 'completed'
+          : interviewStatus === 'completed'
+            ? 'completed'
+            : interviewStatus === 'scheduled'
+              ? 'admin'
+              : 'admin',
+      action:
+        ['selected', 'rejected'].includes(selectionStatus)
+          ? 'Interview stage completed'
+          : interviewStatus === 'scheduled'
+            ? 'Complete scheduled interview'
+            : 'Schedule interview',
+      recommendation:
+        ['selected', 'rejected'].includes(selectionStatus)
+          ? 'No action needed'
+          : 'Coordinate with hiring partner and update interview status',
     },
     {
       key: 'selection',

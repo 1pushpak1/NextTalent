@@ -198,9 +198,11 @@ const deriveAdminStageKey = (snapshot) => {
   const documentVerificationDecision = readStageDecision(candidate, 'document-verification');
   const hiringDecision = readStageDecision(candidate, 'hiring');
   const interviewDecision = readStageDecision(candidate, 'interviews');
+  const selectionDecision = readStageDecision(candidate, 'selection');
 
   if (status === 'process_complete') return 'testimonials';
   if (status === 'selected' && hasFinal) return 'testimonials';
+  if (['accepted', 'rejected'].includes(selectionDecision)) return 'selection';
   if (['not_selected', 'rejected'].includes(status)) return 'selection';
   if (status === 'selected') return 'selection';
   if (status === 'interview_completed' || interviewDecision === 'accepted') return 'selection';
@@ -951,14 +953,26 @@ const updatePaymentStatus = async (req, res) => {
 const updateCandidateNotes = async (req, res) => {
   try {
     const notes = String(req.body?.notes || '').trim();
-    const candidate = await User.findOneAndUpdate(
-      { _id: req.params.id, role: 'candidate' },
-      { adminNotes: notes },
-      { new: true }
-    ).select('-passwordHash');
+    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' }).select('-passwordHash');
 
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
-    res.json({ adminNotes: candidate.adminNotes || '' });
+    const previousNotes = String(candidate.adminNotes || '').trim();
+    candidate.adminNotes = notes;
+    await candidate.save();
+
+    const auditLog = await createApprovalAuditLog(req, {
+      candidateId: candidate._id,
+      candidateEmail: candidate.email,
+      approvalType: 'admin_notes',
+      sectionRecordId: 'admin_notes',
+      previousStatus: previousNotes,
+      newStatus: notes,
+      decision: previousNotes === notes ? 'pending' : 'changed',
+      reasonNote: notes || '(cleared)',
+      sourcePage: String(req.body?.sourcePage || '/admin/candidates/notes').trim(),
+    });
+
+    res.json({ adminNotes: candidate.adminNotes || '', auditLog });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
