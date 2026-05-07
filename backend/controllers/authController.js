@@ -15,7 +15,7 @@ const tokenFor = (payload) =>
   });
 
 const getFrontendBaseUrl = () =>
-  String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+  String(process.env.FRONTEND_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
 const createEmailVerificationToken = () => {
   const token = crypto.randomBytes(32).toString('hex');
@@ -40,6 +40,8 @@ const sendVerificationEmail = async (user) => {
     details: [{ label: 'Verification Link Expiry', value: '30 minutes' }],
     cta: { label: 'Verify Email', url: verifyUrl },
   });
+
+  return verifyUrl;
 };
 
 const signup = async (req, res) => {
@@ -78,7 +80,7 @@ const signup = async (req, res) => {
       status: 'account_created',
     });
 
-    await sendVerificationEmail(user);
+    const verifyUrl = await sendVerificationEmail(user);
 
     await sendStepUpdateEmail({
       to: user.email,
@@ -88,7 +90,7 @@ const signup = async (req, res) => {
       message: 'Your account has been created. Please verify your email to continue.',
       status: 'completed',
       details: [{ label: 'Email', value: user.email }],
-      cta: { label: 'Verify Email', url: `${getFrontendBaseUrl()}/verify-email` },
+      cta: { label: 'Verify Email', url: verifyUrl },
     });
 
     res.status(201).json({

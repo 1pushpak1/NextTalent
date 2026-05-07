@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 const AuthContext = createContext(null);
 
@@ -6,7 +6,12 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('nst_token') || '');
   const [user, setUser] = useState(() => {
     const raw = localStorage.getItem('nst_user');
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
   });
 
   const setAuth = (nextToken, nextUser) => {
@@ -22,6 +27,27 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('nst_token');
     localStorage.removeItem('nst_user');
   };
+
+  useEffect(() => {
+    const syncFromStorage = (event) => {
+      if (event.key && event.key !== 'nst_token' && event.key !== 'nst_user') return;
+      const nextToken = localStorage.getItem('nst_token') || '';
+      const rawUser = localStorage.getItem('nst_user');
+      let nextUser = null;
+      if (rawUser) {
+        try {
+          nextUser = JSON.parse(rawUser);
+        } catch {
+          nextUser = null;
+        }
+      }
+      setToken(nextToken);
+      setUser(nextUser);
+    };
+
+    window.addEventListener('storage', syncFromStorage);
+    return () => window.removeEventListener('storage', syncFromStorage);
+  }, []);
 
   const value = useMemo(
     () => ({ token, user, setAuth, logout, isAuthenticated: Boolean(token) }),

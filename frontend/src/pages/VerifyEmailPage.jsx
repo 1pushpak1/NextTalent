@@ -24,7 +24,11 @@ export default function VerifyEmailPage() {
       const { data } = await api.post('/auth/verify-email', { token: verificationToken });
       const persistedToken = localStorage.getItem('nst_token') || '';
       const nextToken = data?.token || token || persistedToken;
-      setAuth(nextToken, data.user);
+      if (nextToken) {
+        setAuth(nextToken, data.user);
+      } else {
+        localStorage.setItem('nst_user', JSON.stringify(data.user || null));
+      }
 
       if (data?.user?.phoneVerified) {
         navigate(next, { replace: true });

@@ -45,6 +45,7 @@ export default function VerifyPhonePage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { user, setAuth, token } = useAuth();
+  const fallbackEmail = localStorage.getItem('nst_signup_email') || '';
   const next = params.get('next') || '/profile-submission';
   const countryWrapRef = useRef(null);
   const countryInputRef = useRef(null);
@@ -68,7 +69,7 @@ export default function VerifyPhonePage() {
   useEffect(() => {
     // Check if phone is already verified (page refresh case)
     if (user?.phoneVerified) {
-      navigate(next);
+      navigate(next, { replace: true });
     }
   }, [user?.phoneVerified, navigate, next]);
 
@@ -118,15 +119,21 @@ export default function VerifyPhonePage() {
       return;
     }
 
+    const email = user?.email || fallbackEmail;
+    if (!email) {
+      alert('Unable to find your email. Please login again.');
+      return;
+    }
+
     setLoading(true);
     try {
       const { data } = await api.post('/auth/verify-phone', {
-        email: user?.email,
+        email,
         countryCode,
         phone: phone.trim(),
       });
       setAuth(token, data.user);
-      navigate(next);
+      navigate(next, { replace: true });
     } catch (error) {
       alert(error.response?.data?.message || 'Phone verification failed');
     } finally {
