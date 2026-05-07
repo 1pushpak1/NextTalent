@@ -125,7 +125,7 @@ export default function SignatureModal({
         <Button type="button" variant={tab === 'type' ? 'primary' : 'secondary'} onClick={() => setTab('type')}>
           Type Signature
         </Button>
-        <Button type="button" variant={tab === 'draw' ? 'primary' : 'secondary'} onClick={() => setTab('draw')}>
+        <Button type="button" className="text-white" variant={tab === 'draw' ? 'primary' : 'secondary'} onClick={() => setTab('draw')}>
           Draw Signature
         </Button>
       </div>

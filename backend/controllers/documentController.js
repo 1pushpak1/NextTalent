@@ -3,6 +3,7 @@ const path = require('path');
 const multer = require('multer');
 const Document = require('../models/Document');
 const User = require('../models/User');
+const Profile = require('../models/Profile');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const uploadDir = path.join(__dirname, '..', 'uploads', 'documents');
@@ -25,6 +26,13 @@ const upload = multer({
 
 const uploadDocument = async (req, res) => {
   try {
+    const [user, profile] = await Promise.all([
+      User.findById(req.user._id).lean(),
+      Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+    ]);
+    if (profile?.status === 'rejected' || ['rejected', 'not_selected'].includes(String(user?.status || '').toLowerCase())) {
+      return res.status(403).json({ message: 'This application is not active for further document submissions.' });
+    }
     if (!req.file) return res.status(400).json({ message: 'File is required' });
     const { documentType } = req.body;
     if (!documentType) return res.status(400).json({ message: 'documentType is required' });

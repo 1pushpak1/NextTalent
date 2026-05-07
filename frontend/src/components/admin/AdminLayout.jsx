@@ -1,12 +1,21 @@
-import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AdminSidebar from './AdminSidebar';
 
 export default function AdminLayout() {
   const { logout, user } = useAuth();
+  const { pathname } = useLocation();
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mainContentRef = useRef(null);
+
+  // Auto-scroll main content to top when route changes
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc,#eef2f7)]">
@@ -46,7 +55,7 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        <main className="min-h-screen overflow-y-auto p-4">
+        <main className="min-h-screen overflow-y-auto p-4" ref={mainContentRef}>
           <Outlet />
         </main>
       </div>

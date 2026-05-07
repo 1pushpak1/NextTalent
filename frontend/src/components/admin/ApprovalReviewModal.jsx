@@ -21,6 +21,7 @@ export default function ApprovalReviewModal({
   warningText = 'You must review the submitted evidence before making a decision.',
   decisionOptions = [],
   onSubmit,
+  initialViewedEvidenceKeys = [],
 }) {
   const [note, setNote] = useState('');
   const [confirmed, setConfirmed] = useState(false);
@@ -33,13 +34,28 @@ export default function ApprovalReviewModal({
       setConfirmed(false);
       setViewedEvidence({});
       setSubmittingDecision('');
+      return;
     }
-  }, [isOpen]);
+
+    if (initialViewedEvidenceKeys.length) {
+      setViewedEvidence(
+        initialViewedEvidenceKeys.reduce((accumulator, key) => {
+          accumulator[key] = true;
+          return accumulator;
+        }, {}),
+      );
+    }
+  }, [initialViewedEvidenceKeys, isOpen]);
 
   const requiredEvidence = evidenceItems.filter((item) => item.required !== false);
   const evidenceViewed = requiredEvidence.length
     ? requiredEvidence.every((item) => viewedEvidence[item.key])
     : false;
+  const pendingChecks = [
+    !evidenceViewed ? 'Open and review the required evidence.' : null,
+    !note.trim() ? 'Add a decision reason or note.' : null,
+    !confirmed ? 'Confirm that you reviewed the submission.' : null,
+  ].filter(Boolean);
 
   const openEvidence = (item) => {
     if (item.onOpen) item.onOpen();
@@ -130,6 +146,17 @@ export default function ApprovalReviewModal({
           />
           <span>I have reviewed the submitted profile, documents, or payment proof and I understand this action will be recorded in the audit history.</span>
         </label>
+
+        {!!pendingChecks.length && (
+          <div className="rounded-2xl border border-amber-400/25 bg-amber-50/10 p-3 text-sm text-amber-100">
+            <p className="font-semibold">Before you can submit a decision:</p>
+            <ul className="mt-2 space-y-1">
+              {pendingChecks.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div>
           <h4 className="text-sm font-semibold text-white">Previous Approval History</h4>

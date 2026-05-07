@@ -66,6 +66,13 @@ export default function VerifyPhonePage() {
   }, [countryQuery]);
 
   useEffect(() => {
+    // Check if phone is already verified (page refresh case)
+    if (user?.phoneVerified) {
+      navigate(next);
+    }
+  }, [user?.phoneVerified, navigate, next]);
+
+  useEffect(() => {
     const eligibilityId = localStorage.getItem('nst_eligibility_id');
     if (!eligibilityId) return;
 

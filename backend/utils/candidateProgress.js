@@ -63,6 +63,8 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
     stageStatuses.selection === 'accepted' || candidate?.status === 'selected' ? 'selected' :
       stageStatuses.selection === 'rejected' || candidate?.status === 'not_selected' || candidate?.status === 'rejected' ? 'rejected' :
         interviewStatus === 'completed' || candidate?.status === 'interview_completed' ? 'under_review' : 'pending';
+  const profileRejected = profileStatus === 'rejected';
+  const selectionRejected = selectionStatus === 'rejected';
 
   const steps = [
     {
@@ -122,6 +124,13 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
       recommendation: docsStatus === 'not_uploaded' ? 'Wait for uploads' : 'Review each document and update status',
     },
     {
+      key: 'hiring',
+      done: stageStatuses.hiring === 'accepted',
+      pendingFrom: stageStatuses.hiring === 'accepted' ? 'completed' : 'admin',
+      action: 'Assign hiring partner',
+      recommendation: 'Assign candidate to hiring partner and confirm',
+    },
+    {
       key: 'interviews',
       done: ['completed'].includes(interviewStatus),
       pendingFrom: interviewStatus === 'completed' ? 'completed' : interviewStatus === 'scheduled' ? 'admin' : 'admin',
@@ -152,6 +161,56 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
   ];
 
   const current = steps.find((step) => !step.done) || { key: 'completed', pendingFrom: 'completed', action: 'No pending action', recommendation: 'No admin action required' };
+
+  if (profileRejected) {
+    return {
+      currentStageKey: 'profile_review',
+      currentStage: stageLabels.profile_review,
+      nextAction: 'Application closed after profile review rejection',
+      pendingFrom: 'completed',
+      recommendedAdminAction: 'No action needed',
+      profileStatus,
+      evaluationStatus: profileStatus,
+      paymentStatus: {
+        initial: initialPaymentStatus,
+        program: programPaymentStatus,
+        final: finalPaymentStatus,
+      },
+      documentStatus: docsStatus,
+      interviewStatus,
+      selectionStatus,
+      eligibilityStatus,
+      verificationStatus: {
+        emailVerified: Boolean(candidate?.emailVerified),
+        phoneVerified: Boolean(candidate?.phoneVerified),
+      },
+    };
+  }
+
+  if (selectionRejected) {
+    return {
+      currentStageKey: 'selection',
+      currentStage: stageLabels.selection,
+      nextAction: 'Selection decision published',
+      pendingFrom: 'completed',
+      recommendedAdminAction: 'No action needed',
+      profileStatus,
+      evaluationStatus: profileStatus,
+      paymentStatus: {
+        initial: initialPaymentStatus,
+        program: programPaymentStatus,
+        final: finalPaymentStatus,
+      },
+      documentStatus: docsStatus,
+      interviewStatus,
+      selectionStatus,
+      eligibilityStatus,
+      verificationStatus: {
+        emailVerified: Boolean(candidate?.emailVerified),
+        phoneVerified: Boolean(candidate?.phoneVerified),
+      },
+    };
+  }
 
   return {
     currentStageKey: current.key,

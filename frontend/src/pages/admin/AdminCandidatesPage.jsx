@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { fetchAdminCandidates } from '../../api/adminApi';
 
-const stageOptions = ['', 'profile_review', 'initial_payment', 'document_verification', 'interviews', 'selection', 'final_payment', 'testimonial'];
+const stageOptions = ['', 'profile_review', 'initial_payment', 'document_verification', 'hiring', 'interviews', 'selection', 'final_payment', 'testimonial'];
 
 const humanize = (value) => String(value || '—').replaceAll('_', ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 

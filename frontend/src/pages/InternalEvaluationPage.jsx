@@ -36,7 +36,7 @@ export default function InternalEvaluationPage() {
       return;
     }
     if (profile.status === 'rejected') {
-      navigate('/email-sent', { replace: true });
+      navigate('/candidate-dashboard', { replace: true });
     }
   }, [profile, navigate]);
 

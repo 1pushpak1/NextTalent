@@ -72,19 +72,30 @@ const saveCompletedPayment = async (session, fallback = {}) => {
 
   await User.findByIdAndUpdate(userId, { status: statusByType[type] });
   const user = await User.findById(userId);
+  const nextUrl =
+    type === 'initial'
+      ? `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/declaration`
+      : type === 'program'
+        ? `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard`
+        : `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard`;
   await sendStepUpdateEmail({
     to: user?.email,
     candidateName: user?.name || user?.email?.split('@')[0],
     stepKey: type === 'initial' ? 'initial_payment' : type === 'program' ? 'program_payment' : 'final_payment',
     heading: 'Payment received successfully',
-    message: `Your ${type} payment has been successfully received and recorded.`,
+    message:
+      type === 'initial'
+        ? 'Your initial payment has been received successfully. Please complete the next onboarding and documentation steps from your dashboard.'
+        : type === 'program'
+          ? 'Your payment has been received successfully. Please continue with the next dashboard steps while your process moves forward.'
+          : 'Your final payment has been received successfully. Please continue with the next dashboard steps.',
     status: 'completed',
     details: [
       { label: 'Payment Type', value: type },
       { label: 'Amount', value: `USD ${amount}` },
       { label: 'Transaction ID', value: transactionId },
     ],
-    cta: { label: 'View Payment History', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/payment-history` },
+    cta: { label: 'Open Next Step', url: nextUrl },
   });
 
   return payment;
@@ -198,7 +209,9 @@ const submitBankTransferPayment = async (req, res) => {
       candidateName: req.user?.name || req.user?.email?.split('@')[0],
       stepKey: type === 'program' ? 'program_payment' : 'final_payment',
       heading: 'Payment receipt uploaded',
-      message: 'Your bank transfer receipt has been uploaded and is awaiting admin verification.',
+      message: type === 'program'
+        ? 'Your USD 3,500 payment receipt has been uploaded successfully and is now pending admin approval.'
+        : 'Your payment receipt has been uploaded successfully and is now pending admin approval.',
       status: 'pending',
       details: [
         { label: 'Payment Type', value: type },

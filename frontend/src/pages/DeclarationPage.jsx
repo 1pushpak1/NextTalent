@@ -177,7 +177,7 @@ export default function DeclarationPage() {
               {DOCUMENTS[previewDoc].body}
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => downloadDocumentFile(previewDoc)}>
+              <Button type="button" className="text-white" variant="secondary" onClick={() => downloadDocumentFile(previewDoc)}>
                 Download File
               </Button>
               <Button

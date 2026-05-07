@@ -203,10 +203,13 @@ const verifyEmail = async (req, res) => {
       candidateName: user.name || user.email.split('@')[0],
       stepKey: 'account',
       heading: 'Email verified',
-      message: 'Your email verification is complete.',
+      message: 'Your email verification is complete. Please finish the remaining verification step and then complete your profile submission to continue.',
       status: 'completed',
-      details: [{ label: 'Verification', value: 'Email verified' }],
-      cta: { label: 'Continue', url: `${getFrontendBaseUrl()}/verify-phone` },
+      details: [
+        { label: 'Verification', value: 'Email verified' },
+        { label: 'Next Step', value: 'Verify phone and complete profile submission' },
+      ],
+      cta: { label: 'Continue Verification', url: `${getFrontendBaseUrl()}/verify-phone` },
     });
 
     res.json({ message: 'Email verified', user });
@@ -245,9 +248,12 @@ const verifyPhone = async (req, res) => {
       candidateName: user.name || user.email.split('@')[0],
       stepKey: 'account',
       heading: 'Phone verified',
-      message: 'Your phone verification is complete and your account is fully verified.',
+      message: 'Your account is now fully verified. Please complete your profile submission to move into internal evaluation.',
       status: 'completed',
-      details: [{ label: 'Phone', value: user.phone || `${countryCode}${phone}` }],
+      details: [
+        { label: 'Phone', value: user.phone || `${countryCode}${phone}` },
+        { label: 'Next Step', value: 'Complete profile submission' },
+      ],
       cta: { label: 'Continue Profile', url: `${getFrontendBaseUrl()}/profile-submission` },
     });
 

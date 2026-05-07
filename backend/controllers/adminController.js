@@ -58,6 +58,8 @@ const stagePageLabelMap = {
   testimonials: 'Testimonials',
 };
 
+const getFrontendBaseUrl = () => String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+
 const toId = (value) => String(value || '');
 const allowedSensitiveStageKeys = ['evaluation', 'document-verification', 'selection'];
 
@@ -713,10 +715,18 @@ const updateCandidateProfileStatus = async (req, res) => {
       to: candidate.email,
       candidateName: candidate.name || candidate.email?.split('@')[0],
       stepKey: 'evaluation',
-      heading: 'Profile review status updated',
-      message: 'Your profile review status has been updated by admin.',
+      heading: status === 'accepted' ? 'Profile approved' : status === 'rejected' ? 'Profile rejected' : 'Profile kept under review',
+      message:
+        status === 'accepted'
+          ? 'Your profile has been approved. Please complete the next steps from your dashboard.'
+          : status === 'rejected'
+            ? 'Your profile was not approved in the current review cycle. Your dashboard will now show this rejection and the next steps will remain inactive.'
+            : 'Your profile is still under internal evaluation. No action is needed from you right now.',
       status,
-      details: [{ label: 'Profile Status', value: status }],
+      details: [
+        { label: 'Profile Status', value: status },
+        { label: 'Next Step', value: status === 'accepted' ? 'Complete the next dashboard step' : status === 'rejected' ? 'No further candidate action available' : 'Wait for final review decision' },
+      ],
       cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
     });
 
@@ -768,8 +778,13 @@ const updateCandidateDocumentStatus = async (req, res) => {
       to: candidate.email,
       candidateName: candidate.name || candidate.email?.split('@')[0],
       stepKey: 'document_verification',
-      heading: 'Document verification update',
-      message: 'A document status has been updated by admin.',
+      heading: status === 'Accepted' ? 'Document approved' : status === 'Needs Revision' ? 'Document needs revision' : 'Document review updated',
+      message:
+        status === 'Accepted'
+          ? 'Your document has been approved successfully.'
+          : status === 'Needs Revision'
+            ? 'Your document needs revision. Please upload the corrected and complete document details again from your dashboard.'
+            : 'Your document review status has been updated.',
       status: String(status || '').toLowerCase().replaceAll(' ', '_'),
       details: [
         { label: 'Document Type', value: document.documentType || 'Document' },
@@ -885,15 +900,25 @@ const updatePaymentStatus = async (req, res) => {
       to: candidate?.email,
       candidateName: candidate?.name || candidate?.email?.split('@')[0],
       stepKey: payment.type === 'initial' ? 'initial_payment' : payment.type === 'program' ? 'program_payment' : 'final_payment',
-      heading: 'Payment verification updated by admin',
-      message: 'Your payment verification status has been updated.',
+      heading: status === 'completed' ? 'Payment approved' : status === 'failed' ? 'Payment rejected' : 'Payment verification updated',
+      message:
+        status === 'completed'
+          ? payment.type === 'program'
+            ? 'Your payment has been approved. Your case is now pending document verification.'
+            : 'Your payment has been approved. Please continue with the next steps shown on your dashboard.'
+          : status === 'failed'
+            ? 'Your payment verification was not approved. Please upload the complete and correct payment details again from your dashboard.'
+            : 'Your payment verification status has been updated and is still pending completion.',
       status,
       details: [
         { label: 'Payment Type', value: payment.type },
         { label: 'Amount', value: `${payment.currency || 'USD'} ${payment.amount || 0}` },
         { label: 'Transaction ID', value: payment.transactionId || '—' },
       ],
-      cta: { label: 'Open Payment History', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/payment-history` },
+      cta: {
+        label: status === 'failed' ? 'Upload Correct Payment Details' : 'Open Dashboard',
+        url: `${getFrontendBaseUrl()}/${status === 'failed' ? (payment.type === 'final' ? 'payment/final-payment' : payment.type === 'program' ? 'payment/program-fee' : 'initial-payment') : 'candidate-dashboard'}`,
+      },
     });
 
     const [profile, eligibility, documents, interviews, payments, testimonial, refreshedCandidate] = await Promise.all([
@@ -1060,20 +1085,55 @@ const updateCandidateStageDecision = async (req, res) => {
       testimonials: 'testimonial',
     };
 
+    const stageEmailConfig = (() => {
+      if (stageKey === 'interviews') {
+        return {
+          heading: status === 'accepted' ? 'Interview completed' : status === 'under_review' ? 'Interview still scheduled' : 'Interview status updated',
+          message:
+            status === 'accepted'
+              ? 'Your interview has been marked as completed. Your selection result is now pending.'
+              : status === 'under_review'
+                ? 'Your interview remains scheduled. Please watch your dashboard for any new interview instructions.'
+                : 'Your interview status has been updated.',
+        };
+      }
+      if (stageKey === 'selection') {
+        return {
+          heading: status === 'accepted' ? 'Selection result: approved' : status === 'rejected' ? 'Selection result: not selected' : 'Selection result under review',
+          message:
+            status === 'accepted'
+              ? 'Congratulations. You have been selected. Please pay the required fees shown in your dashboard to continue.'
+              : status === 'rejected'
+                ? 'Your selection result has been published and you were not selected in this cycle.'
+                : 'Your selection result is still under review.',
+        };
+      }
+      if (stageKey === 'document-verification') {
+        return {
+          heading: status === 'accepted' ? 'Document verification approved' : status === 'rejected' ? 'Document verification rejected' : 'Document verification updated',
+          message: status === 'accepted' ? 'Your documents have been verified successfully.' : 'Your document verification status has been updated.',
+        };
+      }
+      return {
+        heading: 'Stage decision updated by admin',
+        message: 'A stage decision has been updated in your process.',
+      };
+    })();
+
     await sendStepUpdateEmail({
       to: candidate.email,
       candidateName: candidate.name || candidate.email?.split('@')[0],
       stepKey: stageToEmailStep[stageKey] || 'profile',
       stepName: stagePageLabelMap[stageKey] || stageKey,
-      heading: 'Stage decision updated by admin',
-      message: 'A stage decision has been updated in your process.',
+      heading: stageEmailConfig.heading,
+      message: stageEmailConfig.message,
       status,
       details: [
         { label: 'Stage', value: stagePageLabelMap[stageKey] || stageKey },
         { label: 'Decision', value: status },
         ...(hiringPartner ? [{ label: 'Hiring Partner', value: hiringPartner }] : []),
       ],
-      cta: { label: 'Open Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+      cta: { label: 'Open Dashboard', url: `${getFrontendBaseUrl()}/candidate-dashboard` },
     });
 
     const [profile, eligibility, documents, interviews, payments, testimonial, refreshedCandidate] = await Promise.all([

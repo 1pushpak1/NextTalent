@@ -40,6 +40,7 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
 
   const selected = user.status === 'selected';
   const rejected = user.status === 'rejected' || profile?.status === 'rejected';
+  const profileRejected = profile?.status === 'rejected';
   const selectionAccepted = selectionDecision === 'accepted' || (selectionDecision !== 'rejected' && selected);
   const selectionRejected = selectionDecision === 'rejected' || (selectionDecision !== 'accepted' && rejected);
   const selectionUnderReview = selectionDecision === 'under_review' || (!selected && !rejected && user.status === 'interview_completed');
@@ -84,13 +85,15 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
               : 'In Progress'
         : 'Pending',
     },
-    { name: 'Initial Payment', status: hasInitial ? 'Completed' : profile?.status === 'accepted' ? 'Pending' : 'Pending' },
-    { name: 'Declaration Signed', status: declarationDone ? 'Completed' : 'Pending' },
-    { name: 'Team Contact / Onboarding', status: onboardingDone ? 'Completed' : hasInitial ? 'In Progress' : 'Pending' },
-    { name: 'Documents Uploaded', status: docsUploaded ? 'Completed' : 'Pending' },
+    { name: 'Initial Payment', status: profileRejected ? 'Inactive' : hasInitial ? 'Completed' : profile?.status === 'accepted' ? 'Pending' : 'Pending' },
+    { name: 'Declaration Signed', status: profileRejected ? 'Inactive' : declarationDone ? 'Completed' : 'Pending' },
+    { name: 'Team Contact / Onboarding', status: profileRejected ? 'Inactive' : onboardingDone ? 'Completed' : hasInitial ? 'In Progress' : 'Pending' },
+    { name: 'Documents Uploaded', status: profileRejected ? 'Inactive' : docsUploaded ? 'Completed' : 'Pending' },
     {
       name: 'Program Fee Payment',
-      status: hasProgram
+      status: profileRejected
+        ? 'Inactive'
+        : hasProgram
         ? 'Completed'
         : hasProgramFailed
           ? 'Rejected'
@@ -104,19 +107,19 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
     },
     {
       name: 'Document Verification',
-      status: hasProgram ? (docsReceived ? 'Accepted' : docsUnderReview ? 'Under Review' : docsAccepted ? 'In Progress' : 'Pending') : 'Pending',
+      status: profileRejected ? 'Inactive' : hasProgram ? (docsReceived ? 'Accepted' : docsUnderReview ? 'Under Review' : docsAccepted ? 'In Progress' : 'Pending') : 'Pending',
     },
     {
       name: 'Sent to Hiring Partners',
-      status: user.status === 'sent_to_partners' || anyInterview || selected ? 'Completed' : 'Pending',
+      status: profileRejected ? 'Inactive' : user.status === 'sent_to_partners' || anyInterview || selected ? 'Completed' : 'Pending',
     },
     {
       name: 'Interviews',
-      status: hasCompletedInterview ? 'Completed' : hasScheduledInterview ? 'In Progress' : anyInterview ? 'Pending' : 'Pending',
+      status: profileRejected ? 'Inactive' : hasCompletedInterview ? 'Completed' : hasScheduledInterview ? 'In Progress' : anyInterview ? 'Pending' : 'Pending',
     },
     {
       name: 'Selection Result',
-      status: selectionAccepted ? 'Accepted' : selectionRejected ? 'Rejected' : selectionUnderReview ? 'Under Review' : 'Pending',
+      status: profileRejected ? 'Inactive' : selectionAccepted ? 'Accepted' : selectionRejected ? 'Rejected' : selectionUnderReview ? 'Under Review' : 'Pending',
     },
     {
       name: 'Final Payment',
@@ -154,7 +157,7 @@ const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
   if (!eligibilityDone) return '/eligibility-check';
   if (!profile || profile.status === 'draft') return '/profile-submission';
   if (profile.status === 'submitted' || profile.status === 'under_review') return '/internal-evaluation';
-  if (profile.status === 'rejected') return '/email-sent';
+  if (profile.status === 'rejected') return '/candidate-dashboard';
   if (profile.status === 'accepted' && !hasInitial) return '/initial-payment';
   if (hasInitial && !declarationDone) return '/declaration';
   if (hasInitial && declarationDone && !onboardingDone) return '/onboarding';
@@ -206,6 +209,9 @@ const getDashboard = async (req, res) => {
       user.status === 'documents_submitted' ||
       docsReceived;
     let currentStage = stages.find((s) => s.status === 'Pending' || s.status === 'Under Review' || s.status === 'In Progress');
+    if (profile?.status === 'rejected') {
+      currentStage = stages.find((s) => s.name === 'Internal Evaluation') || currentStage;
+    }
     if ((selectionDecision === 'accepted' || user.status === 'selected' || hasFinal) && !testimonial) {
       currentStage = stages.find((s) => s.name === 'Testimonial') || currentStage;
     } else if (selectionDecision === 'accepted' || user.status === 'selected') {
@@ -262,22 +268,39 @@ const getDashboard = async (req, res) => {
 const updateMyStatus = async (req, res) => {
   try {
     const { status } = req.body;
+    const profile = await Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean();
+    const userRecord = await User.findById(req.user._id).lean();
+    if (profile?.status === 'rejected' || ['rejected', 'not_selected'].includes(String(userRecord?.status || '').toLowerCase())) {
+      return res.status(403).json({ message: 'This application is not active for further candidate actions.' });
+    }
     const user = await User.findByIdAndUpdate(req.user._id, { status }, { new: true });
 
     const normalized = String(status || '').toLowerCase();
-    const stepKeyByStatus = {
-      declaration_signed: 'declaration',
-      onboarding_complete: 'onboarding',
-      documents_submitted: 'documents',
+    const emailConfigByStatus = {
+      declaration_signed: {
+        stepKey: 'declaration',
+        heading: 'Declaration completed',
+        message: 'Your declaration step has been completed successfully.',
+      },
+      onboarding_complete: {
+        stepKey: 'onboarding',
+        heading: 'Onboarding completed',
+        message: 'Your onboarding update has been recorded successfully.',
+      },
+      documents_submitted: {
+        stepKey: 'documents',
+        heading: 'Document submission completed',
+        message: 'Your document submission is complete and is now pending further verification by the team.',
+      },
     };
-    const stepKey = stepKeyByStatus[normalized];
-    if (stepKey) {
+    const emailConfig = emailConfigByStatus[normalized];
+    if (emailConfig) {
       await sendStepUpdateEmail({
         to: user?.email,
         candidateName: user?.name || user?.email?.split('@')[0],
-        stepKey,
-        heading: 'Step completed successfully',
-        message: 'Your update has been recorded.',
+        stepKey: emailConfig.stepKey,
+        heading: emailConfig.heading,
+        message: emailConfig.message,
         status: 'completed',
         details: [{ label: 'New Account Status', value: normalized }],
         cta: { label: 'Open Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },

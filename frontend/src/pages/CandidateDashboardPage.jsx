@@ -95,30 +95,33 @@ export default function CandidateDashboardPage() {
   const finalFailed = latestFinalPayment?.status === 'failed';
   const finalPaid = latestFinalPayment?.status === 'completed';
   const internalEvaluationPassed = data?.profileStatus === 'accepted';
+  const profileRejected = data?.profileStatus === 'rejected';
   const showEligibilityForCandidate = data?.profileStatus === 'accepted';
   const interviewScheduled = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'scheduled');
   const interviewCompleted = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'completed');
   const testimonialSubmitted = Boolean(data?.testimonialSubmitted);
   const testimonialPending = finalPaid && !testimonialSubmitted;
   const selected = data?.candidate?.status === 'selected';
+  const journeyLocked = profileRejected || ['not_selected', 'rejected'].includes(String(data?.candidate?.status || '').toLowerCase());
   const requiredRoute = getCandidateNextRoute(data);
   const paymentNotice = paymentRouteNotice[requiredRoute] || null;
   const failedPaymentNotice = programFailed || finalFailed
     ? {
         title: 'Payment Not Received',
-        description: 'Please upload the correct payment receipt file or contact support to get this issue resolved.',
+        description: 'Please upload the complete and correct payment details again, including the right receipt file, or contact support to resolve this issue.',
         cta: programFailed ? 'Re-upload Program Fee Receipt' : 'Re-upload Final Payment Receipt',
       }
     : null;
   const currentStageLabel =
     data?.currentStage === 'Interviews' && interviewCompleted ? 'Selection Result' : data?.currentStage || 'Pending';
   const selectionStageStatus = useMemo(() => {
+    if (profileRejected) return '';
     const fromStages = (data?.stages || []).find((stage) => stage.name === 'Selection Result')?.status;
     if (fromStages) return fromStages;
     if (data?.candidate?.status === 'selected') return 'Accepted';
     if (['not_selected', 'rejected'].includes(String(data?.candidate?.status || '').toLowerCase())) return 'Rejected';
     return '';
-  }, [data?.candidate?.status, data?.stages]);
+  }, [data?.candidate?.status, data?.stages, profileRejected]);
   const selectionBanner = selectionBannerConfig[selectionStageStatus] || null;
   const timelineStages = useMemo(() => {
     const stages = Array.isArray(data?.stages) ? data.stages : [];
@@ -188,23 +191,33 @@ export default function CandidateDashboardPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              {internalEvaluationPassed && !hasInitial && (
+              {!journeyLocked && internalEvaluationPassed && !hasInitial && (
                 <Link to="/initial-payment">
                   <Button>Pay USD 500</Button>
                 </Link>
               )}
-              {hasInitial && docsIncomplete && (
+              {!journeyLocked && hasInitial && docsIncomplete && (
                 <Link to="/documents">
                   <Button variant="secondary">Upload Documents</Button>
                 </Link>
               )}
-              {data?.candidate?.status === 'documents_received' && !programPaid && (
+              {!journeyLocked && data?.candidate?.status === 'documents_received' && !programPaid && (
                 <Link to="/payment/program-fee">
                   <Button>Pay USD 3,500</Button>
                 </Link>
               )}
             </div>
           </section>
+
+          {profileRejected && (
+            <section className="mb-8 overflow-hidden rounded-[28px] border border-rose-300 bg-[radial-gradient(circle_at_top_left,_rgba(251,113,133,0.18),_rgba(255,241,242,0.96)_40%,_rgba(255,255,255,1)_100%)] p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-rose-700">Internal Evaluation Result</p>
+              <h2 className="mt-2 text-3xl font-bold text-rose-950">Your profile was not approved in the current review cycle.</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-rose-900">
+                Your dashboard now reflects this rejection, and the next pathway steps are inactive. If the team shares any future update, it will appear here and by email.
+              </p>
+            </section>
+          )}
 
           {selectionBanner && (
             selectionStageStatus === 'Accepted' ? (
@@ -307,13 +320,14 @@ export default function CandidateDashboardPage() {
             <div className="nst-card rounded-xl p-6 lg:col-span-2">
               <h3 className="mb-3 text-2xl font-semibold text-[#002147]">Milestone Actions</h3>
               <div className="flex flex-wrap gap-3">
-                {interviewScheduled && <Link to="/interviews"><Button className="text-white" variant="secondary">View Interview Details</Button></Link>}
-                {internalEvaluationPassed && !hasInitial && <Link to="/initial-payment"><Button>Pay Initial USD 500</Button></Link>}
-                {hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Link to="/payment/program-fee"><Button>{programFailed ? 'Re-upload Program Fee Receipt' : 'Pay Program Fee'}</Button></Link>}
-                {selected && !finalPaid && !finalPending && <Link to="/payment/final-payment"><Button>{finalFailed ? 'Re-upload Final Payment Receipt' : 'Pay Final Program Fee'}</Button></Link>}
-                {selected && finalPending && <Button className="text-white" variant="secondary" disabled>Final Payment Under Verification</Button>}
-                {testimonialPending && <Link to="/testimonial"><Button className="text-white" variant="secondary">Share Testimonial</Button></Link>}
-                {finalPaid && testimonialSubmitted && <Button className="text-white" variant="secondary" disabled>Testimonial Shared</Button>}
+                {!journeyLocked && interviewScheduled && <Link to="/interviews"><Button className="text-white" variant="secondary">View Interview Details</Button></Link>}
+                {!journeyLocked && internalEvaluationPassed && !hasInitial && <Link to="/initial-payment"><Button>Pay Initial USD 500</Button></Link>}
+                {!journeyLocked && hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Link to="/payment/program-fee"><Button>{programFailed ? 'Re-upload Program Fee Receipt' : 'Pay Program Fee'}</Button></Link>}
+                {!journeyLocked && selected && !finalPaid && !finalPending && <Link to="/payment/final-payment"><Button>{finalFailed ? 'Re-upload Final Payment Receipt' : 'Pay Final Program Fee'}</Button></Link>}
+                {!journeyLocked && selected && finalPending && <Button className="text-white" variant="secondary" disabled>Final Payment Under Verification</Button>}
+                {!journeyLocked && testimonialPending && <Link to="/testimonial"><Button className="text-white" variant="secondary">Share Testimonial</Button></Link>}
+                {!journeyLocked && finalPaid && testimonialSubmitted && <Button className="text-white" variant="secondary" disabled>Testimonial Shared</Button>}
+                {journeyLocked && <Button className="text-white" variant="secondary" disabled>Next Steps Inactive</Button>}
               </div>
             </div>
             <div className="nst-card rounded-xl p-6">

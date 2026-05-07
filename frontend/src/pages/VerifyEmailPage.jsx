@@ -32,7 +32,19 @@ export default function VerifyEmailPage() {
   };
 
   useEffect(() => {
-    verifyUsingToken();
+    // Check if email is already verified (page refresh case)
+    if (user?.emailVerified) {
+      // If both email and phone are verified, go to next page
+      if (user?.phoneVerified) {
+        navigate(next);
+      } else {
+        // If only email is verified, go to phone verification
+        navigate(`/verify-phone?next=${encodeURIComponent(next)}`);
+      }
+    } else if (verificationToken) {
+      // If token exists and email is not verified, verify using token
+      verifyUsingToken();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verificationToken]);
 

@@ -3,6 +3,7 @@ const path = require('path');
 const multer = require('multer');
 const Testimonial = require('../models/Testimonial');
 const User = require('../models/User');
+const Profile = require('../models/Profile');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const uploadDir = path.join(__dirname, '..', 'uploads', 'testimonials');
@@ -25,6 +26,13 @@ const upload = multer({
 
 const createTestimonial = async (req, res) => {
   try {
+    const [user, profile] = await Promise.all([
+      User.findById(req.user._id).lean(),
+      Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+    ]);
+    if (profile?.status === 'rejected' || ['rejected', 'not_selected'].includes(String(user?.status || '').toLowerCase())) {
+      return res.status(403).json({ message: 'This application is not active for testimonial submission.' });
+    }
     const body = req.body || {};
     const { fullName = '', country = '', selectedDestination = '', role = '', text = '', consent, photoUrl = '' } = body;
     const uploadedPhotoUrl = req.file ? `/uploads/testimonials/${req.file.filename}` : '';

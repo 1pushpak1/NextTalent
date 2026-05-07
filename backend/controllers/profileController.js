@@ -90,11 +90,11 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
     candidateName: body.personalDetails?.firstName || req.user?.name || req.user?.email?.split('@')[0],
     stepKey: 'profile',
     heading: 'Profile submitted successfully',
-    message: 'Your profile has been submitted and moved to internal evaluation.',
+    message: 'Your profile has been submitted successfully and is now pending admin approval in internal evaluation.',
     status: 'submitted',
     details: [
-      { label: 'Profile Status', value: 'Submitted' },
-      { label: 'Saved Step', value: '8' },
+      { label: 'Profile Status', value: 'Pending Approval' },
+      { label: 'Review Stage', value: 'Internal Evaluation' },
     ],
     cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
   });
