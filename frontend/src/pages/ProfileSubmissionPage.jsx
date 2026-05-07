@@ -1102,7 +1102,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               </div>
 
               <div>
-                <h3 className="font-semibold text-slate-900">Additional Qualifications (max 3)</h3>
+                <h3 className="font-semibold text-slate-900">Additional Qualifications </h3>
                 {form.education.additionalQualifications.map((q, idx) => (
                   <div key={idx} className="relative mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-2">
                     {idx > 0 && (

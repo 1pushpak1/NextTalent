@@ -122,7 +122,12 @@ export default function SignatureModal({
       )}
 
       <div className="mb-3 flex gap-2">
-        <Button type="button" variant={tab === 'type' ? 'primary' : 'secondary'} onClick={() => setTab('type')}>
+        <Button
+          type="button"
+          className={tab === 'draw' ? 'text-white' : ''}
+          variant={tab === 'type' ? 'primary' : 'secondary'}
+          onClick={() => setTab('type')}
+        >
           Type Signature
         </Button>
         <Button type="button" className="text-white" variant={tab === 'draw' ? 'primary' : 'secondary'} onClick={() => setTab('draw')}>

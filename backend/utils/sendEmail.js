@@ -29,7 +29,7 @@ const getSmtpConfig = () => {
   };
 };
 
-const sendEmail = async ({ to, subject, text, html }) => {
+const sendEmail = async ({ to, subject, text, html, attachments = [] }) => {
   const {
     SMTP_HOST,
     SMTP_PORT,
@@ -73,6 +73,7 @@ const sendEmail = async ({ to, subject, text, html }) => {
       subject,
       text,
       html,
+      attachments,
     });
     return info;
   } catch (error) {

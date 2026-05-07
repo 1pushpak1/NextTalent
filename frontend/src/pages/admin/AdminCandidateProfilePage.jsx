@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import ApprovalReviewModal from '../../components/admin/ApprovalReviewModal';
 import AuditHistoryPanel from '../../components/admin/AuditHistoryPanel';
 import Button from '../../components/Button';
@@ -93,6 +93,7 @@ const readStageDecision = (candidate, stageKey) => {
 export default function AdminCandidateProfilePage() {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const contentRef = useRef(null);
   const { can, role } = usePermissions();
   const [data, setData] = useState(null);
@@ -115,9 +116,16 @@ export default function AdminCandidateProfilePage() {
     meetingLink: '',
   });
 
-  const activeTab = tabs.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'overview';
-  const reviewParam = searchParams.get('review');
+  const currentParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const activeTabParam = currentParams.get('tab');
+  const tabFromUrl = tabs.includes(activeTabParam) ? activeTabParam : 'overview';
+  const [activeTab, setActiveTabState] = useState(tabFromUrl);
+  const reviewParam = currentParams.get('review');
   const canReviewSelection = ['super_admin', 'payment_admin'].includes(String(role || ''));
+
+  useEffect(() => {
+    setActiveTabState(tabFromUrl);
+  }, [tabFromUrl]);
 
   // Auto-scroll to top when tab changes
   useEffect(() => {
@@ -185,7 +193,7 @@ export default function AdminCandidateProfilePage() {
 
   useEffect(() => {
     if (!data) return;
-    const review = searchParams.get('review');
+    const review = currentParams.get('review');
     if (!review) return;
 
     if (review === 'document-verification' && documents[0] && can('documents:verify')) {
@@ -197,7 +205,7 @@ export default function AdminCandidateProfilePage() {
       return;
     }
     setActiveReview(null);
-  }, [data, searchParams, documents, can, canReviewSelection]);
+  }, [data, currentParams, documents, can, canReviewSelection]);
 
   useEffect(() => {
     if (!isInlineProfileReview) {
@@ -208,14 +216,15 @@ export default function AdminCandidateProfilePage() {
   }, [isInlineProfileReview]);
 
   const setTab = (tab) => {
-    const next = new URLSearchParams(searchParams);
+    setActiveTabState(tab);
+    const next = new URLSearchParams(currentParams);
     next.set('tab', tab);
     next.delete('review');
     setSearchParams(next);
   };
 
   const openProfileReview = () => {
-    const next = new URLSearchParams(searchParams);
+    const next = new URLSearchParams(currentParams);
     next.set('tab', 'profile');
     next.set('review', 'evaluation');
     setSearchParams(next);
@@ -223,7 +232,7 @@ export default function AdminCandidateProfilePage() {
 
   const closeReview = () => {
     setActiveReview(null);
-    const next = new URLSearchParams(searchParams);
+    const next = new URLSearchParams(currentParams);
     next.delete('review');
     setSearchParams(next);
   };

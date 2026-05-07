@@ -1,7 +1,18 @@
+const fs = require('fs');
+const path = require('path');
 const sendEmail = require('./sendEmail');
 
 const getFrontendBaseUrl = () => String(process.env.FRONTEND_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+const BRAND_LOGO_CID = 'nextstep-talent-logo';
 const getBrandLogoUrl = () => process.env.BRAND_LOGO_URL || `${getFrontendBaseUrl()}/logo.png`;
+const getBrandLogoPath = () => process.env.BRAND_LOGO_PATH || path.resolve(__dirname, '../../frontend/public/logo.png');
+const logoFileExists = () => {
+  try {
+    return fs.existsSync(getBrandLogoPath());
+  } catch {
+    return false;
+  }
+};
 
 const statusLabelMap = {
   submitted: 'Submitted',
@@ -93,7 +104,7 @@ const inferVariant = ({ eventType, stepKey, status }) => {
   return 'general';
 };
 
-const buildHtml = ({ candidateName, heading, message, stepNo, stepName, status, details = [], cta, variant = 'general' }) => {
+const buildHtml = ({ candidateName, heading, message, stepNo, stepName, status, details = [], cta, variant = 'general', logoSrc }) => {
   const theme = variantThemes[variant] || variantThemes.general;
   const detailsHtml = details.length
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-collapse:collapse;background:${theme.cardBg};border:1px solid ${theme.cardBorder};border-radius:10px;padding:10px">${details
@@ -122,7 +133,7 @@ const buildHtml = ({ candidateName, heading, message, stepNo, stepName, status, 
                 <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
                   <tr>
                     <td style="vertical-align:middle;padding-right:10px">
-                      <img src="${escapeHtml(getBrandLogoUrl())}" alt="NextStep Talent Logo" style="height:44px;width:auto;display:block;border:0;outline:none;text-decoration:none" />
+                      <img src="${escapeHtml(logoSrc || getBrandLogoUrl())}" alt="NextStep Talent Logo" style="height:44px;width:auto;display:block;border:0;outline:none;text-decoration:none" />
                     </td>
                     <td style="vertical-align:middle">
                       <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:.02em">NextStep Talent</p>
@@ -170,6 +181,8 @@ const sendStepUpdateEmail = async ({
   const variant = inferVariant({ eventType, stepKey, status: effectiveStatus });
 
   const subject = `Step ${stepInfo.no}: ${effectiveStepName} - ${effectiveStatus}`;
+  const hasInlineLogo = logoFileExists();
+  const logoSrc = hasInlineLogo ? `cid:${BRAND_LOGO_CID}` : getBrandLogoUrl();
   const html = buildHtml({
     candidateName,
     heading,
@@ -180,6 +193,7 @@ const sendStepUpdateEmail = async ({
     details,
     cta,
     variant,
+    logoSrc,
   });
 
   const textLines = [
@@ -191,12 +205,23 @@ const sendStepUpdateEmail = async ({
     ...(cta?.label && cta?.url ? [`${cta.label}: ${cta.url}`] : []),
   ];
 
+  const attachments = hasInlineLogo
+    ? [
+        {
+          filename: 'logo.png',
+          path: getBrandLogoPath(),
+          cid: BRAND_LOGO_CID,
+        },
+      ]
+    : [];
+
   try {
     await sendEmail({
       to,
       subject,
       text: textLines.join('\n'),
       html,
+      attachments,
     });
   } catch (error) {
     console.error('Step update email failed:', error.message);
