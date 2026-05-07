@@ -31,7 +31,6 @@ import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminStageCandidatesPage from './pages/admin/AdminStageCandidatesPage';
 import AdminPaymentsOverviewPage from './pages/admin/AdminPaymentsOverviewPage';
 import AdminPaymentTypePage from './pages/admin/AdminPaymentTypePage';
-import AdminCandidateDetailPage from './pages/admin/AdminCandidateDetailPage';
 import AdminCandidatesPage from './pages/admin/AdminCandidatesPage';
 import AdminCandidateProfilePage from './pages/admin/AdminCandidateProfilePage';
 import AdminCandidatePage from './pages/AdminCandidatePage';
@@ -116,7 +115,7 @@ export default function App() {
           <Route path="payments/initial" element={<AdminPaymentTypePage title="Initial Payment ($500)" type="initial" />} />
           <Route path="payments/program" element={<AdminPaymentTypePage title="Program Payment ($3500)" type="program" />} />
           <Route path="payments/final" element={<AdminPaymentTypePage title="Final Payment ($4000)" type="final" />} />
-          <Route path="candidate/:id" element={<AdminCandidateDetailPage />} />
+          <Route path="candidate/:id" element={<AdminCandidateProfilePage />} />
           <Route path="candidate/:id/edit" element={<AdminCandidatePage />} />
           <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
         </Route>

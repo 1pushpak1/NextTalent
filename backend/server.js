@@ -30,6 +30,7 @@ const requireEnv = (name) => {
 requireEnv('JWT_SECRET');
 
 const app = express();
+app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : false);
 app.use(cors());
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
 app.use(express.json({ limit: '10mb' }));

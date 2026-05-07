@@ -238,7 +238,7 @@ export default function HomePage() {
         <section className="px-6 pb-20 md:px-10 md:pb-28">
           <Reveal className="mx-auto max-w-[1180px] overflow-hidden rounded-[2.2rem] border border-[rgba(200,169,107,0.25)] bg-[radial-gradient(circle_at_50%_10%,rgba(200,169,107,0.16),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] px-6 py-14 text-center sm:px-10 md:py-20">
             <span className="nst-kicker">Take The Next Step</span>
-            <h2 className="mx-auto mt-8 max-w-[860px] text-center nst-display text-[2rem] leading-[1.1] tracking-[-0.03em] text-white sm:text-[2.6rem] md:text-[3.4rem]">
+            <h2 className="mx-auto mt-8 text-center nst-display text-[2rem] leading-[1.1] tracking-[-0.03em] text-white sm:text-[2.6rem] md:text-[3.4rem]">
               Looking to explore international career pathways?
             </h2>
             <div className="mx-auto mt-7 h-px w-[4.5rem] bg-[linear-gradient(90deg,transparent,#c8a96b,transparent)]" />

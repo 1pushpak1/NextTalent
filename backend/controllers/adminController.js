@@ -5,8 +5,14 @@ const Interview = require('../models/Interview');
 const Payment = require('../models/Payment');
 const Eligibility = require('../models/Eligibility');
 const Testimonial = require('../models/Testimonial');
+const ApprovalAuditLog = require('../models/ApprovalAuditLog');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const { deriveCandidateProgress } = require('../utils/candidateProgress');
+const {
+  sanitizeReasonNote,
+  createApprovalAuditLog,
+  filterAuditEntriesForAdmin,
+} = require('../utils/approvalAudit');
 
 const validProfileStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 const validDocumentStatuses = ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'];
@@ -53,6 +59,39 @@ const stagePageLabelMap = {
 };
 
 const toId = (value) => String(value || '');
+const allowedSensitiveStageKeys = ['evaluation', 'document-verification', 'selection'];
+
+const ensureReviewPayload = (req, res) => {
+  const reasonNote = sanitizeReasonNote(req.body?.reasonNote);
+  const reviewConfirmed = req.body?.reviewConfirmed === true;
+  const evidenceViewed = req.body?.evidenceViewed === true;
+
+  if (!reasonNote) {
+    res.status(400).json({ message: 'A decision reason or note is required.' });
+    return null;
+  }
+  if (!reviewConfirmed) {
+    res.status(400).json({ message: 'You must confirm that you reviewed the submission before deciding.' });
+    return null;
+  }
+  if (!evidenceViewed) {
+    res.status(400).json({ message: 'Open and review the submitted evidence before approving or rejecting.' });
+    return null;
+  }
+
+  return {
+    reasonNote,
+    sourcePage: String(req.body?.sourcePage || '').trim(),
+  };
+};
+
+const loadApprovalHistory = async (candidateId, req) => {
+  const logs = await ApprovalAuditLog.find({ candidateId }).sort({ createdAt: -1 }).lean();
+  return filterAuditEntriesForAdmin(logs, req);
+};
+
+const buildProgressSummary = ({ candidate, profile, eligibility, documents, interviews, payments, testimonial }) =>
+  deriveCandidateProgress({ candidate, profile, eligibility, documents, interviews, payments, testimonial });
 
 const groupLatestByUserId = (records, userKey = 'userId') => {
   const map = new Map();
@@ -588,6 +627,7 @@ const getCandidateDetails = async (req, res) => {
       Testimonial.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
     ]);
 
+    const approvalHistory = await loadApprovalHistory(candidate._id, req);
     res.json({
       candidate,
       profile,
@@ -597,6 +637,7 @@ const getCandidateDetails = async (req, res) => {
       eligibility,
       testimonial,
       adminNotes: candidate.adminNotes || '',
+      approvalHistory,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -616,7 +657,23 @@ const getAdminCandidateProfile = async (req, res) => {
       Testimonial.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
     ]);
     const progress = deriveCandidateProgress({ candidate, profile, eligibility, documents, interviews, payments, testimonial });
-    return res.json({ candidate, profile, documents, interviews, payments, eligibility, testimonial, progress, adminNotes: candidate.adminNotes || '' });
+    const approvalHistory = await loadApprovalHistory(candidate._id, req);
+    return res.json({ candidate, profile, documents, interviews, payments, eligibility, testimonial, progress, adminNotes: candidate.adminNotes || '', approvalHistory });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const getApprovalAuditHistory = async (req, res) => {
+  try {
+    const permissions = Array.isArray(req.user?.permissions) ? req.user.permissions : [];
+    if (!permissions.includes('approval:read_audit_full') && !permissions.includes('approval:read_audit_limited')) {
+      return res.status(403).json({ message: 'Audit history access is not allowed for this admin role.' });
+    }
+    const candidate = await User.findOne({ _id: req.params.candidateId, role: 'candidate' }).select('_id email').lean();
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+    const approvalHistory = await loadApprovalHistory(candidate._id, req);
+    return res.json({ candidateId: candidate._id, candidateEmail: candidate.email || '', approvalHistory });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -624,6 +681,8 @@ const getAdminCandidateProfile = async (req, res) => {
 
 const updateCandidateProfileStatus = async (req, res) => {
   try {
+    const reviewPayload = ensureReviewPayload(req, res);
+    if (!reviewPayload) return;
     const status = String(req.body?.status || '').trim().toLowerCase();
     if (!validProfileStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid profile status' });
@@ -637,6 +696,7 @@ const updateCandidateProfileStatus = async (req, res) => {
       return res.status(404).json({ message: 'Profile not found for this candidate' });
     }
 
+    const previousStatus = profile.status;
     profile.status = status;
     await profile.save();
 
@@ -660,7 +720,26 @@ const updateCandidateProfileStatus = async (req, res) => {
       cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
     });
 
-    res.json(profile);
+    const [eligibility, documents, interviews, payments, testimonial] = await Promise.all([
+      Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Document.find({ userId: candidate._id }).sort({ uploadedAt: -1 }).lean(),
+      Interview.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Payment.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Testimonial.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+    ]);
+    const auditLog = await createApprovalAuditLog(req, {
+      candidateId: candidate._id,
+      candidateEmail: candidate.email,
+      approvalType: 'profile_evaluation',
+      sectionRecordId: String(profile._id),
+      previousStatus,
+      newStatus: status,
+      reasonNote: reviewPayload.reasonNote,
+      sourcePage: reviewPayload.sourcePage,
+    });
+    const progress = buildProgressSummary({ candidate, profile: profile.toObject(), eligibility, documents, interviews, payments, testimonial });
+
+    res.json({ profile, auditLog, progress });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -668,6 +747,8 @@ const updateCandidateProfileStatus = async (req, res) => {
 
 const updateCandidateDocumentStatus = async (req, res) => {
   try {
+    const reviewPayload = ensureReviewPayload(req, res);
+    if (!reviewPayload) return;
     const status = String(req.body?.status || '').trim();
     if (!validDocumentStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid document status' });
@@ -679,6 +760,7 @@ const updateCandidateDocumentStatus = async (req, res) => {
     const document = await Document.findOne({ _id: req.params.documentId, userId: candidate._id });
     if (!document) return res.status(404).json({ message: 'Document not found for this candidate' });
 
+    const previousStatus = document.status;
     document.status = status;
     await document.save();
 
@@ -696,7 +778,27 @@ const updateCandidateDocumentStatus = async (req, res) => {
       cta: { label: 'Open Documents', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/documents` },
     });
 
-    res.json(document);
+    const [profile, eligibility, documents, interviews, payments, testimonial] = await Promise.all([
+      Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Document.find({ userId: candidate._id }).sort({ uploadedAt: -1 }).lean(),
+      Interview.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Payment.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Testimonial.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+    ]);
+    const auditLog = await createApprovalAuditLog(req, {
+      candidateId: candidate._id,
+      candidateEmail: candidate.email,
+      approvalType: 'document_verification',
+      sectionRecordId: String(document._id),
+      previousStatus,
+      newStatus: status,
+      reasonNote: reviewPayload.reasonNote,
+      sourcePage: reviewPayload.sourcePage,
+    });
+    const progress = buildProgressSummary({ candidate: candidate.toObject(), profile, eligibility, documents, interviews, payments, testimonial });
+
+    res.json({ document, auditLog, progress });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -754,14 +856,20 @@ const addCandidateInterview = async (req, res) => {
 
 const updatePaymentStatus = async (req, res) => {
   try {
+    const reviewPayload = ensureReviewPayload(req, res);
+    if (!reviewPayload) return;
     const { paymentId } = req.params;
     const status = String(req.body?.status || '').trim().toLowerCase();
     if (!validPaymentStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid payment status' });
     }
 
-    const payment = await Payment.findByIdAndUpdate(paymentId, { status }, { new: true });
-    if (!payment) return res.status(404).json({ message: 'Payment not found' });
+    const existingPayment = await Payment.findById(paymentId);
+    if (!existingPayment) return res.status(404).json({ message: 'Payment not found' });
+    const previousStatus = existingPayment.status;
+    existingPayment.status = status;
+    await existingPayment.save();
+    const payment = existingPayment;
     const candidate = await User.findById(payment.userId);
 
     if (status === 'completed') {
@@ -788,7 +896,28 @@ const updatePaymentStatus = async (req, res) => {
       cta: { label: 'Open Payment History', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/payment-history` },
     });
 
-    res.json(payment);
+    const [profile, eligibility, documents, interviews, payments, testimonial, refreshedCandidate] = await Promise.all([
+      Profile.findOne({ userId: candidate?._id }).sort({ createdAt: -1 }).lean(),
+      Eligibility.findOne({ userId: candidate?._id }).sort({ createdAt: -1 }).lean(),
+      Document.find({ userId: candidate?._id }).sort({ uploadedAt: -1 }).lean(),
+      Interview.find({ userId: candidate?._id }).sort({ createdAt: -1 }).lean(),
+      Payment.find({ userId: candidate?._id }).sort({ createdAt: -1 }).lean(),
+      Testimonial.findOne({ userId: candidate?._id }).sort({ createdAt: -1 }).lean(),
+      User.findById(candidate?._id).lean(),
+    ]);
+    const auditLog = await createApprovalAuditLog(req, {
+      candidateId: candidate._id,
+      candidateEmail: candidate.email,
+      approvalType: 'payment_verification',
+      sectionRecordId: String(payment._id),
+      previousStatus,
+      newStatus: status,
+      reasonNote: reviewPayload.reasonNote,
+      sourcePage: reviewPayload.sourcePage,
+    });
+    const progress = buildProgressSummary({ candidate: refreshedCandidate, profile, eligibility, documents, interviews, payments, testimonial });
+
+    res.json({ payment, auditLog, progress });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -822,6 +951,11 @@ const updateCandidateStageDecision = async (req, res) => {
     if (!validStageDecisionStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid stage status' });
     }
+    const reviewPayload = allowedSensitiveStageKeys.includes(stageKey) ? ensureReviewPayload(req, res) : {
+      reasonNote: sanitizeReasonNote(req.body?.reasonNote || 'Stage workflow update'),
+      sourcePage: String(req.body?.sourcePage || '').trim(),
+    };
+    if (!reviewPayload) return;
 
     const permissions = Array.isArray(req.user?.permissions) ? req.user.permissions : [];
     const needsPermissionByStage = {
@@ -832,9 +966,14 @@ const updateCandidateStageDecision = async (req, res) => {
     if (requiredPermission && !permissions.includes(requiredPermission)) {
       return res.status(403).json({ message: `Missing permission: ${requiredPermission}` });
     }
+    if (stageKey === 'selection' && !['super_admin', 'payment_admin'].includes(String(req.user?.adminRole || ''))) {
+      return res.status(403).json({ message: 'Only super admin or payment admin can publish final selection decisions.' });
+    }
 
     const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+    const previousCandidateStatus = candidate.status;
+    const previousStageStatus = readStageDecision(candidate, stageKey);
 
     if (!candidate.stageStatuses) {
       candidate.stageStatuses = new Map();
@@ -937,11 +1076,43 @@ const updateCandidateStageDecision = async (req, res) => {
       cta: { label: 'Open Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
     });
 
+    const [profile, eligibility, documents, interviews, payments, testimonial, refreshedCandidate] = await Promise.all([
+      Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Document.find({ userId: candidate._id }).sort({ uploadedAt: -1 }).lean(),
+      Interview.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Payment.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Testimonial.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      User.findById(candidate._id).lean(),
+    ]);
+    const auditLog = await createApprovalAuditLog(req, {
+      candidateId: candidate._id,
+      candidateEmail: candidate.email,
+      approvalType:
+        stageKey === 'selection'
+          ? 'final_selection'
+          : stageKey === 'interviews'
+            ? 'interview_selection'
+            : stageKey === 'evaluation'
+              ? 'profile_evaluation'
+              : stageKey === 'document-verification'
+                ? 'document_verification'
+                : 'stage_action',
+      sectionRecordId: stageKey,
+      previousStatus: `${previousStageStatus || previousCandidateStatus}`,
+      newStatus: `${status || refreshedCandidate?.status}`,
+      reasonNote: reviewPayload.reasonNote,
+      sourcePage: reviewPayload.sourcePage,
+    });
+    const progress = buildProgressSummary({ candidate: refreshedCandidate, profile, eligibility, documents, interviews, payments, testimonial });
+
     return res.json({
       candidateId: candidate._id,
       stageKey,
       status,
       stageStatuses: candidate.stageStatuses,
+      auditLog,
+      progress,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -956,6 +1127,7 @@ module.exports = {
   listPaymentsByType,
   getCandidateDetails,
   getAdminCandidateProfile,
+  getApprovalAuditHistory,
   updateCandidateProfileStatus,
   updateCandidateDocumentStatus,
   addCandidateInterview,

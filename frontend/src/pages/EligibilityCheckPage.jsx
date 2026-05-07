@@ -82,8 +82,6 @@ export default function EligibilityCheckPage() {
     ];
 
     if (country === 'Germany') baseRequired.push(answers.qualification);
-    if (country === 'Poland') baseRequired.push(answers.knowsGerman);
-
     return baseRequired.every((value) => Boolean(value && String(value).trim()));
   }, [answers, country]);
 

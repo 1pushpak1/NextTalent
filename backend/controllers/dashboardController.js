@@ -325,6 +325,11 @@ const updateCandidateStatus = async (req, res) => {
   try {
     const { status } = req.body;
     const normalizedStatus = String(status || '').trim().toLowerCase();
+    if (['accepted', 'rejected', 'selected', 'not_selected'].includes(normalizedStatus)) {
+      return res.status(400).json({
+        message: 'Direct approval status changes are disabled. Use the review-based admin approval workflow instead.',
+      });
+    }
     const candidate = await User.findByIdAndUpdate(req.params.id, { status: normalizedStatus }, { new: true });
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 

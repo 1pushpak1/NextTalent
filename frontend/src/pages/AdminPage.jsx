@@ -70,9 +70,9 @@ export default function AdminPage() {
             {authError && <p className="text-sm text-rose-600">{authError}</p>}
 
             <div className="flex flex-wrap gap-3">
-              <Button disabled={authLoading}>{authLoading ? 'Signing in...' : 'Sign In as Admin'}</Button>
+              <Button variant="adminPrimary" disabled={authLoading}>{authLoading ? 'Signing in...' : 'Sign In as Admin'}</Button>
               {DEFAULT_ADMIN_EMAIL && (
-                <Button type="button" variant="secondary" onClick={() => setLoginForm({ ...loginForm, email: DEFAULT_ADMIN_EMAIL })}>
+                <Button type="button" variant="adminSecondary" onClick={() => setLoginForm({ ...loginForm, email: DEFAULT_ADMIN_EMAIL })}>
                   Use Env Email
                 </Button>
               )}

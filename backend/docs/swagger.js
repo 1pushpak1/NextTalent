@@ -27,6 +27,7 @@ const buildSwaggerSpec = (port = 5001) => {
         { name: 'Interviews' },
         { name: 'Testimonials' },
         { name: 'Admin' },
+        { name: 'Approval Audit' },
       ],
       components: {
         securitySchemes: {
@@ -156,6 +157,25 @@ const buildSwaggerSpec = (port = 5001) => {
               text: { type: 'string' },
               photoUrl: { type: 'string' },
               consent: { type: 'boolean' },
+              createdAt: { type: 'string', format: 'date-time' },
+            },
+          },
+          ApprovalAuditLog: {
+            type: 'object',
+            properties: {
+              _id: { type: 'string' },
+              candidateId: { type: 'string' },
+              approvalType: { type: 'string' },
+              previousStatus: { type: 'string' },
+              newStatus: { type: 'string' },
+              decision: { type: 'string' },
+              reasonNote: { type: 'string' },
+              adminRole: { type: 'string' },
+              adminName: { type: 'string' },
+              adminEmail: { type: 'string' },
+              ipAddress: { type: 'string' },
+              userAgent: { type: 'string' },
+              sourcePage: { type: 'string' },
               createdAt: { type: 'string', format: 'date-time' },
             },
           },

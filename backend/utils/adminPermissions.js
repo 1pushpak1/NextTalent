@@ -7,6 +7,9 @@ const ALL_PERMISSIONS = [
   'interviews:manage',
   'notes:manage',
   'admin:manage',
+  'approval:read_audit_full',
+  'approval:read_audit_limited',
+  'approval:create',
 ];
 
 const ROLE_PERMISSIONS = {
@@ -18,12 +21,15 @@ const ROLE_PERMISSIONS = {
     'evaluation:approve',
     'documents:verify',
     'notes:manage',
+    'approval:read_audit_limited',
+    'approval:create',
   ],
   operations_admin: [
     'candidates:read',
     'candidates:update',
     'interviews:manage',
     'notes:manage',
+    'approval:read_audit_limited',
   ],
 };
 

@@ -34,45 +34,49 @@ const runEligibilityCheck = ({
     willingToRelocate === true &&
     comfortableWithFees === true;
 
-  if (!baseChecks) {
-    return { isEligible: false, rejectionReason: 'General eligibility criteria not met.' };
-  }
-
   if (country === 'Germany') {
-    const isEligible = languageAnswer === 'Yes';
-    return {
-      isEligible,
-      rejectionReason: isEligible ? '' : 'German B2 certification requirement not met.',
-    };
-  }
-
-  if (country === 'Switzerland') {
-    const languageOk = languageAnswer !== 'No';
-    const locationOk = currentLocation === 'Europe';
-    const isEligible = languageOk && locationOk;
-    return {
-      isEligible,
-      rejectionReason: isEligible ? '' : 'Location or language requirement not met for Switzerland.',
-    };
-  }
-
-  if (country === 'Austria') {
+    const qualificationOk = acceptedQualifications.includes(qualification);
     const languageOk = languageAnswer === 'Yes';
-    const locationOk = currentLocation === 'Europe';
-    const isEligible = languageOk && locationOk;
+    const isEligible = hasITBackground === true && qualificationOk && languageOk;
     return {
       isEligible,
-      rejectionReason: isEligible ? '' : 'Location or German B2 requirement not met for Austria.',
+      rejectionReason: isEligible
+        ? ''
+        : 'Germany requires an IT background, an accepted qualification, and certified German B2 or above.',
     };
   }
 
   if (country === 'Poland') {
     const languageOk = languageAnswer === 'Yes';
     const locationOk = currentLocation === 'Europe';
-    const isEligible = languageOk && locationOk;
+    const isEligible = hasITBackground === true && languageOk && locationOk;
     return {
       isEligible,
-      rejectionReason: isEligible ? '' : 'Location or professional English requirement not met for Poland.',
+      rejectionReason: isEligible ? '' : 'Poland requires an IT background, Europe location, and professional English proficiency.',
+    };
+  }
+
+  if (!baseChecks) {
+    return { isEligible: false, rejectionReason: 'General eligibility criteria not met.' };
+  }
+
+  if (country === 'Switzerland') {
+    const languageOk = languageAnswer !== 'No';
+    const locationOk = currentLocation === 'Europe';
+    const isEligible = hasITBackground === true && languageOk && locationOk;
+    return {
+      isEligible,
+      rejectionReason: isEligible ? '' : 'Switzerland requires an IT background, Europe location, and certified B2 or above in German, French, or Italian.',
+    };
+  }
+
+  if (country === 'Austria') {
+    const languageOk = languageAnswer === 'Yes';
+    const locationOk = currentLocation === 'Europe';
+    const isEligible = hasITBackground === true && languageOk && locationOk;
+    return {
+      isEligible,
+      rejectionReason: isEligible ? '' : 'Austria requires an IT background, Europe location, and certified German B2 or above.',
     };
   }
 

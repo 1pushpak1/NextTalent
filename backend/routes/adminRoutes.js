@@ -14,6 +14,7 @@ const {
   updateCandidateStageDecision,
   listAllCandidates,
   getAdminCandidateProfile,
+  getApprovalAuditHistory,
 } = require('../controllers/adminController');
 const { protect, adminOnly, requireAdminPermission } = require('../middleware/authMiddleware');
 
@@ -25,6 +26,7 @@ router.get('/candidates/stage/:stageKey', protect, adminOnly, listCandidatesBySt
 router.put('/candidates/:id/status', protect, adminOnly, updateCandidateStatus);
 router.get('/candidates/:id/details', protect, adminOnly, getCandidateDetails);
 router.get('/candidates/:id/profile', protect, adminOnly, requireAdminPermission('candidates:read'), getAdminCandidateProfile);
+router.get('/approval-audit/:candidateId', protect, adminOnly, getApprovalAuditHistory);
 router.put('/candidates/:id/profile-status', protect, adminOnly, requireAdminPermission('evaluation:approve'), updateCandidateProfileStatus);
 router.put('/candidates/:id/documents/:documentId/status', protect, adminOnly, requireAdminPermission('documents:verify'), updateCandidateDocumentStatus);
 router.post('/candidates/:id/interviews', protect, adminOnly, requireAdminPermission('interviews:manage'), addCandidateInterview);

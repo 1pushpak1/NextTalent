@@ -76,6 +76,21 @@ export default function AdminCandidatesPage() {
     setSearchParams(next);
   };
 
+  const clearFilters = () => {
+    setDraftFilters({
+      q: '',
+      stage: '',
+      profileStatus: '',
+      paymentStatus: '',
+      documentStatus: '',
+      interviewStatus: '',
+      selectionStatus: '',
+      pendingFrom: '',
+      page: 1,
+    });
+    setSearchParams(new URLSearchParams({ page: '1' }));
+  };
+
   const setPage = (page) => {
     const next = new URLSearchParams(searchParams);
     next.set('page', String(page));
@@ -89,7 +104,7 @@ export default function AdminCandidatesPage() {
         <p className="text-sm text-slate-600">Track all candidates and pending actions in one place.</p>
       </div>
 
-      <div className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-4">
         <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Search name/email/phone" value={draftFilters.q} onChange={(e) => setDraftFilter('q', e.target.value)} />
         <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.stage} onChange={(e) => setDraftFilter('stage', e.target.value)}>{stageOptions.map((item) => <option key={item} value={item}>{item ? humanize(item) : 'All Stages'}</option>)}</select>
         <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Profile status" value={draftFilters.profileStatus} onChange={(e) => setDraftFilter('profileStatus', e.target.value)} />
@@ -99,8 +114,11 @@ export default function AdminCandidatesPage() {
         <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.pendingFrom} onChange={(e) => setDraftFilter('pendingFrom', e.target.value)}>
           <option value="">All Pending Types</option><option value="admin">Pending From Admin</option><option value="candidate">Pending From Candidate</option>
         </select>
-        <button type="button" className="rounded bg-[#002147] px-3 py-2 text-sm font-semibold text-white hover:bg-[#01305e]" onClick={applyFilters}>
+        <button type="button" className="rounded bg-[#1d4ed8] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1e40af]" onClick={applyFilters}>
           Apply Filters
+        </button>
+        <button type="button" className="rounded border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100" onClick={clearFilters}>
+          Clear Filters
         </button>
       </div>
 

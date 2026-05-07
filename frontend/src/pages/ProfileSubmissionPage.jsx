@@ -6,10 +6,12 @@ import Button from '../components/Button';
 import Card from '../components/Card';
 import Input from '../components/Input';
 import Select from '../components/Select';
+import CountrySearchSelect from '../components/CountrySearchSelect';
 import Modal from '../components/Modal';
 import SignatureModal from '../components/SignatureModal';
 import CandidatePortalSidebar from '../components/CandidatePortalSidebar';
 import api from '../api/axios';
+import { countries } from 'countries-list';
 
 const formSteps = ['Personal', 'Education', 'Certifications', 'Experience', 'Skills', 'Languages', 'Additional', 'Review'];
 const monthYearRegex = /^(0[1-9]|1[0-2])\/\d{4}$/;
@@ -181,8 +183,8 @@ const getStepValidation = (step, form, { requireVisa, technicalSkills, financial
       summary = 'Please complete all mandatory personal details before continuing.';
     }
     if (requireVisa && !hasValue(p.currentVisaStatus)) {
-      addError(errors, 'personalDetails.currentVisaStatus', 'Current visa status is required when residence and citizenship differ.');
-      summary ||= 'Current visa status is required when residence and citizenship differ.';
+      addError(errors, 'personalDetails.currentVisaStatus', 'Current visa status is required when country of birth and current country of residence differ.');
+      summary ||= 'Current visa status is required when country of birth and current country of residence differ.';
     }
   }
 
@@ -463,6 +465,9 @@ const clampStep = (value, fallback = 1) => {
   if (!Number.isFinite(numeric)) return fallback;
   return Math.min(8, Math.max(1, Math.trunc(numeric)));
 };
+const countryOptions = Object.values(countries)
+  .map((country) => country.name)
+  .sort((left, right) => left.localeCompare(right));
 const createDefaultForm = () => ({
   personalDetails: {
     firstName: '',
@@ -523,6 +528,7 @@ const hydrateFormFromProfile = (profile) => {
 export default function ProfileSubmissionPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [listLimitMessages, setListLimitMessages] = useState({});
   const [showFinancialModal, setShowFinancialModal] = useState(false);
   const [financialAccepted, setFinancialAccepted] = useState(false);
   const [showAckModal, setShowAckModal] = useState(false);
@@ -590,8 +596,17 @@ export default function ProfileSubmissionPage() {
 
   const requireVisa =
     form.personalDetails.currentCountryOfResidence &&
-    form.personalDetails.citizenship &&
-    form.personalDetails.currentCountryOfResidence !== form.personalDetails.citizenship;
+    form.personalDetails.countryOfBirth &&
+    form.personalDetails.currentCountryOfResidence !== form.personalDetails.countryOfBirth;
+
+  useEffect(() => {
+    if (!requireVisa && form.personalDetails.currentVisaStatus) {
+      updateSection('personalDetails', {
+        ...form.personalDetails,
+        currentVisaStatus: '',
+      });
+    }
+  }, [form.personalDetails, requireVisa]);
 
   const fullName = `${form.personalDetails.firstName} ${form.personalDetails.lastName}`.trim();
   const signedDateTime = new Date().toLocaleString();
@@ -752,6 +767,8 @@ By signing below, you accept full responsibility for the authenticity of the det
   };
 
   const updateSection = (section, value) => setForm((prev) => ({ ...prev, [section]: value }));
+  const setListLimitMessage = (section, message) =>
+    setListLimitMessages((prev) => ({ ...prev, [section]: message }));
   const splitExperience = () => {
     const workRows = form.workExperience.filter((item) => item.experienceType !== 'internship');
     const internshipRows = form.workExperience.filter((item) => item.experienceType === 'internship');
@@ -777,9 +794,6 @@ By signing below, you accept full responsibility for the authenticity of the det
               <div className="w-full">
                 <div className="nst-card rounded-xl border border-slate-200 p-4">
                   <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-700">Application Progress</h3>
-                  <div className="mb-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                    <div className="h-full rounded-full bg-[#c8a96b] transition-all" style={{ width: `${(currentStep / formSteps.length) * 100}%` }} />
-                  </div>
                   <div className="grid gap-2 md:grid-cols-4">
                     {formSteps.map((stepName, idx) => {
                       const stepNo = idx + 1;
@@ -830,9 +844,9 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Input label="Middle Name (optional)" value={form.personalDetails.middleName} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, middleName: e.target.value })} />
               <Input required label="Last Name as per passport" error={getFieldError('personalDetails.lastName')} value={form.personalDetails.lastName} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, lastName: e.target.value })} />
               <Input required label="Date of Birth" error={getFieldError('personalDetails.dateOfBirth')} type="date" value={form.personalDetails.dateOfBirth} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, dateOfBirth: e.target.value })} />
-              <Input required label="Country of Birth" error={getFieldError('personalDetails.countryOfBirth')} value={form.personalDetails.countryOfBirth} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, countryOfBirth: e.target.value })} />
+              <CountrySearchSelect required label="Country of Birth" error={getFieldError('personalDetails.countryOfBirth')} options={countryOptions} value={form.personalDetails.countryOfBirth} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, countryOfBirth: e.target.value })} />
               <Input required label="Citizenship" error={getFieldError('personalDetails.citizenship')} value={form.personalDetails.citizenship} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, citizenship: e.target.value })} />
-              <Input required label="Current Country of Residence" error={getFieldError('personalDetails.currentCountryOfResidence')} value={form.personalDetails.currentCountryOfResidence} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, currentCountryOfResidence: e.target.value })} />
+              <CountrySearchSelect required label="Current Country of Residence" error={getFieldError('personalDetails.currentCountryOfResidence')} options={countryOptions} value={form.personalDetails.currentCountryOfResidence} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, currentCountryOfResidence: e.target.value })} />
                             {requireVisa && (
                 <Select
                   required
@@ -852,7 +866,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                 <Input required label="High School Start (MM/YYYY)" error={getFieldError('education.highSchool.startDate')} value={form.education.highSchool.startDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, startDate: formatMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
                 <Input required label="High School End (MM/YYYY)" error={getFieldError('education.highSchool.endDate')} value={form.education.highSchool.endDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, endDate: formatEndMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
                 <Select required label="Academic Track" error={getFieldError('education.highSchool.track')} value={form.education.highSchool.track} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, track: e.target.value } })} options={['Science', 'Commerce', 'Arts', 'Other']} />
-                <Input required label="High School Country" error={getFieldError('education.highSchool.country')} value={form.education.highSchool.country} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, country: e.target.value } })} />
+                <CountrySearchSelect required label="High School Country" error={getFieldError('education.highSchool.country')} options={countryOptions} value={form.education.highSchool.country} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, country: e.target.value } })} />
               </div>
 
               <div className="rounded-xl border border-slate-200 p-3">
@@ -939,10 +953,11 @@ By signing below, you accept full responsibility for the authenticity of the det
                         })
                       }
                     />
-                    <Input
+                    <CountrySearchSelect
                       required
                       label="Diploma Country"
                       error={getFieldError('education.diploma.country')}
+                      options={countryOptions}
                       value={form.education.diploma.country}
                       onChange={(e) =>
                         updateSection('education', {
@@ -1000,10 +1015,11 @@ By signing below, you accept full responsibility for the authenticity of the det
                       })
                     }
                   />
-                  <Input
+                  <CountrySearchSelect
                     required={form.education.diploma.notApplicable}
                     label="Bachelor's Country"
                     error={getFieldError('education.bachelors.country')}
+                    options={countryOptions}
                     value={form.education.bachelors.country}
                     onChange={(e) =>
                       updateSection('education', {
@@ -1138,7 +1154,7 @@ By signing below, you accept full responsibility for the authenticity of the det
 
           {currentStep === 3 && (
             <div>
-              <h3 className="font-semibold text-slate-900">Certifications (max 10)</h3>
+              <h3 className="font-semibold text-slate-900">Certifications</h3>
               {form.certifications.map((c, idx) => (
                 <div key={idx} className="relative mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-3">
                   {idx > 0 && (
@@ -1174,17 +1190,24 @@ By signing below, you accept full responsibility for the authenticity of the det
                 </div>
               ))}
               <Button className="mt-3 text-white" variant="secondary" onClick={() => {
-                if (form.certifications.length >= 10) return;
+                if (form.certifications.length >= 10) {
+                  setListLimitMessage('certifications', 'You can add up to 10 certifications only.');
+                  return;
+                }
+                setListLimitMessage('certifications', '');
                 updateSection('certifications', [...form.certifications, blankCertification()]);
               }}>
                 Add Certification
               </Button>
+              {listLimitMessages.certifications && (
+                <p className="mt-2 text-sm text-amber-700">{listLimitMessages.certifications}</p>
+              )}
             </div>
           )}
 
           {currentStep === 4 && (
             <div>
-              <h3 className="font-semibold text-slate-900">Work Experience (max 10)</h3>
+              <h3 className="font-semibold text-slate-900">Work Experience</h3>
               {form.workExperience.filter((item) => item.experienceType !== 'internship').map((w, idx) => (
                 <div key={idx} className="relative mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-2">
                   {idx > 0 && (
@@ -1219,7 +1242,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     next[idx].responsibilities = e.target.value;
                     updateExperienceLists(next, internshipRows);
                   }} />
-                  <Input label="Country" error={getFieldError(`workExperience.${idx}.country`)} value={w.country} onChange={(e) => {
+                  <CountrySearchSelect label="Country" error={getFieldError(`workExperience.${idx}.country`)} options={countryOptions} value={w.country} onChange={(e) => {
                     const { workRows, internshipRows } = splitExperience();
                     const next = [...workRows];
                     next[idx].country = e.target.value;
@@ -1259,13 +1282,20 @@ By signing below, you accept full responsibility for the authenticity of the det
               ))}
               <Button className="mt-3 text-white" variant="secondary" onClick={() => {
                 const workCount = form.workExperience.filter((item) => item.experienceType !== 'internship').length;
-                if (workCount >= 10) return;
+                if (workCount >= 10) {
+                  setListLimitMessage('work', 'You can add up to 10 work experience entries only.');
+                  return;
+                }
+                setListLimitMessage('work', '');
                 updateSection('workExperience', [...form.workExperience, blankWork('work')]);
               }}>
                 Add Experience
               </Button>
+              {listLimitMessages.work && (
+                <p className="mt-2 text-sm text-amber-700">{listLimitMessages.work}</p>
+              )}
 
-              <h3 className="mt-6 font-semibold text-slate-900">Internships (max 10)</h3>
+              <h3 className="mt-6 font-semibold text-slate-900">Internships</h3>
               {form.workExperience.filter((item) => item.experienceType === 'internship').map((w, idx) => (
                 <div key={`intern-${idx}`} className="relative mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-2">
                   {idx > 0 && (
@@ -1300,7 +1330,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                     next[idx].responsibilities = e.target.value;
                     updateExperienceLists(workRows, next);
                   }} />
-                  <Input label="Country" value={w.country} onChange={(e) => {
+                  <CountrySearchSelect label="Country" options={countryOptions} value={w.country} onChange={(e) => {
                     const { workRows, internshipRows } = splitExperience();
                     const next = [...internshipRows];
                     next[idx].country = e.target.value;
@@ -1340,11 +1370,18 @@ By signing below, you accept full responsibility for the authenticity of the det
               ))}
               <Button className="mt-3 text-white" variant="secondary" onClick={() => {
                 const internshipCount = form.workExperience.filter((item) => item.experienceType === 'internship').length;
-                if (internshipCount >= 10) return;
+                if (internshipCount >= 10) {
+                  setListLimitMessage('internships', 'You can add up to 10 internship entries only.');
+                  return;
+                }
+                setListLimitMessage('internships', '');
                 updateSection('workExperience', [...form.workExperience, blankWork('internship')]);
               }}>
                 Add Internship
               </Button>
+              {listLimitMessages.internships && (
+                <p className="mt-2 text-sm text-amber-700">{listLimitMessages.internships}</p>
+              )}
             </div>
           )}
 
