@@ -19,6 +19,14 @@ const formatStatus = (value) =>
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (match) => match.toUpperCase());
 
+const decisionLabelFromRawStatus = (rawStatus) => {
+  const normalized = String(rawStatus || '').toLowerCase();
+  if (normalized === 'completed') return 'Approved';
+  if (normalized === 'failed') return 'Rejected';
+  if (normalized === 'refunded') return 'Refunded';
+  return 'Pending Review';
+};
+
 const getStatusOptions = (paymentType) => {
   if (paymentType === 'program' || paymentType === 'final') {
     return [
@@ -124,7 +132,10 @@ export default function AdminPaymentTypePage({ title, type }) {
                       <p className="text-xs text-slate-500">{formatDate(row.date)} • {row.transactionId}</p>
                     </td>
                     <td className="px-4 py-3 text-slate-700">USD {row.amount}</td>
-                    <td className="px-4 py-3 text-slate-700">{formatStatus(row.status)}</td>
+                    <td className="px-4 py-3 text-slate-700">
+                      <p>{formatStatus(row.status)}</p>
+                      <p className="text-xs text-slate-500">Response: {decisionLabelFromRawStatus(row.rawStatus)}</p>
+                    </td>
                     <td className="px-4 py-3 text-slate-700">
                       {row.receiptUrl ? (
                         <a className="text-blue-700 underline" href={`${getBackendBaseUrl()}${row.receiptUrl}`} target="_blank" rel="noreferrer">
@@ -141,7 +152,7 @@ export default function AdminPaymentTypePage({ title, type }) {
                           className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
                           onClick={() => openReview(row)}
                         >
-                          Review & Decide
+                          {String(row.rawStatus || '').toLowerCase() === 'pending' ? 'Review & Decide' : 'Edit Status'}
                         </button>
                       ) : (
                         <span className="text-xs text-slate-500">{row.paymentId ? 'View only' : 'No payment record'}</span>

@@ -61,14 +61,15 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
                       className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                       onClick={() => navigate(`/admin/candidates/${row._id}?tab=${stageReviewMap[stageKey] || 'overview'}${canReviewStage ? `&review=${stageKey}` : ''}`)}
                     >
-                      {canReviewStage ? 'Review & Decide' : 'Open Candidate'}
+                      {canReviewStage ? (String(row.stepStatus || '').toLowerCase() === 'accepted' ? 'Edit Response' : 'Review & Decide') : 'Open Candidate'}
                     </button>
                     <button
                       type="button"
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100"
+                      className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100"
                       onClick={() => navigate(`/admin/candidates/${row._id}`)}
                     >
                       View Profile
+                      <span className="material-symbols-outlined text-sm leading-none">arrow_forward</span>
                     </button>
                   </div>
                 </td>

@@ -154,7 +154,7 @@ export default function SignatureModal({
 
       <div className="sticky bottom-0 mt-4 flex justify-end gap-2 border-t border-[rgba(200,169,107,0.22)] bg-[#080808] pt-3">
         {tab === 'draw' && (
-          <Button type="button" variant="secondary" onClick={clearCanvas}>
+          <Button type="button" className="text-white" variant="secondary" onClick={clearCanvas}>
             Clear
           </Button>
         )}

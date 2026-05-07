@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 import ApprovalReviewModal from '../../components/admin/ApprovalReviewModal';
 import AuditHistoryPanel from '../../components/admin/AuditHistoryPanel';
 import Button from '../../components/Button';
@@ -45,6 +46,14 @@ const stageSequence = [
   'selection',
   'final_payment',
   'testimonial',
+];
+
+const hiringPartnerOptions = [
+  'Apex Talent Partners',
+  'Nova Hiring Group',
+  'Global Tech Recruiters',
+  'BluePeak Staffing',
+  'Summit Workforce Solutions',
 ];
 
 const Card = ({ title, subtitle, children, actions }) => (
@@ -115,6 +124,7 @@ export default function AdminCandidateProfilePage() {
     time: '',
     meetingLink: '',
   });
+  const [showInterviewForm, setShowInterviewForm] = useState(false);
 
   const currentParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const activeTabParam = currentParams.get('tab');
@@ -164,6 +174,7 @@ export default function AdminCandidateProfilePage() {
   const documentVerificationDecision = readStageDecision(candidate, 'document-verification');
   const hiringDecision = readStageDecision(candidate, 'hiring');
   const interviewDecision = readStageDecision(candidate, 'interviews');
+  const selectionDecision = readStageDecision(candidate, 'selection');
   const documentVerificationAccepted = documentVerificationDecision === 'accepted' || progress?.documentStatus === 'verified';
   const hiringAccepted = hiringDecision === 'accepted' || Boolean(candidate?.assignedHiringPartner);
   const interviewCompleted =
@@ -171,6 +182,9 @@ export default function AdminCandidateProfilePage() {
     interviewDecision === 'accepted' ||
     String(candidate?.status || '').toLowerCase() === 'interview_completed' ||
     String(progress?.interviewStatus || '').toLowerCase() === 'completed';
+  const selectionAnnounced =
+    ['accepted', 'rejected'].includes(selectionDecision) ||
+    ['selected', 'rejected'].includes(String(progress?.selectionStatus || '').toLowerCase());
 
   const filteredHistory = (types) => approvalHistory.filter((item) => types.includes(item.approvalType));
   const isInlineProfileReview = activeTab === 'profile' && reviewParam === 'evaluation' && Boolean(profile) && can('evaluation:approve');
@@ -238,6 +252,7 @@ export default function AdminCandidateProfilePage() {
   };
 
   const stageIndex = stageSequence.indexOf(progress?.currentStageKey);
+  const allStagesCompleted = String(progress?.currentStageKey || '').toLowerCase() === 'completed';
 
   const profileRows = useMemo(() => {
     if (!profile) return [];
@@ -291,25 +306,25 @@ export default function AdminCandidateProfilePage() {
       await load();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save notes');
-      const markLatestInterviewCompleted = async () => {
-        setStageSaving('interviews-complete');
-        setError('');
-        try {
-          await reviewCandidateStage(id, 'interviews', {
-            status: 'accepted',
-            reasonNote: 'Interview completed by admin',
-            sourcePage: '/admin/candidates/interviews',
-          });
-          await load();
-        } catch (err) {
-          setError(err.response?.data?.message || 'Failed to mark interview completed');
-        } finally {
-          setStageSaving('');
-        }
-      };
-
     } finally {
       setNotesSaving(false);
+    }
+  };
+
+  const markLatestInterviewCompleted = async () => {
+    setStageSaving('interviews-complete');
+    setError('');
+    try {
+      await reviewCandidateStage(id, 'interviews', {
+        status: 'accepted',
+        reasonNote: 'Interview completed by admin',
+        sourcePage: '/admin/candidates/interviews',
+      });
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to mark interview completed');
+    } finally {
+      setStageSaving('');
     }
   };
 
@@ -541,6 +556,250 @@ export default function AdminCandidateProfilePage() {
     return null;
   })();
 
+  const buildProfilePdf = () => {
+    if (!profile) return;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 40;
+    const topMargin = 36;
+    const bottomMargin = 36;
+    const contentWidth = pageWidth - marginX * 2;
+    const rowGap = 12;
+    let y = topMargin;
+
+    const safe = (value) => String(value || '—');
+
+    const addPageHeader = () => {
+      doc.setFillColor(15, 23, 42);
+      doc.roundedRect(marginX, 24, contentWidth, 72, 10, 10, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text('Candidate Profile Report', marginX + 16, 54);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, marginX + 16, 72);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text(safe(candidate?.name || candidate?.email), pageWidth - marginX - 16, 54, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(safe(candidate?.email), pageWidth - marginX - 16, 72, { align: 'right' });
+      doc.setTextColor(17, 24, 39);
+      y = 118;
+    };
+
+    const ensureSpace = (requiredHeight = 20) => {
+      if (y + requiredHeight > pageHeight - bottomMargin) {
+        doc.addPage();
+        addPageHeader();
+      }
+    };
+
+    const drawSectionTitle = (title) => {
+      ensureSpace(34);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(15, 23, 42);
+      doc.text(title, marginX, y);
+      y += 8;
+      doc.setDrawColor(203, 213, 225);
+      doc.line(marginX, y + 4, pageWidth - marginX, y + 4);
+      y += 16;
+    };
+
+    const drawFieldGrid = (rows = []) => {
+      const filteredRows = rows.filter((row) => row?.label);
+      if (!filteredRows.length) return;
+
+      const gap = 12;
+      const colWidth = (contentWidth - gap) / 2;
+      for (let i = 0; i < filteredRows.length; i += 2) {
+        const left = filteredRows[i];
+        const right = filteredRows[i + 1] || null;
+
+        const leftValueLines = doc.splitTextToSize(safe(left.value), colWidth - 20);
+        const rightValueLines = right ? doc.splitTextToSize(safe(right.value), colWidth - 20) : [];
+
+        const lineHeight = 12;
+        const valueBlockHeight = Math.max(leftValueLines.length, rightValueLines.length, 1) * lineHeight;
+        const boxHeight = 36 + valueBlockHeight;
+
+        ensureSpace(boxHeight + rowGap);
+
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(marginX, y, colWidth, boxHeight, 8, 8, 'FD');
+        if (right) doc.roundedRect(marginX + colWidth + gap, y, colWidth, boxHeight, 8, 8, 'FD');
+
+        doc.setTextColor(71, 85, 105);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(safe(left.label).toUpperCase(), marginX + 10, y + 16);
+        if (right) doc.text(safe(right.label).toUpperCase(), marginX + colWidth + gap + 10, y + 16);
+
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10.5);
+        doc.text(leftValueLines, marginX + 10, y + 32);
+        if (right) doc.text(rightValueLines, marginX + colWidth + gap + 10, y + 32);
+
+        y += boxHeight + rowGap;
+      }
+    };
+
+    const addSection = (title, rows = []) => {
+      if (!rows.length) return;
+      drawSectionTitle(title);
+      drawFieldGrid(rows);
+      y += 4;
+    };
+
+    addPageHeader();
+
+    addSection('Candidate Details', [
+      { label: 'Candidate ID', value: candidate?._id },
+      { label: 'Name', value: candidate?.name || candidate?.email },
+      { label: 'Email', value: candidate?.email },
+      { label: 'Phone', value: candidate?.phone },
+      { label: 'Status', value: humanize(candidate?.status) },
+      { label: 'Current Stage', value: progress?.currentStage || '—' },
+    ]);
+
+    addSection('Profile Summary', profileRows);
+    addSection('Personal Details', profileSectionRows.personal);
+    addSection('Education', profileSectionRows.education);
+    addSection('Skills and Additional Information', profileSectionRows.skills);
+
+    const pageCount = doc.getNumberOfPages();
+    for (let page = 1; page <= pageCount; page += 1) {
+      doc.setPage(page);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Page ${page} of ${pageCount}`, pageWidth - marginX, pageHeight - 14, { align: 'right' });
+    }
+
+    const safeName = String(candidate?.name || candidate?.email || 'candidate')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return { doc, fileName: `${safeName || 'candidate'}-profile.pdf` };
+  };
+
+  const exportProfile = () => {
+    const pdf = buildProfilePdf();
+    if (!pdf) return;
+    pdf.doc.save(pdf.fileName);
+  };
+
+  const openProfilePdf = () => {
+    const pdf = buildProfilePdf();
+    if (!pdf) return;
+    const blobUrl = pdf.doc.output('bloburl');
+    window.open(blobUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const canReviewPayment = (payment) => {
+    if (!can('payments:verify') || !payment) return false;
+    const type = String(payment.type || '').toLowerCase();
+    const status = String(payment.status || '').toLowerCase();
+
+    // Initial payment completed through Stripe does not require manual admin review.
+    if (type === 'initial' && status === 'completed') return false;
+    return true;
+  };
+
+  const latestReviewablePayment = payments.find((payment) => canReviewPayment(payment)) || null;
+  const latestPendingReviewPayment = payments.find((payment) => {
+    const status = String(payment?.status || '').toLowerCase();
+    return canReviewPayment(payment) && status === 'pending';
+  }) || latestReviewablePayment;
+  const canReviewDocument = (document) => {
+    if (!can('documents:verify') || !document) return false;
+    const status = String(document.status || '').toLowerCase();
+    return status !== 'accepted';
+  };
+  const latestReviewableDocument = documents.find((document) => canReviewDocument(document)) || null;
+
+  const latestActionCard = useMemo(() => {
+    const currentStageKey = String(progress?.currentStageKey || '').toLowerCase();
+    const paymentNeedsAdminReview = ['initial', 'program', 'final'].some(
+      (paymentType) => String(progress?.paymentStatus?.[paymentType] || '').toLowerCase() === 'pending_verification'
+    );
+
+    const base = {
+      stageLabel: humanize(currentStageKey || 'overview'),
+      pendingFrom: String(progress?.pendingFrom || 'completed').toLowerCase(),
+      nextAction: progress?.nextAction || 'No pending action',
+      latestUpdate: candidate?.updatedAt ? formatDate(candidate.updatedAt) : '—',
+      buttonLabel: '',
+      onClick: null,
+      helperText: '',
+    };
+
+    if (can('evaluation:approve') && profile && currentStageKey === 'profile_review') {
+      return {
+        ...base,
+        buttonLabel: profileAlreadyReviewed ? 'Edit Response' : 'Review Internal Evaluation',
+        onClick: openProfileReview,
+        helperText: 'Profile review is the current required admin action.',
+      };
+    }
+
+    if (can('payments:verify') && latestPendingReviewPayment && paymentNeedsAdminReview) {
+      return {
+        ...base,
+        buttonLabel: 'Review Latest Payment',
+        onClick: () => setActiveReview({ type: 'payment', item: latestPendingReviewPayment }),
+        helperText: 'A payment is waiting for admin verification.',
+      };
+    }
+
+    if (latestReviewableDocument && currentStageKey === 'document_verification') {
+      return {
+        ...base,
+        buttonLabel: 'Review Latest Document',
+        onClick: () => setActiveReview({ type: 'document', item: latestReviewableDocument }),
+        helperText: 'Documents are ready for verification review.',
+      };
+    }
+
+    if (canReviewSelection && currentStageKey === 'selection' && interviewCompleted) {
+      return {
+        ...base,
+        buttonLabel: 'Review Final Selection',
+        onClick: () => setActiveReview({ type: 'selection' }),
+        helperText: 'Interview is complete. Selection decision can be announced.',
+      };
+    }
+
+    return {
+      ...base,
+      helperText:
+        base.pendingFrom === 'candidate'
+          ? 'Latest action is pending from candidate.'
+          : base.pendingFrom === 'admin'
+            ? 'Latest action is pending from admin.'
+            : 'No immediate action is required.',
+    };
+  }, [
+    progress,
+    candidate?.updatedAt,
+    can,
+    profile,
+    profileAlreadyReviewed,
+    openProfileReview,
+    canReviewSelection,
+    interviewCompleted,
+    latestPendingReviewPayment,
+    latestReviewableDocument,
+  ]);
+
   return (
     <section ref={contentRef} className="space-y-5">
       <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(200,169,107,0.18),_transparent_28%),linear-gradient(135deg,#0f172a,#1e293b)] p-6 text-white shadow-xl">
@@ -549,6 +808,18 @@ export default function AdminCandidateProfilePage() {
             <p className="text-xs uppercase tracking-[0.24em] text-blue-200/85">Admin Review Workspace</p>
             <h1 className="mt-2 text-3xl font-bold">{candidate?.name || candidate?.email || 'Candidate Review'}</h1>
             <p className="mt-2 text-sm text-slate-300">{candidate?.email || '—'} {candidate?.phone ? `• ${candidate.phone}` : ''}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {profile ? (
+                <Button variant="adminSecondary" onClick={openProfilePdf} className="px-3 py-2 text-xs">
+                  Open Profile
+                </Button>
+              ) : null}
+              {profile ? (
+                <Button variant="adminSecondary" onClick={exportProfile} className="px-3 py-2 text-xs">
+                  Export Profile
+                </Button>
+              ) : null}
+            </div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
             <p className="text-xs uppercase tracking-wide text-slate-400">Pending From</p>
@@ -581,6 +852,7 @@ export default function AdminCandidateProfilePage() {
             <span
               key={stage}
               className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                allStagesCompleted ? 'bg-emerald-500/20 text-emerald-100' :
                 index < stageIndex ? 'bg-emerald-500/20 text-emerald-100' :
                 index === stageIndex ? 'bg-blue-500 text-white' :
                 'bg-white/5 text-slate-400'
@@ -624,33 +896,17 @@ export default function AdminCandidateProfilePage() {
           </Card>
           <Card title="Available Review Actions" subtitle="Restricted by your role permissions.">
             <div className="flex flex-col gap-3">
-              {can('evaluation:approve') && profile ? (
-                profileAlreadyReviewed && lastProfileReview ? (
-                  <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-                      profileDecisionState === 'approved' ? 'bg-emerald-50 text-emerald-700' :
-                      profileDecisionState === 'rejected' ? 'bg-rose-50 text-rose-700' :
-                      'bg-amber-50 text-amber-700'
-                    }`}>
-                      {profileDecisionState === 'approved' ? '✓ Internal Evaluation - Approved' :
-                       profileDecisionState === 'rejected' ? '✗ Internal Evaluation - Rejected' :
-                       '— Internal Evaluation - Under Review'}
-                    </div>
-                    {lastProfileReview.reasonNote && (
-                      <p className="text-xs text-slate-600"><span className="font-semibold">Reason:</span> {lastProfileReview.reasonNote}</p>
-                    )}
-                    <Button variant="adminSecondary" onClick={openProfileReview} className="px-3 py-2 text-xs">Edit Response</Button>
-                  </div>
-                ) : (
-                  <Button variant="adminPrimary" onClick={openProfileReview}>Review Internal Evaluation</Button>
-                )
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Latest Stage</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{latestActionCard.stageLabel}</p>
+                <p className="mt-2 text-xs text-slate-600">Pending From: {humanize(latestActionCard.pendingFrom)}</p>
+                <p className="mt-1 text-xs text-slate-600">Next Action: {latestActionCard.nextAction}</p>
+                <p className="mt-1 text-xs text-slate-500">Last Update: {latestActionCard.latestUpdate}</p>
+              </div>
+              {latestActionCard.buttonLabel && latestActionCard.onClick ? (
+                <Button variant="adminPrimary" onClick={latestActionCard.onClick}>{latestActionCard.buttonLabel}</Button>
               ) : null}
-              {can('documents:verify') && documents[0] ? <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'document', item: documents[0] })}>Review Latest Document</Button> : null}
-              {can('payments:verify') && payments[0] ? <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'payment', item: payments[0] })}>Review Latest Payment</Button> : null}
-              {canReviewSelection && interviewCompleted ? <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'selection' })}>Review Final Selection</Button> : null}
-              {canReviewSelection && !interviewCompleted ? (
-                <p className="text-xs text-amber-700">Selection can be announced only after interview is marked completed.</p>
-              ) : null}
+              <p className="text-xs text-slate-600">{latestActionCard.helperText}</p>
               {!can('evaluation:approve') && !can('documents:verify') && !can('payments:verify') && !can('candidates:update') ? (
                 <p className="text-sm text-slate-500">This role can view the case but cannot create restricted approval decisions.</p>
               ) : null}
@@ -733,24 +989,36 @@ export default function AdminCandidateProfilePage() {
             title="Submitted Profile"
             subtitle="Full candidate profile submission for evaluation review."
             actions={
-              can('evaluation:approve') && profile ? (
-                profileAlreadyReviewed && lastProfileReview ? (
-                  <div className="flex flex-col items-end gap-2">
-                    <div className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-                      profileDecisionState === 'approved' ? 'bg-emerald-50 text-emerald-700' :
-                      profileDecisionState === 'rejected' ? 'bg-rose-50 text-rose-700' :
-                      'bg-amber-50 text-amber-700'
-                    }`}>
-                      {profileDecisionState === 'approved' ? '✓ Profile Approved' :
-                       profileDecisionState === 'rejected' ? '✗ Profile Rejected' :
-                       '— Under Review'}
-                    </div>
-                    <Button variant="adminSecondary" onClick={openProfileReview} className="px-3 py-2 text-xs">Edit Response</Button>
-                  </div>
-                ) : (
-                  <Button variant="adminPrimary" onClick={openProfileReview}>{isInlineProfileReview ? 'Review In Progress' : 'Review & Decide'}</Button>
-                )
-              ) : null
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {profile ? (
+                  <Button variant="adminSecondary" onClick={openProfilePdf} className="px-3 py-2 text-xs">
+                    Open Profile
+                  </Button>
+                ) : null}
+                {profile ? (
+                  <Button variant="adminSecondary" onClick={exportProfile} className="px-3 py-2 text-xs">
+                    Export Profile
+                  </Button>
+                ) : null}
+                {can('evaluation:approve') && profile ? (
+                  profileAlreadyReviewed && lastProfileReview ? (
+                    <>
+                      <div className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+                        profileDecisionState === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                        profileDecisionState === 'rejected' ? 'bg-rose-50 text-rose-700' :
+                        'bg-amber-50 text-amber-700'
+                      }`}>
+                        {profileDecisionState === 'approved' ? '✓ Profile Approved' :
+                         profileDecisionState === 'rejected' ? '✗ Profile Rejected' :
+                         '— Under Review'}
+                      </div>
+                      <Button variant="adminSecondary" onClick={openProfileReview} className="px-3 py-2 text-xs">Edit Response</Button>
+                    </>
+                  ) : (
+                    <Button variant="adminPrimary" onClick={openProfileReview}>{isInlineProfileReview ? 'Review In Progress' : 'Review & Decide'}</Button>
+                  )
+                ) : null}
+              </div>
             }
           >
             {profile ? (
@@ -791,7 +1059,11 @@ export default function AdminCandidateProfilePage() {
       )}
 
       {!loading && !error && candidate && activeTab === 'payments' && (
-        <Card title="Payments" subtitle="Review receipts and bank references before verifying." actions={can('payments:verify') && payments[0] ? <Button variant="adminPrimary" onClick={() => setActiveReview({ type: 'payment', item: payments[0] })}>Review Latest Payment</Button> : null}>
+        <Card
+          title="Payments"
+          subtitle="Review receipts and bank references before verifying."
+          actions={latestReviewablePayment ? <Button variant="adminPrimary" onClick={() => setActiveReview({ type: 'payment', item: latestReviewablePayment })}>Review Latest Payment</Button> : null}
+        >
           {!payments.length ? <p className="text-sm text-slate-500">No payment records yet.</p> : (
             <div className="space-y-3">
               {payments.map((payment) => (
@@ -803,7 +1075,11 @@ export default function AdminCandidateProfilePage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {payment.receiptUrl ? <a className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100" href={`${getBackendBaseUrl()}${payment.receiptUrl}`} target="_blank" rel="noreferrer">Open Receipt</a> : null}
-                      {can('payments:verify') ? <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'payment', item: payment })}>Review</Button> : null}
+                      {canReviewPayment(payment) ? (
+                        <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'payment', item: payment })}>
+                          {String(payment.status || '').toLowerCase() === 'pending' ? 'Review' : 'Edit Review'}
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -814,7 +1090,11 @@ export default function AdminCandidateProfilePage() {
       )}
 
       {!loading && !error && candidate && activeTab === 'documents' && (
-        <Card title="Documents" subtitle="Every document decision is audit logged." actions={can('documents:verify') && documents[0] ? <Button variant="adminPrimary" onClick={() => setActiveReview({ type: 'document', item: documents[0] })}>Review Latest Document</Button> : null}>
+        <Card
+          title="Documents"
+          subtitle="Every document decision is audit logged."
+          actions={latestReviewableDocument ? <Button variant="adminPrimary" onClick={() => setActiveReview({ type: 'document', item: latestReviewableDocument })}>Review Latest Document</Button> : null}
+        >
           {!documents.length ? <p className="text-sm text-slate-500">No documents uploaded yet.</p> : (
             <div className="space-y-3">
               {documents.map((document) => (
@@ -825,7 +1105,7 @@ export default function AdminCandidateProfilePage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <a className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100" href={`${getBackendBaseUrl()}${document.fileUrl}`} target="_blank" rel="noreferrer">Open File</a>
-                    {can('documents:verify') ? <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'document', item: document })}>Review</Button> : null}
+                    {canReviewDocument(document) ? <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'document', item: document })}>Review</Button> : null}
                   </div>
                 </div>
               ))}
@@ -845,6 +1125,13 @@ export default function AdminCandidateProfilePage() {
             </div>
           ) : (
             <div className="space-y-4">
+              {hiringAccepted ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                  Hiring partner is already assigned to <span className="font-semibold">{candidate?.assignedHiringPartner || 'the selected partner'}</span>.
+                 
+                </div>
+              ) : null}
+
               <KeyValueGrid rows={[
                 { label: 'Document Verification', value: documentVerificationAccepted ? 'Accepted' : 'Pending' },
                 { label: 'Assigned Hiring Partner', value: candidate?.assignedHiringPartner || 'Not assigned' },
@@ -856,21 +1143,29 @@ export default function AdminCandidateProfilePage() {
                   <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="hiring-partner">Hiring Partner Name</label>
                   <input
                     id="hiring-partner"
+                    list="hiring-partner-options"
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
                     value={hiringPartnerDraft}
                     onChange={(event) => setHiringPartnerDraft(event.target.value)}
                     placeholder="Enter hiring partner name"
                   />
+                  <datalist id="hiring-partner-options">
+                    {hiringPartnerOptions.map((name) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <Button variant="adminPrimary" onClick={() => submitHiringDecision('accepted')} disabled={!can('candidates:update') || stageSaving === 'hiring'}>
-                  {stageSaving === 'hiring' ? 'Saving...' : 'Send To Hiring Partner'}
+                  {stageSaving === 'hiring' ? 'Saving...' : hiringAccepted ? 'Update Assignment' : 'Send To Hiring Partner'}
                 </Button>
-                <Button variant="adminSecondary" onClick={() => submitHiringDecision('under_review')} disabled={!can('candidates:update') || stageSaving === 'hiring'}>
-                  Keep Under Review
-                </Button>
+                {!hiringAccepted ? (
+                  <Button variant="adminSecondary" onClick={() => submitHiringDecision('under_review')} disabled={!can('candidates:update') || stageSaving === 'hiring'}>
+                    Keep Under Review
+                  </Button>
+                ) : null}
               </div>
             </div>
           )}
@@ -878,85 +1173,98 @@ export default function AdminCandidateProfilePage() {
       )}
 
       {!loading && !error && candidate && activeTab === 'interviews' && (
-        <Card title="Interviews and Selection" subtitle="Schedule interviews after hiring assignment, then publish final selection." actions={canReviewSelection && interviewCompleted ? <Button variant="adminPrimary" onClick={() => setActiveReview({ type: 'selection' })}>Announce Result</Button> : null}>
+        <Card title="Interviews and Selection" subtitle="Schedule interviews after hiring assignment, then publish final selection.">
           {!hiringAccepted ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               Assign and approve hiring partner first, then interview scheduling will be enabled.
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-hiring-partner">Hiring Partner</label>
-                  <input
-                    id="interview-hiring-partner"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                    value={interviewForm.hiringPartner}
-                    onChange={(event) => setInterviewForm((prev) => ({ ...prev, hiringPartner: event.target.value }))}
-                    placeholder="Hiring partner"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-country">Country</label>
-                  <input
-                    id="interview-country"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                    value={interviewForm.country}
-                    onChange={(event) => setInterviewForm((prev) => ({ ...prev, country: event.target.value }))}
-                    placeholder="Country"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-role">Role</label>
-                  <input
-                    id="interview-role"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                    value={interviewForm.role}
-                    onChange={(event) => setInterviewForm((prev) => ({ ...prev, role: event.target.value }))}
-                    placeholder="Interview role"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-date">Date</label>
-                  <input
-                    id="interview-date"
-                    type="date"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                    value={interviewForm.date}
-                    onChange={(event) => setInterviewForm((prev) => ({ ...prev, date: event.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-time">Time</label>
-                  <input
-                    id="interview-time"
-                    type="time"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                    value={interviewForm.time}
-                    onChange={(event) => setInterviewForm((prev) => ({ ...prev, time: event.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-meeting-link">Meeting Link</label>
-                  <input
-                    id="interview-meeting-link"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                    value={interviewForm.meetingLink}
-                    onChange={(event) => setInterviewForm((prev) => ({ ...prev, meetingLink: event.target.value }))}
-                    placeholder="https://..."
-                  />
-                </div>
+              <div className="flex flex-wrap gap-2">
+                {!showInterviewForm ? (
+                  <Button variant="adminPrimary" onClick={() => setShowInterviewForm(true)} disabled={!can('interviews:manage')}>
+                    Schedule New Interview
+                  </Button>
+                ) : null}
+                {showInterviewForm && interviews.length ? (
+                  <Button variant="adminSecondary" onClick={() => setShowInterviewForm(false)} disabled={stageSaving === 'interviews'}>
+                    Hide Form
+                  </Button>
+                ) : null}
+                {canReviewSelection && interviewCompleted ? <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'selection' })}>{selectionAnnounced ? 'Edit Announced Result' : 'Announce Result'}</Button> : null}
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <Button variant="adminPrimary" onClick={submitInterviewSchedule} disabled={!can('interviews:manage') || stageSaving === 'interviews'}>
-                  {stageSaving === 'interviews' ? 'Scheduling...' : 'Schedule Interview'}
-                </Button>
-                <Button variant="adminSecondary" onClick={markLatestInterviewCompleted} disabled={!can('candidates:update') || !interviews.length || stageSaving === 'interviews-complete'}>
-                  {stageSaving === 'interviews-complete' ? 'Saving...' : 'Mark Interview Completed'}
-                </Button>
-                {canReviewSelection && interviewCompleted ? <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'selection' })}>Announce Result</Button> : null}
-              </div>
+              {showInterviewForm ? (
+                <>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-hiring-partner">Hiring Partner</label>
+                      <input
+                        id="interview-hiring-partner"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
+                        value={interviewForm.hiringPartner}
+                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, hiringPartner: event.target.value }))}
+                        placeholder="Hiring partner"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-country">Country</label>
+                      <input
+                        id="interview-country"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
+                        value={interviewForm.country}
+                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, country: event.target.value }))}
+                        placeholder="Country"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-role">Role</label>
+                      <input
+                        id="interview-role"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
+                        value={interviewForm.role}
+                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, role: event.target.value }))}
+                        placeholder="Interview role"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-date">Date</label>
+                      <input
+                        id="interview-date"
+                        type="date"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
+                        value={interviewForm.date}
+                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, date: event.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-time">Time</label>
+                      <input
+                        id="interview-time"
+                        type="time"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
+                        value={interviewForm.time}
+                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, time: event.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-meeting-link">Meeting Link</label>
+                      <input
+                        id="interview-meeting-link"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
+                        value={interviewForm.meetingLink}
+                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, meetingLink: event.target.value }))}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="adminPrimary" onClick={submitInterviewSchedule} disabled={!can('interviews:manage') || stageSaving === 'interviews'}>
+                      {stageSaving === 'interviews' ? 'Scheduling...' : 'Schedule Interview'}
+                    </Button>
+                  </div>
+                </>
+              ) : null}
 
               {canReviewSelection && !interviewCompleted ? (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
@@ -976,6 +1284,13 @@ export default function AdminCandidateProfilePage() {
                         { label: 'Time', value: interview.time },
                         { label: 'Status', value: interview.status },
                       ]} />
+                      {String(interview.status || '').toLowerCase() === 'scheduled' && interviews[0]?._id === interview._id ? (
+                        <div className="mt-3 flex justify-end">
+                          <Button variant="adminSecondary" onClick={markLatestInterviewCompleted} disabled={!can('candidates:update') || stageSaving === 'interviews-complete'}>
+                            {stageSaving === 'interviews-complete' ? 'Saving...' : 'Mark Interview Completed'}
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>

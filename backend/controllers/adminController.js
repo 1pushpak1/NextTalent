@@ -221,7 +221,7 @@ const deriveAdminStageKey = (snapshot) => {
   }
 
   if (docsUploaded && !hasProgram) return null;
-  if (docsUploaded && hasProgram && documentVerificationDecision !== 'accepted') return 'document-verification';
+  if (hasProgram && documentVerificationDecision !== 'accepted') return 'document-verification';
   if (docsUploaded && hasProgram && documentVerificationDecision === 'accepted' && hiringDecision !== 'accepted') return 'hiring';
 
   return null;
@@ -704,14 +704,23 @@ const updateCandidateProfileStatus = async (req, res) => {
     profile.status = status;
     await profile.save();
 
+    if (!candidate.stageStatuses) {
+      candidate.stageStatuses = new Map();
+    }
+
     if (status === 'accepted') {
+      candidate.stageStatuses.set('evaluation', 'accepted');
       candidate.status = 'accepted';
-      await candidate.save();
     }
     if (status === 'rejected') {
+      candidate.stageStatuses.set('evaluation', 'rejected');
       candidate.status = 'rejected';
-      await candidate.save();
     }
+    if (status === 'under_review' || status === 'submitted') {
+      candidate.stageStatuses.set('evaluation', 'under_review');
+      candidate.status = 'profile_submitted';
+    }
+    await candidate.save();
 
     await sendStepUpdateEmail({
       to: candidate.email,

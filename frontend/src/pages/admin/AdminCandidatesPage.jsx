@@ -3,6 +3,11 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { fetchAdminCandidates } from '../../api/adminApi';
 
 const stageOptions = ['', 'profile_review', 'initial_payment', 'document_verification', 'hiring', 'interviews', 'selection', 'final_payment', 'testimonial'];
+const profileStatusOptions = ['', 'submitted', 'under_review', 'accepted', 'rejected'];
+const paymentStatusOptions = ['', 'not_started', 'pending_verification', 'verified', 'partially_verified'];
+const documentStatusOptions = ['', 'not_uploaded', 'uploaded', 'under_review', 'needs_revision', 'verified'];
+const interviewStatusOptions = ['', 'not_scheduled', 'scheduled', 'completed'];
+const selectionStatusOptions = ['', 'pending', 'under_review', 'selected', 'rejected'];
 
 const humanize = (value) => String(value || '—').replaceAll('_', ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 
@@ -107,10 +112,21 @@ export default function AdminCandidatesPage() {
       <div className="grid gap-2 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-4">
         <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Search name/email/phone" value={draftFilters.q} onChange={(e) => setDraftFilter('q', e.target.value)} />
         <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.stage} onChange={(e) => setDraftFilter('stage', e.target.value)}>{stageOptions.map((item) => <option key={item} value={item}>{item ? humanize(item) : 'All Stages'}</option>)}</select>
-        <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Profile status" value={draftFilters.profileStatus} onChange={(e) => setDraftFilter('profileStatus', e.target.value)} />
-        <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Payment status" value={draftFilters.paymentStatus} onChange={(e) => setDraftFilter('paymentStatus', e.target.value)} />
-        <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Document status" value={draftFilters.documentStatus} onChange={(e) => setDraftFilter('documentStatus', e.target.value)} />
-        <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Interview status" value={draftFilters.interviewStatus} onChange={(e) => setDraftFilter('interviewStatus', e.target.value)} />
+        <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.profileStatus} onChange={(e) => setDraftFilter('profileStatus', e.target.value)}>
+          {profileStatusOptions.map((item) => <option key={item || 'all-profile'} value={item}>{item ? humanize(item) : 'All Profile Statuses'}</option>)}
+        </select>
+        <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.paymentStatus} onChange={(e) => setDraftFilter('paymentStatus', e.target.value)}>
+          {paymentStatusOptions.map((item) => <option key={item || 'all-payment'} value={item}>{item ? humanize(item) : 'All Payment Statuses'}</option>)}
+        </select>
+        <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.documentStatus} onChange={(e) => setDraftFilter('documentStatus', e.target.value)}>
+          {documentStatusOptions.map((item) => <option key={item || 'all-document'} value={item}>{item ? humanize(item) : 'All Document Statuses'}</option>)}
+        </select>
+        <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.interviewStatus} onChange={(e) => setDraftFilter('interviewStatus', e.target.value)}>
+          {interviewStatusOptions.map((item) => <option key={item || 'all-interview'} value={item}>{item ? humanize(item) : 'All Interview Statuses'}</option>)}
+        </select>
+        <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.selectionStatus} onChange={(e) => setDraftFilter('selectionStatus', e.target.value)}>
+          {selectionStatusOptions.map((item) => <option key={item || 'all-selection'} value={item}>{item ? humanize(item) : 'All Selection Statuses'}</option>)}
+        </select>
         <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.pendingFrom} onChange={(e) => setDraftFilter('pendingFrom', e.target.value)}>
           <option value="">All Pending Types</option><option value="admin">Pending From Admin</option><option value="candidate">Pending From Candidate</option>
         </select>
