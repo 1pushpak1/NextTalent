@@ -6,6 +6,7 @@ const Interview = require('../models/Interview');
 const Testimonial = require('../models/Testimonial');
 const User = require('../models/User');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
+const { deriveCandidateProgress } = require('../utils/candidateProgress');
 
 const hasPassedInitialEligibility = ({ eligibility, user, profile, payments, docs, interviews }) =>
   Boolean(eligibility) ||
@@ -218,30 +219,8 @@ const getDashboard = async (req, res) => {
       currentStage = stages[stages.length - 1];
     }
 
-    let nextAction = 'No immediate action required';
-    if (!eligibilityDone) nextAction = 'Complete eligibility check';
-    else if (!profile || profile.status === 'draft') nextAction = 'Complete and submit your saved profile';
-    else if (profile.status === 'submitted' || profile.status === 'under_review') nextAction = 'Await internal evaluation outcome';
-    else if (profile.status === 'rejected') nextAction = 'Review profile not accepted notification';
-    else if (profile.status === 'accepted' && !hasInitial) nextAction = 'Complete initial payment (USD 500)';
-    else if (hasInitial && !declarationDone) nextAction = 'Sign declaration and contract';
-    else if (hasInitial && declarationDone && !onboardingDone) nextAction = 'Complete team contact/onboarding';
-    else if (hasInitial && onboardingDone && !docsUploaded) nextAction = 'Upload required documents';
-    else if (docsUploaded && hasProgramFailed)
-      nextAction = 'Payment not received. Please upload the correct receipt file or contact support to resolve this issue.';
-    else if (docsUploaded && hasProgramPending)
-      nextAction = 'Waiting for payment confirmation';
-    else if (docsUploaded && !effectiveHasProgram)
-      nextAction = 'Pay program fee (USD 3,500) and upload transfer receipt';
-    else if (effectiveHasProgram && !docsReceived) nextAction = 'Await document verification';
-    else if (user.status === 'selected' && hasFinalFailed)
-      nextAction = 'Payment not received. Please upload the correct receipt file or contact support to resolve this issue.';
-    else if (user.status === 'selected' && hasFinalPending)
-      nextAction = 'Final payment under verification';
-    else if (user.status === 'selected' && !hasFinal)
-      nextAction = 'Complete final payment';
-    else if (hasFinal && !testimonial)
-      nextAction = 'Share your testimonial';
+    const progress = deriveCandidateProgress({ candidate: user, profile, eligibility, documents: docs, interviews, payments, testimonial });
+    const nextAction = progress.nextAction || 'No immediate action required';
 
     res.json({
       candidate: user,
@@ -273,6 +252,7 @@ const getDashboard = async (req, res) => {
       testimonialSubmitted: Boolean(testimonial),
       stages,
       profileStatus: profile?.status || 'not_submitted',
+      progress,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

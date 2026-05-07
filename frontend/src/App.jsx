@@ -32,6 +32,8 @@ import AdminStageCandidatesPage from './pages/admin/AdminStageCandidatesPage';
 import AdminPaymentsOverviewPage from './pages/admin/AdminPaymentsOverviewPage';
 import AdminPaymentTypePage from './pages/admin/AdminPaymentTypePage';
 import AdminCandidateDetailPage from './pages/admin/AdminCandidateDetailPage';
+import AdminCandidatesPage from './pages/admin/AdminCandidatesPage';
+import AdminCandidateProfilePage from './pages/admin/AdminCandidateProfilePage';
 import AdminCandidatePage from './pages/AdminCandidatePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
@@ -102,6 +104,8 @@ export default function App() {
           )}
         >
           <Route path="dashboard" element={<AdminDashboardPage />} />
+          <Route path="candidates" element={<AdminCandidatesPage />} />
+          <Route path="candidates/:id" element={<AdminCandidateProfilePage />} />
           <Route path="evaluation" element={<AdminStageCandidatesPage title="Internal Evaluation" stageKey="evaluation" />} />
           <Route path="document-verification" element={<AdminStageCandidatesPage title="Document Verification" stageKey="document-verification" />} />
           <Route path="hiring" element={<AdminStageCandidatesPage title="Hiring Partner Stage" stageKey="hiring" />} />

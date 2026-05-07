@@ -4,10 +4,10 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const Eligibility = require('../models/Eligibility');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
+const { getConfiguredAdminUsers, getPermissionsForRole } = require('../utils/adminPermissions');
 
-const getEnvAdminEmail = () => String(process.env.ADMIN_EMAIL || '').toLowerCase().trim();
-const getEnvAdminPassword = () => String(process.env.ADMIN_PASSWORD || '');
-const getEnvAdminName = () => String(process.env.ADMIN_NAME || 'Platform Admin');
+const findConfiguredAdminByEmail = (email) =>
+  getConfiguredAdminUsers().find((entry) => entry.email === String(email || '').toLowerCase().trim());
 
 const tokenFor = (payload) =>
   jwt.sign(payload, process.env.JWT_SECRET, {
@@ -51,7 +51,7 @@ const signup = async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    if (normalizedEmail && normalizedEmail === getEnvAdminEmail()) {
+    if (normalizedEmail && findConfiguredAdminByEmail(normalizedEmail)) {
       return res.status(400).json({ message: 'This email is reserved for admin login' });
     }
 
@@ -113,29 +113,36 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const normalizedEmail = email?.toLowerCase().trim();
-    const envAdminEmail = getEnvAdminEmail();
-    const envAdminPassword = getEnvAdminPassword();
-
-    if (normalizedEmail === envAdminEmail && envAdminEmail && envAdminPassword) {
-      if (password !== envAdminPassword) {
+    const configuredAdmin = findConfiguredAdminByEmail(normalizedEmail);
+    if (configuredAdmin) {
+      if (password !== configuredAdmin.password) {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
+      const permissions = getPermissionsForRole(configuredAdmin.role);
 
       return res.json({
         token: tokenFor({
           id: 'env-admin',
           role: 'admin',
-          email: envAdminEmail,
+          email: configuredAdmin.email,
+          adminRole: configuredAdmin.role,
+          permissions,
           isEnvAdmin: true,
         }),
+        role: configuredAdmin.role,
+        permissions,
+        name: configuredAdmin.name,
+        email: configuredAdmin.email,
         user: {
           id: 'env-admin',
-          name: getEnvAdminName(),
-          email: envAdminEmail,
+          name: configuredAdmin.name,
+          email: configuredAdmin.email,
           phone: '',
           emailVerified: true,
           phoneVerified: true,
           role: 'admin',
+          adminRole: configuredAdmin.role,
+          permissions,
           status: 'admin_active',
         },
       });

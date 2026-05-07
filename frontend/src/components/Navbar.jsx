@@ -108,7 +108,7 @@ export default function Navbar({ navigationLinks = defaultLinks }) {
       <div className="mx-auto flex h-[5.5rem] w-full max-w-[1240px] items-center justify-between px-6 md:px-8">
         <Link to="/" className="flex items-center">
           <img
-            src="/logo.jpeg"
+            src="/logo.png"
             alt="NextStep Talent logo"
             className="nst-logo-image h-14 w-auto object-contain md:h-16"
           />

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { getConfiguredAdminUsers, getPermissionsForRole } = require('../utils/adminPermissions');
 
 const getTokenFromHeader = (req) => {
   const authHeader = req.headers.authorization || '';
@@ -9,20 +10,27 @@ const getTokenFromHeader = (req) => {
   return null;
 };
 
+const findConfiguredAdminByEmail = (email) =>
+  getConfiguredAdminUsers().find((entry) => entry.email === String(email || '').toLowerCase().trim());
+
 const protect = async (req, res, next) => {
   try {
     const token = getTokenFromHeader(req);
     if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const envAdminEmail = String(process.env.ADMIN_EMAIL || '').toLowerCase().trim();
-    if (decoded?.isEnvAdmin === true && decoded?.role === 'admin' && decoded?.email === envAdminEmail) {
+    const configuredAdmin = decoded?.isEnvAdmin === true && decoded?.role === 'admin'
+      ? findConfiguredAdminByEmail(decoded?.email)
+      : null;
+    if (configuredAdmin) {
       req.user = {
         _id: 'env-admin',
         id: 'env-admin',
-        name: String(process.env.ADMIN_NAME || 'Platform Admin'),
-        email: envAdminEmail,
+        name: configuredAdmin.name,
+        email: configuredAdmin.email,
         role: 'admin',
+        adminRole: configuredAdmin.role,
+        permissions: getPermissionsForRole(configuredAdmin.role),
         emailVerified: true,
         phoneVerified: true,
         status: 'admin_active',
@@ -49,14 +57,18 @@ const optionalAuth = async (req, res, next) => {
     if (!token) return next();
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const envAdminEmail = String(process.env.ADMIN_EMAIL || '').toLowerCase().trim();
-    if (decoded?.isEnvAdmin === true && decoded?.role === 'admin' && decoded?.email === envAdminEmail) {
+    const configuredAdmin = decoded?.isEnvAdmin === true && decoded?.role === 'admin'
+      ? findConfiguredAdminByEmail(decoded?.email)
+      : null;
+    if (configuredAdmin) {
       req.user = {
         _id: 'env-admin',
         id: 'env-admin',
-        name: String(process.env.ADMIN_NAME || 'Platform Admin'),
-        email: envAdminEmail,
+        name: configuredAdmin.name,
+        email: configuredAdmin.email,
         role: 'admin',
+        adminRole: configuredAdmin.role,
+        permissions: getPermissionsForRole(configuredAdmin.role),
         emailVerified: true,
         phoneVerified: true,
         status: 'admin_active',
@@ -79,4 +91,15 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
-module.exports = { protect, optionalAuth, adminOnly };
+const requireAdminPermission = (permission) => (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  const permissions = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+  if (!permissions.includes(permission)) {
+    return res.status(403).json({ message: `Missing permission: ${permission}` });
+  }
+  return next();
+};
+
+module.exports = { protect, optionalAuth, adminOnly, requireAdminPermission };

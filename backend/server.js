@@ -65,18 +65,16 @@ app.get('/api/docs.json', (req, res) => {
 });
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-const startServer = (portToUse, isFallback = false) => {
+const startServer = (portToUse) => {
   const server = app.listen(portToUse, () => {
-    const prefix = isFallback ? 'Backend port fallback active' : 'Backend running';
-    console.log(`${prefix} on port ${portToUse}`);
+    console.log(`Backend running on port ${portToUse}`);
     console.log(`Open: http://localhost:${portToUse}/api/health`);
   });
 
   server.on('error', (error) => {
-    if (error.code === 'EADDRINUSE' && !isFallback) {
-      console.warn(`Port ${portToUse} is in use. Retrying on port ${portToUse + 1}...`);
-      startServer(portToUse + 1, true);
-      return;
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${portToUse} is already in use. Stop the other process or change PORT in backend/.env.`);
+      process.exit(1);
     }
     console.error('Server startup error:', error.message);
     process.exit(1);

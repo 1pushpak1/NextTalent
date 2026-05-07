@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../api/axios';
+import { fetchAdminDashboardSummary } from '../../api/adminApi';
 
 const cardConfig = [
-  { key: 'totalApplications', label: 'Total Applications' },
-  { key: 'pendingEvaluation', label: 'Pending Evaluation' },
-  { key: 'documentsPendingReview', label: 'Documents Pending Review' },
-  { key: 'interviewsScheduled', label: 'Interviews Scheduled' },
-  { key: 'selectedCandidates', label: 'Selected Candidates' },
+  { key: 'totalApplications', label: 'Total Candidates', to: '/admin/candidates' },
+  { key: 'eligibleCandidates', label: 'Eligible Candidates', to: '/admin/candidates?profileStatus=accepted' },
+  { key: 'profilesPendingReview', label: 'Profiles Pending Review', to: '/admin/candidates?stage=profile_review&pendingFrom=admin' },
+  { key: 'paymentsPendingVerification', label: 'Payments Pending Verification', to: '/admin/candidates?paymentStatus=pending_verification' },
+  { key: 'documentsPendingVerification', label: 'Documents Pending Verification', to: '/admin/candidates?documentStatus=under_review&pendingFrom=admin' },
+  { key: 'interviewsPendingScheduled', label: 'Interviews Pending/Scheduled', to: '/admin/candidates?stage=interviews' },
+  { key: 'selectedCandidates', label: 'Selected Candidates', to: '/admin/candidates?selectionStatus=selected' },
+  { key: 'rejectedCandidates', label: 'Rejected Candidates', to: '/admin/candidates?selectionStatus=rejected' },
   { key: 'totalRevenue', label: 'Total Revenue' },
 ];
 
@@ -25,10 +28,13 @@ export default function AdminDashboardPage() {
   const [summary, setSummary] = useState({
     cards: {
       totalApplications: 0,
-      pendingEvaluation: 0,
-      documentsPendingReview: 0,
-      interviewsScheduled: 0,
+      eligibleCandidates: 0,
+      profilesPendingReview: 0,
+      paymentsPendingVerification: 0,
+      documentsPendingVerification: 0,
+      interviewsPendingScheduled: 0,
       selectedCandidates: 0,
+      rejectedCandidates: 0,
       totalRevenue: 0,
     },
     recentApplications: [],
@@ -38,7 +44,7 @@ export default function AdminDashboardPage() {
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent && mountedRef.current) setLoading(true);
     try {
-      const { data } = await api.get('/admin/dashboard/summary');
+      const { data } = await fetchAdminDashboardSummary();
       if (!mountedRef.current) return;
       setSummary((prev) => ({
         cards: data?.cards || prev.cards,
@@ -78,12 +84,12 @@ export default function AdminDashboardPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {cardConfig.map((card) => (
-          <div key={card.key} className="rounded-xl border border-slate-200 bg-white p-4">
+          <button key={card.key} type="button" onClick={() => card.to && navigate(card.to)} className="rounded-xl border border-slate-200 bg-white p-4 text-left">
             <p className="text-xs uppercase tracking-wide text-slate-500">{card.label}</p>
             <p className="mt-2 text-2xl font-bold text-slate-900">
               {card.key === 'totalRevenue' ? `USD ${summary.cards[card.key] || 0}` : summary.cards[card.key] || 0}
             </p>
-          </div>
+          </button>
         ))}
       </div>
 

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import api from '../../api/axios';
+import usePermissions from '../../hooks/usePermissions';
 
 const hiringPartners = ['Nordic Talent Partners', 'EuroTech Careers', 'Global Hiring Bridge'];
 
@@ -40,6 +41,7 @@ const stepStatusLabel = {
 };
 
 export default function AdminCandidateTable({ rows = [], loading = false, stageKey = '', onUpdated }) {
+  const { can } = usePermissions();
   const navigate = useNavigate();
   const [selectedActionById, setSelectedActionById] = useState({});
   const [selectedPartnerById, setSelectedPartnerById] = useState({});
@@ -49,7 +51,13 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
   if (loading) return <p className="text-sm text-slate-500">Loading applications...</p>;
   if (!rows.length) return <p className="text-sm text-slate-500">No applications found for this stage.</p>;
 
-  const isActionStep = Boolean(stageKey && !['dashboard', 'testimonials'].includes(stageKey));
+  const hasStagePermission = (
+    (stageKey === 'evaluation' && can('evaluation:approve')) ||
+    (stageKey === 'document-verification' && can('documents:verify')) ||
+    (stageKey === 'interviews' && can('interviews:manage')) ||
+    (!['evaluation', 'document-verification', 'interviews'].includes(stageKey) && can('candidates:update'))
+  );
+  const isActionStep = Boolean(stageKey && !['dashboard', 'testimonials'].includes(stageKey) && hasStagePermission);
 
   const chooseAction = (candidateId, action) => {
     setSelectedActionById((prev) => ({ ...prev, [candidateId]: action }));

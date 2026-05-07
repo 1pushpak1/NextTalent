@@ -6,6 +6,7 @@ const Payment = require('../models/Payment');
 const Eligibility = require('../models/Eligibility');
 const Testimonial = require('../models/Testimonial');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
+const { deriveCandidateProgress } = require('../utils/candidateProgress');
 
 const validProfileStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 const validDocumentStatuses = ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'];
@@ -276,6 +277,74 @@ const fetchAllSnapshots = async () => {
   });
 };
 
+const formatDateSafe = (value) => {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+};
+
+const toHumanLabel = (value) =>
+  String(value || '')
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') || 'N/A';
+
+const mapCandidateListRow = (snapshot) => {
+  const progress = deriveCandidateProgress({
+    candidate: snapshot.candidate,
+    profile: snapshot.profile,
+    eligibility: snapshot.eligibility,
+    documents: snapshot.documents,
+    interviews: snapshot.interviews,
+    payments: snapshot.payments,
+    testimonial: snapshot.testimonial,
+  });
+
+  const displayName =
+    snapshot.profile?.personalDetails?.firstName ||
+    snapshot.candidate?.name ||
+    snapshot.candidate?.email?.split('@')?.[0] ||
+    'N/A';
+
+  return {
+    _id: snapshot.candidate._id,
+    name: displayName,
+    email: snapshot.candidate.email || '',
+    phone: snapshot.candidate.phone || '',
+    currentStage: progress.currentStage,
+    currentStageKey: progress.currentStageKey,
+    profileStatus: progress.profileStatus,
+    evaluationStatus: progress.evaluationStatus,
+    paymentStatus: progress.paymentStatus,
+    documentStatus: progress.documentStatus,
+    interviewStatus: progress.interviewStatus,
+    selectionStatus: progress.selectionStatus,
+    nextPendingAction: progress.nextAction,
+    pendingFrom: progress.pendingFrom,
+    pendingFromLabel: progress.pendingFrom === 'admin' ? 'Admin' : progress.pendingFrom === 'candidate' ? 'Candidate' : 'Completed',
+    recommendedAdminAction: progress.recommendedAdminAction,
+    lastUpdatedAt: formatDateSafe(snapshot.candidate.updatedAt),
+    createdAt: formatDateSafe(snapshot.candidate.createdAt),
+    paymentSummaryLabel: toHumanLabel(
+      progress.paymentStatus.final === 'verified'
+        ? 'verified'
+        : progress.paymentStatus.program === 'pending_verification' || progress.paymentStatus.initial === 'pending_verification'
+          ? 'pending_verification'
+          : progress.paymentStatus.program === 'verified' || progress.paymentStatus.initial === 'verified'
+            ? 'partially_verified'
+            : 'not_started'
+    ),
+    documentStatusLabel: toHumanLabel(progress.documentStatus),
+    interviewSelectionStatusLabel: toHumanLabel(
+      progress.selectionStatus === 'selected'
+        ? 'selected'
+        : progress.selectionStatus === 'rejected'
+          ? 'rejected'
+          : progress.interviewStatus
+    ),
+  };
+};
+
 const listCandidatesByStage = async (req, res) => {
   try {
     const stageKey = String(req.params.stageKey || 'dashboard').toLowerCase();
@@ -295,15 +364,81 @@ const listCandidatesByStage = async (req, res) => {
   }
 };
 
+const listAllCandidates = async (req, res) => {
+  const page = Math.max(1, Number(req.query.page || 1));
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
+  try {
+    const skip = (page - 1) * limit;
+    const sortBy = String(req.query.sortBy || 'updatedAt').toLowerCase() === 'createdat' ? 'createdAt' : 'updatedAt';
+    const sortOrder = String(req.query.sortOrder || 'desc').toLowerCase() === 'asc' ? 1 : -1;
+    const q = String(req.query.q || '').trim().toLowerCase();
+
+    const snapshots = await fetchAllSnapshots();
+    const rows = snapshots.map(mapCandidateListRow).sort((a, b) => {
+      const aValue = new Date(a[sortBy] || 0).getTime();
+      const bValue = new Date(b[sortBy] || 0).getTime();
+      return sortOrder * (aValue - bValue);
+    });
+
+    const filtered = rows.filter((row) => {
+      if (q && !(`${row.name} ${row.email} ${row.phone}`.toLowerCase().includes(q))) return false;
+      if (req.query.stage && row.currentStageKey !== String(req.query.stage).trim()) return false;
+      if (req.query.profileStatus && row.profileStatus !== String(req.query.profileStatus).trim()) return false;
+      if (req.query.evaluationStatus && row.evaluationStatus !== String(req.query.evaluationStatus).trim()) return false;
+      if (req.query.paymentStatus && row.paymentSummaryLabel.toLowerCase().replaceAll(' ', '_') !== String(req.query.paymentStatus).trim()) return false;
+      if (req.query.documentStatus && row.documentStatus !== String(req.query.documentStatus).trim()) return false;
+      if (req.query.interviewStatus && row.interviewStatus !== String(req.query.interviewStatus).trim()) return false;
+      if (req.query.selectionStatus && row.selectionStatus !== String(req.query.selectionStatus).trim()) return false;
+      if (req.query.pendingFrom && row.pendingFrom !== String(req.query.pendingFrom).trim()) return false;
+      return true;
+    });
+
+    const total = filtered.length;
+    const pagedRows = filtered.slice(skip, skip + limit);
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+    return res.json({
+      candidates: pagedRows,
+      total,
+      page,
+      totalPages,
+      rows: pagedRows,
+      pagination: { page, limit, total, totalPages },
+    });
+  } catch (error) {
+    console.error('[admin:candidates:all] failed', {
+      message: error?.message,
+      stack: error?.stack,
+      adminEmail: req.user?.email,
+      adminRole: req.user?.adminRole,
+      query: req.query,
+    });
+    return res.status(500).json({
+      message: 'Failed to load candidates',
+      candidates: [],
+      total: 0,
+      page,
+      totalPages: 0,
+    });
+  }
+};
+
 const getDashboardSummary = async (req, res) => {
   try {
     const snapshots = await fetchAllSnapshots();
+    const rows = snapshots.map(mapCandidateListRow);
 
-    const totalApplications = snapshots.length;
-    const pendingEvaluation = snapshots.filter((s) => s.profile && ['submitted', 'under_review'].includes(s.profile.status)).length;
-    const documentsPendingReview = snapshots.filter((s) => s.docsUploaded && !s.docsVerified).length;
-    const interviewsScheduled = snapshots.filter((s) => s.hasInterviews).length;
-    const selectedCandidates = snapshots.filter((s) => s.candidate.status === 'selected').length;
+    const totalApplications = rows.length;
+    const eligibleCandidates = snapshots.filter((s) => Boolean(s.eligibility?.isEligible)).length;
+    const profilesPendingReview = rows.filter((row) => ['submitted', 'under_review'].includes(row.profileStatus)).length;
+    const paymentsPendingVerification = rows.filter((row) =>
+      ['pending_verification'].includes(row.paymentStatus.initial) ||
+      ['pending_verification'].includes(row.paymentStatus.program) ||
+      ['pending_verification'].includes(row.paymentStatus.final)
+    ).length;
+    const documentsPendingVerification = rows.filter((row) => ['uploaded', 'under_review', 'needs_revision'].includes(row.documentStatus)).length;
+    const interviewsPendingScheduled = rows.filter((row) => ['not_scheduled', 'scheduled'].includes(row.interviewStatus)).length;
+    const selectedCandidates = rows.filter((row) => row.selectionStatus === 'selected').length;
+    const rejectedCandidates = rows.filter((row) => row.selectionStatus === 'rejected').length;
     const totalRevenue = snapshots.reduce((sum, s) => {
       const paid = s.payments.filter((p) => p.status === 'completed').reduce((acc, p) => acc + (p.amount || 0), 0);
       return sum + paid;
@@ -333,10 +468,13 @@ const getDashboardSummary = async (req, res) => {
     res.json({
       cards: {
         totalApplications,
-        pendingEvaluation,
-        documentsPendingReview,
-        interviewsScheduled,
+        eligibleCandidates,
+        profilesPendingReview,
+        paymentsPendingVerification,
+        documentsPendingVerification,
+        interviewsPendingScheduled,
         selectedCandidates,
+        rejectedCandidates,
         totalRevenue,
       },
       recentApplications,
@@ -462,6 +600,25 @@ const getCandidateDetails = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+const getAdminCandidateProfile = async (req, res) => {
+  try {
+    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' }).select('-passwordHash').lean();
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+    const [profile, documents, interviews, payments, eligibility, testimonial] = await Promise.all([
+      Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Document.find({ userId: candidate._id }).sort({ uploadedAt: -1 }).lean(),
+      Interview.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Payment.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Testimonial.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+    ]);
+    const progress = deriveCandidateProgress({ candidate, profile, eligibility, documents, interviews, payments, testimonial });
+    return res.json({ candidate, profile, documents, interviews, payments, eligibility, testimonial, progress, adminNotes: candidate.adminNotes || '' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -666,6 +823,16 @@ const updateCandidateStageDecision = async (req, res) => {
       return res.status(400).json({ message: 'Invalid stage status' });
     }
 
+    const permissions = Array.isArray(req.user?.permissions) ? req.user.permissions : [];
+    const needsPermissionByStage = {
+      evaluation: 'evaluation:approve',
+      'document-verification': 'documents:verify',
+    };
+    const requiredPermission = needsPermissionByStage[stageKey];
+    if (requiredPermission && !permissions.includes(requiredPermission)) {
+      return res.status(403).json({ message: `Missing permission: ${requiredPermission}` });
+    }
+
     const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
@@ -783,10 +950,12 @@ const updateCandidateStageDecision = async (req, res) => {
 
 module.exports = {
   listCandidatesByStage,
+  listAllCandidates,
   getDashboardSummary,
   getPaymentsOverview,
   listPaymentsByType,
   getCandidateDetails,
+  getAdminCandidateProfile,
   updateCandidateProfileStatus,
   updateCandidateDocumentStatus,
   addCandidateInterview,

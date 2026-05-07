@@ -1,7 +1,7 @@
 const sendEmail = require('./sendEmail');
 
 const getFrontendBaseUrl = () => String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
-const getBrandLogoUrl = () => process.env.BRAND_LOGO_URL || `${getFrontendBaseUrl()}/logo.jpeg`;
+const getBrandLogoUrl = () => process.env.BRAND_LOGO_URL || `${getFrontendBaseUrl()}/logo.png`;
 
 const statusLabelMap = {
   submitted: 'Submitted',

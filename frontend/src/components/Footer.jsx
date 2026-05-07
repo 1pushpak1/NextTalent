@@ -28,7 +28,7 @@ export default function Footer() {
       <div className="mx-auto max-w-[1240px] px-6 md:px-8">
         <div className="flex justify-center">
           <Link to="/" className="inline-flex">
-            <img src="/logo.jpeg" alt="NextStep Talent logo" className="nst-logo-image h-[4.5rem] w-auto object-contain md:h-[5.5rem]" />
+            <img src="/logo.png" alt="NextStep Talent logo" className="nst-logo-image h-[4.5rem] w-auto object-contain md:h-[5.5rem]" />
           </Link>
         </div>
 
