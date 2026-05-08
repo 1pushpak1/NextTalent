@@ -1,364 +1,319 @@
 import { useMemo, useState } from 'react';
-import { ComposableMap, Geographies, Geography, Marker, Sphere } from 'react-simple-maps';
+import { Annotation, ComposableMap, Geographies, Geography, Line, Marker, Sphere } from 'react-simple-maps';
 import worldAtlas from 'world-atlas/countries-110m.json';
 import Reveal from './Reveal';
 
-const REGION_CONFIG = {
-  'United States': {
-    isoA2: 'US',
-    isoA3: 'USA',
-    isoN3: '840',
-    aliases: ['United States', 'United States of America', 'USA'],
-    coordinates: [-98.5795, 39.8283],
-  },
-  Germany: {
-    isoA2: 'DE',
-    isoA3: 'DEU',
-    isoN3: '276',
-    aliases: ['Germany', 'Federal Republic of Germany'],
+const REGION_DATA = [
+  {
+    id: 'europe',
+    title: 'EUROPE',
+    type: 'active',
     coordinates: [10.4515, 51.1657],
+    description:
+      'Structured pathways across select European markets aligned to candidate profile, documentation readiness, and opportunity fit.',
+    tooltip: [
+      'Eligibility Requirements:',
+      '• Professional profile alignment',
+      '• English proficiency readiness',
+      '• Documentation verification',
+      '• International mobility readiness',
+    ],
+    isoA3: ['DEU', 'POL', 'AUT', 'CHE', 'FRA', 'NLD', 'BEL', 'SWE', 'DNK', 'NOR'],
   },
-  Poland: {
-    isoA2: 'PL',
-    isoA3: 'POL',
-    isoN3: '616',
-    aliases: ['Poland', 'Republic of Poland'],
-    coordinates: [19.1451, 51.9194],
-  },
-  Austria: {
-    isoA2: 'AT',
-    isoA3: 'AUT',
-    isoN3: '040',
-    aliases: ['Austria', 'Republic of Austria'],
-    coordinates: [14.5501, 47.5162],
-  },
-  Switzerland: {
-    isoA2: 'CH',
-    isoA3: 'CHE',
-    isoN3: '756',
-    aliases: ['Switzerland', 'Swiss Confederation'],
-    coordinates: [8.2275, 46.8182],
-  },
-  'United Kingdom': {
-    isoA2: 'GB',
-    isoA3: 'GBR',
-    isoN3: '826',
-    aliases: ['United Kingdom', 'United Kingdom of Great Britain and Northern Ireland', 'Great Britain'],
+  {
+    id: 'uk',
+    title: 'UNITED KINGDOM',
+    type: 'active',
     coordinates: [-3.436, 55.3781],
+    description:
+      'Focused support for candidates exploring UK pathways through profile alignment, process coordination, and international readiness.',
+    tooltip: [
+      'Eligibility Requirements:',
+      '• Candidate profile assessment',
+      '• Structured process readiness',
+      '• Documentation alignment',
+      '• Career pathway consultation',
+    ],
+    isoA3: ['GBR'],
   },
-  Spain: {
-    isoA2: 'ES',
-    isoA3: 'ESP',
-    isoN3: '724',
-    aliases: ['Spain', 'Kingdom of Spain'],
-    coordinates: [-3.7492, 40.4637],
+  {
+    id: 'australia',
+    title: 'AUSTRALIA',
+    type: 'active',
+    coordinates: [133.7751, -25.2744],
+    description:
+      'Targeted pathway mapping for candidates seeking career opportunities in Australia through a structured and selective process.',
+    tooltip: [
+      'Eligibility Requirements:',
+      '• Skills and experience review',
+      '• Documentation preparation',
+      '• International opportunity fit',
+      '• Process coordination readiness',
+    ],
+    isoA3: ['AUS'],
   },
-  Italy: {
-    isoA2: 'IT',
-    isoA3: 'ITA',
-    isoN3: '380',
-    aliases: ['Italy', 'Italian Republic'],
-    coordinates: [12.5674, 41.8719],
+  {
+    id: 'us',
+    title: 'UNITED STATES',
+    type: 'upcoming',
+    coordinates: [-98.5795, 39.8283],
+    description: 'United States pathways are currently in development as part of our next expansion phase.',
+    tooltip: [
+      'Pathways currently under expansion review.',
+      '',
+      'Upcoming opportunities may include:',
+      '• Specialized professional pathways',
+      '• Structured profile evaluation',
+      '• Future onboarding cycles',
+    ],
+    isoA3: ['USA'],
   },
-};
-
-const ACTIVE_REGION_NAMES = ['United States', 'Germany', 'Poland', 'Austria', 'Switzerland'];
-
-const UPCOMING_REGION_NAMES = ['United Kingdom', 'Spain', 'Italy'];
+];
 
 const projectionConfig = {
-  scale: 165,
-  center: [8, 43],
+  scale: 152,
+  center: [14, 15],
 };
 
-const readGeoProperties = (geo) => ({
-  id: String(geo.id || '').padStart(3, '0'),
-  name: String(
-    geo.properties?.name ||
-    geo.properties?.NAME ||
-    geo.properties?.NAME_LONG ||
-    geo.properties?.ADMIN ||
-    ''
-  ),
-  isoA2: String(geo.properties?.ISO_A2 || geo.properties?.iso_a2 || ''),
-  isoA3: String(geo.properties?.ISO_A3 || geo.properties?.iso_a3 || ''),
-});
-
-const regionMatchesGeo = (regionName, geo) => {
-  const config = REGION_CONFIG[regionName];
-  if (!config) return false;
-
-  const props = readGeoProperties(geo);
-  const normalizedName = props.name.trim().toLowerCase();
-
-  return (
-    props.id === config.isoN3 ||
-    props.isoA2.toUpperCase() === config.isoA2 ||
-    props.isoA3.toUpperCase() === config.isoA3 ||
-    config.aliases.some((alias) => alias.toLowerCase() === normalizedName)
-  );
+const findRegionByGeo = (geo) => {
+  const isoA3 = String(geo.properties?.ISO_A3 || geo.properties?.iso_a3 || '').toUpperCase();
+  return REGION_DATA.find((region) => region.isoA3.includes(isoA3));
 };
 
-export default function WorldMapPanel({ regions }) {
-  const [activeCountry, setActiveCountry] = useState(null);
+const getTooltipTranslate = (regionId) => {
+  switch (regionId) {
+    case 'europe':
+      return 'translate(18px, -172px)';
+    case 'uk':
+      return 'translate(-6px, -178px)';
+    case 'australia':
+      return 'translate(-338px, -200px)';
+    case 'us':
+      return 'translate(26px, -192px)';
+    default:
+      return 'translate(20px, -178px)';
+  }
+};
 
-  const activeRegions = useMemo(
-    () => regions.filter((region) => ACTIVE_REGION_NAMES.includes(region.name)),
-    [regions],
+export default function WorldMapPanel() {
+  const [activeRegionId, setActiveRegionId] = useState(null);
+
+  const activeRegion = useMemo(
+    () => REGION_DATA.find((region) => region.id === activeRegionId) || null,
+    [activeRegionId],
   );
 
-  const upcomingRegions = useMemo(
-    () => regions.filter((region) => UPCOMING_REGION_NAMES.includes(region.name)),
-    [regions],
-  );
-
-  const allRegions = useMemo(() => [...activeRegions, ...upcomingRegions], [activeRegions, upcomingRegions]);
-
-  const handleEnter = (countryName) => setActiveCountry(countryName);
-  const handleLeave = () => setActiveCountry(null);
+  const handleEnter = (id) => setActiveRegionId(id);
 
   return (
-    <div className="space-y-10">
-      <Reveal className="relative overflow-hidden rounded-[2rem] border border-[rgba(200,169,107,0.32)] bg-[radial-gradient(circle_at_50%_45%,rgba(200,169,107,0.18),transparent_36%),linear-gradient(165deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] p-4 backdrop-blur-xl md:p-8">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:34px_34px] opacity-20" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(200,169,107,0.1),transparent_48%)]" />
-        <div className="pointer-events-none absolute -left-28 top-16 h-56 w-56 rounded-full bg-[rgba(200,169,107,0.1)] blur-3xl" />
-        <div className="pointer-events-none absolute -right-24 bottom-10 h-60 w-60 rounded-full bg-[rgba(168,142,86,0.1)] blur-3xl" />
+    <div className="space-y-8">
+      <Reveal className="relative overflow-hidden rounded-[2rem] border border-[rgba(200,169,107,0.3)] bg-[radial-gradient(circle_at_18%_18%,rgba(200,169,107,0.16),transparent_36%),radial-gradient(circle_at_85%_80%,rgba(186,151,81,0.11),transparent_42%),linear-gradient(160deg,#0f1013,#141518_50%,#101114)] p-4 md:p-6">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(200,169,107,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(200,169,107,0.08)_1px,transparent_1px)] bg-[size:36px_36px] opacity-20" />
+        <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:radial-gradient(rgba(255,255,255,0.16)_0.75px,transparent_0.75px)] [background-size:4px_4px]" />
 
-        <ComposableMap
-          projection="geoMercator"
-          projectionConfig={projectionConfig}
-          width={1000}
-          height={520}
-          className="relative z-10 h-full w-full"
-          role="img"
-          aria-label="World map showing active and upcoming NextStep Talent regions"
-        >
-          <defs>
-            <linearGradient id="nst-active-fill" x1="0%" x2="100%" y1="0%" y2="100%">
-              <stop offset="0%" stopColor="#f4dfb2" />
-              <stop offset="100%" stopColor="#c8a96b" />
-            </linearGradient>
-            <linearGradient id="nst-upcoming-fill" x1="0%" x2="100%" y1="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(200,169,107,0.22)" />
-              <stop offset="100%" stopColor="rgba(200,169,107,0.08)" />
-            </linearGradient>
-            <filter id="nst-country-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="nst-country-glow-strong" x="-70%" y="-70%" width="240%" height="240%">
-              <feGaussianBlur stdDeviation="8" result="blurStrong" />
-              <feMerge>
-                <feMergeNode in="blurStrong" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
+        <div className="relative z-10 grid grid-cols-1 gap-5 xl:grid-cols-[1.32fr_0.88fr]">
+          <div className="relative overflow-hidden rounded-[1.6rem] border border-[rgba(200,169,107,0.26)] bg-[radial-gradient(circle_at_50%_50%,rgba(200,169,107,0.06),transparent_56%),rgba(8,9,11,0.75)] p-2 md:p-4">
+            <div className="pointer-events-none absolute -left-20 top-8 h-44 w-44 rounded-full bg-[rgba(200,169,107,0.1)] blur-3xl" />
+            <div className="pointer-events-none absolute -right-12 bottom-10 h-48 w-48 rounded-full bg-[rgba(175,145,81,0.12)] blur-3xl" />
 
-          <Sphere fill="rgba(255,255,255,0.02)" stroke="rgba(200,169,107,0.18)" strokeWidth={0.8} />
+            <ComposableMap
+              projection="geoMercator"
+              projectionConfig={projectionConfig}
+              width={1000}
+              height={620}
+              className="relative z-10 h-full w-full"
+              aria-label="Global focus map"
+            >
+              <defs>
+                <linearGradient id="nst-active-country" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#f6e4bc" />
+                  <stop offset="100%" stopColor="#c8a96b" />
+                </linearGradient>
+                <linearGradient id="nst-upcoming-country" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="rgba(205,174,112,0.42)" />
+                  <stop offset="100%" stopColor="rgba(205,174,112,0.16)" />
+                </linearGradient>
+                <filter id="nst-region-glow" x="-70%" y="-70%" width="240%" height="240%">
+                  <feGaussianBlur stdDeviation="8" result="g" />
+                  <feMerge>
+                    <feMergeNode in="g" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
 
-          <Geographies geography={worldAtlas}>
-            {({ geographies }) =>
-              geographies.map((geo) => {
-                const matchedRegion = allRegions.find((region) => regionMatchesGeo(region.name, geo));
-                const isActiveRegion = Boolean(matchedRegion && matchedRegion.status === 'active');
-                const isUpcomingRegion = Boolean(matchedRegion && matchedRegion.status === 'upcoming');
-                const isFocused = activeCountry ? matchedRegion?.name === activeCountry : false;
+              <Sphere fill="rgba(255,255,255,0.02)" stroke="rgba(200,169,107,0.17)" strokeWidth={0.8} />
 
-                let fill = 'rgba(255,255,255,0.04)';
-                let stroke = 'rgba(200,169,107,0.16)';
-                let opacity = 0.58;
-                let strokeWidth = 0.7;
-                let filter = 'none';
+              <Line
+                from={REGION_DATA[0].coordinates}
+                to={REGION_DATA[1].coordinates}
+                stroke="rgba(200,169,107,0.35)"
+                strokeWidth={activeRegionId === 'uk' || activeRegionId === 'europe' ? 1.45 : 1}
+                strokeLinecap="round"
+                style={{ transition: 'stroke-width 260ms ease, opacity 260ms ease', opacity: 0.8 }}
+              />
+              <Line
+                from={REGION_DATA[0].coordinates}
+                to={REGION_DATA[2].coordinates}
+                stroke="rgba(200,169,107,0.28)"
+                strokeWidth={activeRegionId === 'australia' || activeRegionId === 'europe' ? 1.35 : 0.9}
+                strokeLinecap="round"
+                style={{ transition: 'stroke-width 260ms ease, opacity 260ms ease', opacity: 0.65 }}
+              />
+              <Line
+                from={REGION_DATA[0].coordinates}
+                to={REGION_DATA[3].coordinates}
+                stroke="rgba(200,169,107,0.24)"
+                strokeWidth={activeRegionId === 'us' || activeRegionId === 'europe' ? 1.25 : 0.9}
+                strokeLinecap="round"
+                style={{ transition: 'stroke-width 260ms ease, opacity 260ms ease', opacity: 0.6 }}
+              />
 
-                if (isActiveRegion) {
-                  fill = 'url(#nst-active-fill)';
-                  stroke = isFocused ? 'rgba(255,245,219,0.98)' : 'rgba(244,223,178,0.86)';
-                  opacity = isFocused ? 1 : 0.9;
-                  strokeWidth = isFocused ? 1.55 : 1.05;
-                  filter = isFocused ? 'url(#nst-country-glow-strong)' : 'url(#nst-country-glow)';
+              <Geographies geography={worldAtlas}>
+                {({ geographies }) =>
+                  geographies.map((geo) => {
+                    const region = findRegionByGeo(geo);
+                    const isActive = Boolean(region);
+                    const isFocused = region?.id === activeRegionId;
+                    const isUpcoming = region?.type === 'upcoming';
+
+                    return (
+                      <Geography
+                        key={geo.rsmKey}
+                        geography={geo}
+                        onMouseEnter={() => region && handleEnter(region.id)}
+                        style={{
+                          default: {
+                            fill: isActive
+                              ? isUpcoming
+                                ? 'url(#nst-upcoming-country)'
+                                : 'url(#nst-active-country)'
+                              : 'rgba(255,255,255,0.045)',
+                            stroke: isFocused ? 'rgba(255,246,224,0.96)' : 'rgba(200,169,107,0.24)',
+                            strokeWidth: isFocused ? 1.45 : isActive ? 1.1 : 0.72,
+                            opacity: isFocused ? 1 : isActive ? 0.9 : 0.62,
+                            outline: 'none',
+                            filter: isFocused ? 'url(#nst-region-glow)' : 'none',
+                            transition: 'all 260ms ease',
+                          },
+                          hover: { outline: 'none' },
+                          pressed: { outline: 'none' },
+                        }}
+                      />
+                    );
+                  })
                 }
+              </Geographies>
 
-                if (isUpcomingRegion) {
-                  fill = 'url(#nst-upcoming-fill)';
-                  stroke = isFocused ? 'rgba(233,212,164,0.9)' : 'rgba(200,169,107,0.54)';
-                  opacity = isFocused ? 0.93 : 0.72;
-                  strokeWidth = isFocused ? 1.08 : 0.95;
-                  filter = isFocused ? 'url(#nst-country-glow)' : 'none';
-                }
+              {REGION_DATA.map((region) => {
+                const isFocused = region.id === activeRegionId;
+                const isUpcoming = region.type === 'upcoming';
 
                 return (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    onMouseEnter={() => {
-                      if (matchedRegion) handleEnter(matchedRegion.name);
-                    }}
-                    onMouseLeave={handleLeave}
-                    onClick={() => {
-                      if (matchedRegion) handleEnter(matchedRegion.name);
-                    }}
-                    style={{
-                      default: {
-                        fill,
-                        stroke,
-                        opacity,
-                        strokeWidth,
-                        outline: 'none',
-                        transition: 'opacity 240ms ease, fill 240ms ease, stroke 240ms ease, stroke-width 240ms ease, filter 240ms ease',
-                        filter,
-                      },
-                      hover: {
-                        fill,
-                        stroke,
-                        opacity,
-                        strokeWidth,
-                        outline: 'none',
-                        filter,
-                      },
-                      pressed: {
-                        fill,
-                        stroke,
-                        opacity,
-                        strokeWidth,
-                        outline: 'none',
-                        filter,
-                      },
-                    }}
-                  />
-                );
-              })
-            }
-          </Geographies>
-
-          {allRegions.map((region) => {
-            const isUpcoming = region.status === 'upcoming';
-            const isFocused = activeCountry === region.name;
-            const markerCoordinates = REGION_CONFIG[region.name]?.coordinates || [region.lng, region.lat];
-
-            return (
-              <Marker
-                key={region.name}
-                coordinates={markerCoordinates}
-                onMouseEnter={() => handleEnter(region.name)}
-                onMouseLeave={handleLeave}
-                onClick={() => handleEnter(region.name)}
-              >
-                <g style={{ cursor: 'pointer' }}>
-                  <title>{region.name}</title>
-                  <circle
-                    r={isUpcoming ? 12 : 13}
-                    fill={isUpcoming ? 'rgba(200,169,107,0.12)' : 'rgba(200,169,107,0.24)'}
-                    stroke={isUpcoming ? (isFocused ? 'rgba(220,194,142,0.72)' : 'rgba(200,169,107,0.35)') : (isFocused ? 'rgba(255,245,219,1)' : 'rgba(244,223,178,0.82)')}
-                    strokeWidth={isUpcoming ? (isFocused ? 1.15 : 1) : (isFocused ? 1.65 : 1.4)}
-                    strokeDasharray={isUpcoming ? '2 3' : '0'}
-                    style={{
-                      transition: 'stroke 220ms ease, stroke-width 220ms ease, fill 220ms ease, filter 220ms ease, opacity 220ms ease',
-                      filter: isFocused
-                        ? `drop-shadow(0 0 ${isUpcoming ? 12 : 18}px rgba(244,223,178,0.72))`
-                        : isUpcoming
-                          ? 'drop-shadow(0 0 6px rgba(200,169,107,0.24))'
-                          : 'drop-shadow(0 0 10px rgba(200,169,107,0.36))',
-                    }}
-                  />
-                  <circle
-                    r={isUpcoming ? 4.2 : 5}
-                    fill={isUpcoming ? (isFocused ? 'rgba(241,221,181,0.94)' : 'rgba(224,197,145,0.72)') : (isFocused ? '#fff4da' : '#f4dfb2')}
-                    style={{
-                      transition: 'fill 220ms ease, filter 220ms ease, opacity 220ms ease',
-                      filter: isFocused ? 'drop-shadow(0 0 8px rgba(255,244,218,0.88))' : 'none',
-                    }}
-                  />
-                  <circle
-                    r={isUpcoming ? 8.4 : 9.4}
-                    fill="none"
-                    stroke={isUpcoming ? (isFocused ? 'rgba(233,212,164,0.7)' : 'rgba(200,169,107,0.44)') : (isFocused ? 'rgba(255,245,219,0.98)' : 'rgba(244,223,178,0.92)')}
-                    strokeWidth={isUpcoming ? (isFocused ? 1.1 : 0.95) : (isFocused ? 1.3 : 1.15)}
-                    strokeDasharray={isUpcoming ? '3 3' : '0'}
-                    opacity={isUpcoming ? (isFocused ? 0.88 : 0.62) : (isFocused ? 1 : 0.88)}
-                    style={{
-                      transition: 'stroke 220ms ease, stroke-width 220ms ease, opacity 220ms ease',
-                    }}
+                  <Marker
+                    key={region.id}
+                    coordinates={region.coordinates}
+                    onMouseEnter={() => handleEnter(region.id)}
                   >
-                    <animate
-                      attributeName="r"
-                      values={isFocused ? (isUpcoming ? '8.4;12;8.4' : '9.4;15.25;9.4') : isUpcoming ? '8.4;10.2;8.4' : '9.4;12.4;9.4'}
-                      dur={isUpcoming ? '2.8s' : '2.1s'}
-                      repeatCount="indefinite"
-                    />
-                    <animate
-                      attributeName="opacity"
-                      values={isFocused ? (isUpcoming ? '0.88;0.44;0.88' : '1;0.36;1') : isUpcoming ? '0.62;0.24;0.62' : '0.88;0.28;0.88'}
-                      dur={isUpcoming ? '2.8s' : '2.1s'}
-                      repeatCount="indefinite"
-                    />
-                  </circle>
-                </g>
-              </Marker>
-            );
-          })}
-        </ComposableMap>
+                    <g style={{ cursor: 'pointer' }}>
+                      <circle
+                        r={isFocused ? 13 : 10.5}
+                        fill={isUpcoming ? 'rgba(205,174,112,0.19)' : 'rgba(205,174,112,0.28)'}
+                        stroke={isFocused ? 'rgba(255,244,218,1)' : 'rgba(205,174,112,0.8)'}
+                        strokeWidth={isFocused ? 1.6 : 1.15}
+                        style={{
+                          transition: 'all 240ms ease',
+                          filter: isFocused
+                            ? 'drop-shadow(0 0 16px rgba(245,223,175,0.82))'
+                            : 'drop-shadow(0 0 8px rgba(200,169,107,0.45))',
+                        }}
+                      />
+                      <circle
+                        r={isFocused ? 5.2 : 4.4}
+                        fill={isFocused ? '#fff4de' : '#ebcd90'}
+                        style={{ transition: 'all 240ms ease' }}
+                      />
+                      <circle
+                        r={isFocused ? 15.5 : 12}
+                        fill="none"
+                        stroke={isFocused ? 'rgba(255,244,218,0.95)' : 'rgba(205,174,112,0.68)'}
+                        strokeWidth={isFocused ? 1.2 : 1}
+                        opacity={isFocused ? 1 : 0.8}
+                      >
+                        <animate attributeName="r" values="12;16.5;12" dur="2.4s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.85;0.3;0.85" dur="2.4s" repeatCount="indefinite" />
+                      </circle>
+                    </g>
+
+                    {isFocused ? (
+                      <foreignObject
+                        width={320}
+                        height={210}
+                        style={{
+                          transform: getTooltipTranslate(region.id),
+                          pointerEvents: 'none',
+                          transition: 'opacity 240ms ease',
+                          opacity: 1,
+                          overflow: 'visible',
+                        }}
+                      >
+                        <div className="rounded-2xl border border-[rgba(216,183,118,0.6)] bg-[linear-gradient(150deg,rgba(20,20,24,0.95),rgba(12,12,15,0.9))] p-4 shadow-[0_0_34px_rgba(200,169,107,0.2)] backdrop-blur-xl">
+                          <p className="text-[0.67rem] font-semibold tracking-[0.24em] text-[#d8bd86]">{region.title}</p>
+                          <div className="mt-3 h-px w-full bg-[linear-gradient(90deg,rgba(216,189,134,0.55),transparent)]" />
+                          <div className="mt-3 space-y-1.5 text-[0.84rem] leading-6 text-[#e6dbc2]">
+                            {region.tooltip.map((line, idx) => (
+                              <p key={`${region.id}-tip-${idx}`} className={idx === 0 || idx === 2 ? 'font-medium text-[#f3e8cc]' : ''}>
+                                {line || '\u00a0'}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      </foreignObject>
+                    ) : null}
+                  </Marker>
+                );
+              })}
+
+              <Annotation
+                subject={REGION_DATA[2].coordinates}
+                dx={30}
+                dy={30}
+                connectorProps={{ stroke: 'rgba(200,169,107,0.35)', strokeWidth: 1, strokeLinecap: 'round' }}
+              />
+            </ComposableMap>
+          </div>
+
+          <div className="space-y-3">
+            {REGION_DATA.map((region) => {
+              const isFocused = region.id === activeRegionId;
+              return (
+                <button
+                  key={region.id}
+                  type="button"
+                  onMouseEnter={() => handleEnter(region.id)}
+                  className={`group w-full rounded-[1.2rem] border px-5 py-5 text-left transition duration-300 ${
+                    isFocused
+                      ? 'border-[rgba(216,183,118,0.72)] bg-[linear-gradient(140deg,rgba(38,33,24,0.74),rgba(24,21,17,0.7))] shadow-[0_0_24px_rgba(200,169,107,0.22)]'
+                      : 'border-[rgba(200,169,107,0.24)] bg-[rgba(20,20,24,0.82)] hover:border-[rgba(216,183,118,0.5)]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <h3 className={`nst-display text-[1.18rem] tracking-[0.02em] ${isFocused ? 'text-[#f6e8c5]' : 'text-[#f0e2c0]'}`}>
+                      {region.title}
+                    </h3>
+                    {region.type === 'upcoming' ? (
+                      <span className="rounded-full border border-[rgba(216,183,118,0.58)] bg-[rgba(200,169,107,0.12)] px-2.5 py-1 text-[0.58rem] font-semibold tracking-[0.16em] text-[#e7cf9b]">
+                        UPCOMING
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-3 text-[0.81rem] leading-6 text-[#d2cab8]">{region.description}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </Reveal>
-
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <Reveal className="rounded-[1.6rem] border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.02)] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#d8bd86]">Active Regions</p>
-          <div className="mt-5 grid grid-cols-1 border-t border-[rgba(200,169,107,0.18)] md:grid-cols-2 xl:grid-cols-3">
-            {activeRegions.map((region, index) => {
-              const isFocused = activeCountry === region.name;
-              return (
-                <button
-                  key={region.name}
-                  type="button"
-                  onMouseEnter={() => handleEnter(region.name)}
-                  onMouseLeave={handleLeave}
-                  onClick={() => handleEnter(region.name)}
-                  className={`group relative border-b border-[rgba(200,169,107,0.14)] px-5 py-6 text-left transition duration-500 md:border-r ${
-                    isFocused
-                      ? 'bg-[rgba(200,169,107,0.12)] shadow-[0_0_24px_rgba(200,169,107,0.18)]'
-                      : 'bg-transparent hover:bg-[rgba(255,255,255,0.02)]'
-                  }`}
-                >
-                  <div className={`absolute inset-x-0 top-0 h-px origin-left bg-[#c8a96b] transition duration-500 ${isFocused ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'}`} />
-                  <div className="text-[0.72rem] uppercase tracking-[0.35em] text-[#8f8469]">{String(index + 1).padStart(2, '0')}</div>
-                  <h3 className="mt-8 nst-display text-[1.85rem] leading-[1.05] text-white">{region.name}</h3>
-                </button>
-              );
-            })}
-          </div>
-        </Reveal>
-
-        <Reveal className="rounded-[1.6rem] border border-[rgba(200,169,107,0.18)] bg-[rgba(255,255,255,0.015)] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#bca57a]">Upcoming Regions</p>
-          <div className="mt-5 grid grid-cols-1 border-t border-[rgba(200,169,107,0.16)] md:grid-cols-2 xl:grid-cols-3">
-            {upcomingRegions.map((region, index) => {
-              const isFocused = activeCountry === region.name;
-              return (
-                <button
-                  key={region.name}
-                  type="button"
-                  onMouseEnter={() => handleEnter(region.name)}
-                  onMouseLeave={handleLeave}
-                  onClick={() => handleEnter(region.name)}
-                  className={`group relative border-b border-[rgba(200,169,107,0.12)] px-5 py-6 text-left transition duration-500 md:border-r ${
-                    isFocused
-                      ? 'bg-[rgba(200,169,107,0.08)] shadow-[0_0_18px_rgba(200,169,107,0.12)]'
-                      : 'bg-transparent opacity-90 hover:bg-[rgba(255,255,255,0.015)]'
-                  }`}
-                >
-                  <div className={`absolute inset-x-0 top-0 h-px origin-left bg-[rgba(200,169,107,0.72)] transition duration-500 ${isFocused ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100'}`} />
-                  <div className="text-[0.72rem] uppercase tracking-[0.35em] text-[#8f8469]">{String(index + 1).padStart(2, '0')}</div>
-                  <h3 className="mt-8 nst-display text-[1.8rem] leading-[1.05] text-[#e9ddc3]">{region.name}</h3>
-                </button>
-              );
-            })}
-          </div>
-        </Reveal>
-      </div>
     </div>
   );
 }

@@ -33,65 +33,6 @@ const processSteps = [
   },
 ];
 
-const supportedRegions = [
-  {
-    name: 'United States',
-    status: 'active',
-    note: 'Live and actively supported through our structured placement pathway model.',
-    lng: -98.5795,
-    lat: 39.8283,
-  },
-  {
-    name: 'Germany',
-    status: 'active',
-    note: 'A flagship active region with strong candidate demand and established process pipelines.',
-    lng: 10.4515,
-    lat: 51.1657,
-  },
-  {
-    name: 'Poland',
-    status: 'active',
-    note: 'Open for actively progressing candidates with verified profile-readiness alignment.',
-    lng: 19.1451,
-    lat: 51.9194,
-  },
-  {
-    name: 'Austria',
-    status: 'active',
-    note: 'Currently active with selective intake under high-precision evaluation workflows.',
-    lng: 14.5501,
-    lat: 47.5162,
-  },
-  {
-    name: 'Switzerland',
-    status: 'active',
-    note: 'Active support for high-readiness candidates meeting language and role expectations.',
-    lng: 8.2275,
-    lat: 46.8182,
-  },
-  {
-    name: 'United Kingdom',
-    status: 'upcoming',
-    note: 'Upcoming market in our roadmap and currently in phased pre-activation planning.',
-    lng: -3.436,
-    lat: 55.3781,
-  },
-  {
-    name: 'Spain',
-    status: 'upcoming',
-    note: 'Planned for activation as part of the upcoming expansion phase.',
-    lng: -3.7492,
-    lat: 40.4637,
-  },
-  {
-    name: 'Italy',
-    status: 'upcoming',
-    note: 'Upcoming in our near-term Europe expansion sequence.',
-    lng: 12.5674,
-    lat: 41.8719,
-  },
-];
-
 const stats = [
   { value: '40+', label: 'Years of collective experience' },
   { value: '4', label: 'Global regions supported' },
@@ -220,18 +161,21 @@ export default function HomePage() {
               </p>
             </Reveal>
 
-            <WorldMapPanel regions={supportedRegions} />
+            <WorldMapPanel />
           </div>
         </section>
 
-        <section id="notice" className="nst-home-section px-6 py-24 text-center md:px-10 md:py-32">
-          <Reveal className="mx-auto max-w-[980px]">
-            <span className="nst-kicker">Important Notice</span>
-            <h2 className="mt-8 nst-display text-[2rem] leading-[1.18] tracking-[-0.03em] text-white sm:text-[2.55rem] md:text-[3.3rem]">
-              Due to the structured and selective nature of our process, only a {' '}
-              <span className="italic text-[#c8a96b]">limited number</span> of candidates are onboarded for each
-              cycle.
-            </h2>
+        <section id="notice" className="nst-home-section px-6 pb-8 pt-2 md:px-10 md:pb-12 md:pt-3">
+          <Reveal className="mx-auto max-w-[1180px]">
+            <div className="relative overflow-hidden rounded-[1.25rem] border border-[rgba(200,169,107,0.32)] bg-[linear-gradient(140deg,rgba(17,18,21,0.9),rgba(12,13,16,0.92))] px-6 py-5 text-center shadow-[0_0_30px_rgba(200,169,107,0.12)] backdrop-blur-xl md:px-10 md:py-6">
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(200,169,107,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(200,169,107,0.06)_1px,transparent_1px)] bg-[size:30px_30px] opacity-25" />
+              <div className="relative z-10 flex items-center justify-center gap-3">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#d8bd86] shadow-[0_0_14px_rgba(216,189,134,0.9)]" />
+                <p className="text-sm leading-7 text-[#e7dcc4] md:text-[1.02rem]">
+                  Due to the structured and selective nature of our process, only a limited number of candidates are onboarded for each cycle.
+                </p>
+              </div>
+            </div>
           </Reveal>
         </section>
 

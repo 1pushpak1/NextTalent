@@ -78,8 +78,6 @@ export default function EligibilityCheckPage() {
       answers.hasITBackground,
       answers.languageAnswer,
       answers.currentLocation,
-      answers.willingToRelocate,
-      answers.comfortableWithFees,
     ];
 
     if (country === 'Germany') baseRequired.push(answers.qualification);
@@ -95,11 +93,11 @@ export default function EligibilityCheckPage() {
       destination,
       country,
       hasITBackground: answers.hasITBackground === 'Yes',
-      qualification: country === 'Germany' ? answers.qualification : 'Not required for selected country',
+      qualification: country === 'Germany' ? answers.qualification : '',
       languageAnswer: answers.languageAnswer,
       currentLocation: answers.currentLocation,
-      willingToRelocate: answers.willingToRelocate === 'Yes',
-      comfortableWithFees: answers.comfortableWithFees === 'Yes',
+      ...(answers.willingToRelocate ? { willingToRelocate: answers.willingToRelocate === 'Yes' } : {}),
+      ...(answers.comfortableWithFees ? { comfortableWithFees: answers.comfortableWithFees === 'Yes' } : {}),
     };
 
     try {
@@ -313,8 +311,8 @@ export default function EligibilityCheckPage() {
                   />
                 )}
                 <Select required label="Current location" options={['Europe', 'Outside Europe']} value={answers.currentLocation} onChange={(e) => setAnswers({ ...answers, currentLocation: e.target.value })} />
-                <Select required label="Are you willing to relocate to the selected country?" options={['Yes', 'No']} value={answers.willingToRelocate} onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })} />
-                <Select required label="Are you comfortable with program/service fees for processing?" options={['Yes', 'No']} value={answers.comfortableWithFees} onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })} />
+                <Select label="Are you willing to relocate to the selected country?" options={['Yes', 'No']} value={answers.willingToRelocate} onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })} />
+                <Select label="Are you comfortable with program/service fees for processing?" options={['Yes', 'No']} value={answers.comfortableWithFees} onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })} />
               </div>
               <div className="mt-6 flex gap-2">
                 <Button

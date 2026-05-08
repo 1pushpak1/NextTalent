@@ -1,0 +1,124 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { runEligibilityCheck } = require('../utils/eligibilityRules');
+
+const base = {
+  destination: 'Europe Active',
+  hasITBackground: true,
+  qualification: '',
+  languageAnswer: '',
+  currentLocation: 'Europe',
+  willingToRelocate: false,
+  comfortableWithFees: false,
+};
+
+test('Germany: Yes + Bachelor + German B2 -> PASS', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    country: 'Germany',
+    qualification: 'Bachelor’s',
+    languageAnswer: 'Yes',
+  });
+  assert.equal(result.isEligible, true);
+  assert.deepEqual(result.failedConditions, []);
+});
+
+test('Germany: Yes + Bachelor + No German -> FAIL', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    country: 'Germany',
+    qualification: 'Bachelor’s',
+    languageAnswer: 'No',
+  });
+  assert.equal(result.isEligible, false);
+  assert.match(result.rejectionReason, /Certified German B2 or above must be Yes/);
+});
+
+test('Poland: Yes + English Yes + Europe -> PASS', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    country: 'Poland',
+    languageAnswer: 'Yes',
+    currentLocation: 'Europe',
+  });
+  assert.equal(result.isEligible, true);
+});
+
+test('Poland: Yes + English Yes + Outside Europe -> FAIL', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    country: 'Poland',
+    languageAnswer: 'Yes',
+    currentLocation: 'Outside Europe',
+  });
+  assert.equal(result.isEligible, false);
+  assert.match(result.rejectionReason, /Current location must be Europe/);
+});
+
+test('Switzerland: Yes + French B2 + Europe -> PASS', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    country: 'Switzerland',
+    languageAnswer: 'French B2 certified or above',
+    currentLocation: 'Europe',
+    qualification: '',
+  });
+  assert.equal(result.isEligible, true);
+});
+
+test('Switzerland: Yes + No language + Europe -> FAIL', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    country: 'Switzerland',
+    languageAnswer: 'No',
+    currentLocation: 'Europe',
+    qualification: '',
+  });
+  assert.equal(result.isEligible, false);
+  assert.match(result.rejectionReason, /Certified B2 or above in German, French, or Italian is required/);
+});
+
+test('Austria: Yes + German B2 + Europe -> PASS', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    country: 'Austria',
+    languageAnswer: 'Yes',
+    currentLocation: 'Europe',
+    qualification: '',
+  });
+  assert.equal(result.isEligible, true);
+});
+
+test('Austria: Yes + German B2 + Outside Europe -> FAIL', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    country: 'Austria',
+    languageAnswer: 'Yes',
+    currentLocation: 'Outside Europe',
+    qualification: '',
+  });
+  assert.equal(result.isEligible, false);
+  assert.match(result.rejectionReason, /Current location must be Europe/);
+});
+
+test('Relocation and fees do not affect eligibility', () => {
+  const passWithNoRelocationNoFees = runEligibilityCheck({
+    ...base,
+    country: 'Poland',
+    languageAnswer: 'Yes',
+    currentLocation: 'Europe',
+    willingToRelocate: false,
+    comfortableWithFees: false,
+  });
+  const passWithRelocationAndFees = runEligibilityCheck({
+    ...base,
+    country: 'Poland',
+    languageAnswer: 'Yes',
+    currentLocation: 'Europe',
+    willingToRelocate: true,
+    comfortableWithFees: true,
+  });
+
+  assert.equal(passWithNoRelocationNoFees.isEligible, true);
+  assert.equal(passWithRelocationAndFees.isEligible, true);
+});

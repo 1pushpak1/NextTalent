@@ -1,87 +1,6 @@
 const Eligibility = require('../models/Eligibility');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
-
-const acceptedQualifications = [
-  'Diploma with one year practical training',
-  'Bachelor’s',
-  'Master’s',
-  "Bachelor's",
-];
-
-const runEligibilityCheck = ({
-  destination,
-  country,
-  hasITBackground,
-  qualification,
-  languageAnswer,
-  currentLocation,
-  willingToRelocate,
-  comfortableWithFees,
-}) => {
-  if (!destination) {
-    return { isEligible: false, rejectionReason: 'Destination is required.' };
-  }
-  if (!country) {
-    return { isEligible: false, rejectionReason: 'Country is required.' };
-  }
-  if (destination !== 'Europe Active') {
-    return { isEligible: false, rejectionReason: 'Selected destination is not open yet.' };
-  }
-
-  const baseChecks =
-    hasITBackground === true &&
-    acceptedQualifications.includes(qualification) &&
-    willingToRelocate === true &&
-    comfortableWithFees === true;
-
-  if (country === 'Germany') {
-    const qualificationOk = acceptedQualifications.includes(qualification);
-    const languageOk = languageAnswer === 'Yes';
-    const isEligible = hasITBackground === true && qualificationOk && languageOk;
-    return {
-      isEligible,
-      rejectionReason: isEligible
-        ? ''
-        : 'Germany requires an IT background, an accepted qualification, and certified German B2 or above.',
-    };
-  }
-
-  if (country === 'Poland') {
-    const languageOk = languageAnswer === 'Yes';
-    const locationOk = currentLocation === 'Europe';
-    const isEligible = hasITBackground === true && languageOk && locationOk;
-    return {
-      isEligible,
-      rejectionReason: isEligible ? '' : 'Poland requires an IT background, Europe location, and professional English proficiency.',
-    };
-  }
-
-  if (!baseChecks) {
-    return { isEligible: false, rejectionReason: 'General eligibility criteria not met.' };
-  }
-
-  if (country === 'Switzerland') {
-    const languageOk = languageAnswer !== 'No';
-    const locationOk = currentLocation === 'Europe';
-    const isEligible = hasITBackground === true && languageOk && locationOk;
-    return {
-      isEligible,
-      rejectionReason: isEligible ? '' : 'Switzerland requires an IT background, Europe location, and certified B2 or above in German, French, or Italian.',
-    };
-  }
-
-  if (country === 'Austria') {
-    const languageOk = languageAnswer === 'Yes';
-    const locationOk = currentLocation === 'Europe';
-    const isEligible = hasITBackground === true && languageOk && locationOk;
-    return {
-      isEligible,
-      rejectionReason: isEligible ? '' : 'Austria requires an IT background, Europe location, and certified German B2 or above.',
-    };
-  }
-
-  return { isEligible: false, rejectionReason: 'Unsupported country.' };
-};
+const { runEligibilityCheck } = require('../utils/eligibilityRules');
 
 const checkEligibility = async (req, res) => {
   try {
@@ -97,9 +16,12 @@ const checkEligibility = async (req, res) => {
       qualification: String(req.body?.qualification || '').trim(),
       languageAnswer: String(req.body?.languageAnswer || '').trim(),
       currentLocation: String(req.body?.currentLocation || '').trim(),
-      willingToRelocate: Boolean(req.body?.willingToRelocate),
-      comfortableWithFees: Boolean(req.body?.comfortableWithFees),
+      willingToRelocate:
+        typeof req.body?.willingToRelocate === 'boolean' ? req.body.willingToRelocate : null,
+      comfortableWithFees:
+        typeof req.body?.comfortableWithFees === 'boolean' ? req.body.comfortableWithFees : null,
     };
+
     const result = runEligibilityCheck(payload);
 
     const record = await Eligibility.create({
@@ -115,6 +37,7 @@ const checkEligibility = async (req, res) => {
       comfortableWithFees: payload.comfortableWithFees,
       isEligible: result.isEligible,
       rejectionReason: result.rejectionReason,
+      failedConditions: result.failedConditions,
     });
 
     await sendStepUpdateEmail({
