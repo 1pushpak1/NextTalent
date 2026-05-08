@@ -18,7 +18,7 @@ const paymentRouteNotice = {
   '/payment/program-fee': {
     title: 'Program fee required',
     description: 'Please complete the program fee payment before the next processing stage. Your dashboard and profile are still accessible.',
-    cta: 'Pay Program Fee USD 3,500',
+    cta: 'Pay Program Fee',
   },
   '/payment/final-payment': {
     title: 'Final payment required',
@@ -59,6 +59,8 @@ const selectionBannerConfig = {
 };
 
 const isLegacyInterviewStage = (name = '') => /interview/i.test(String(name).trim());
+const isIndiaResidence = (value = '') => String(value || '').trim().toLowerCase() === 'india';
+const formatUsd = (amount) => `USD ${Number(amount || 0).toLocaleString('en-US')}`;
 
 export default function CandidateDashboardPage() {
   const [data, setData] = useState(null);
@@ -67,6 +69,8 @@ export default function CandidateDashboardPage() {
     data?.profile?.personalDetails?.firstName ||
     user?.name?.split?.(' ')?.[0] ||
     (user?.email?.split?.('@')?.[0] || 'Candidate');
+  const currentCountryOfResidence = data?.profile?.personalDetails?.currentCountryOfResidence || '';
+  const programTotal = isIndiaResidence(currentCountryOfResidence) ? 3800 : 3600;
 
   useEffect(() => {
     api
@@ -106,6 +110,9 @@ export default function CandidateDashboardPage() {
   const requiredRoute = getCandidateNextRoute(data);
   const failedPaymentRoute = programFailed ? '/payment/program-fee' : finalFailed ? '/payment/final-payment' : '';
   const paymentNotice = paymentRouteNotice[requiredRoute] || null;
+  const dynamicPaymentNotice = paymentNotice && requiredRoute === '/payment/program-fee'
+    ? { ...paymentNotice, cta: `Pay Program Fee ${formatUsd(programTotal)}` }
+    : paymentNotice;
   const failedPaymentNotice = programFailed || finalFailed
     ? {
         title: 'Payment Not Received',
@@ -214,7 +221,7 @@ export default function CandidateDashboardPage() {
               )}
               {!journeyLocked && data?.candidate?.status === 'documents_received' && !programPaid && (
                 <Link to="/payment/program-fee">
-                  <Button>Pay USD 3,500</Button>
+                  <Button>Pay {formatUsd(programTotal)}</Button>
                 </Link>
               )}
             </div>
@@ -279,13 +286,13 @@ export default function CandidateDashboardPage() {
             )
           )}
 
-          {(failedPaymentNotice || paymentNotice) && (
+          {(failedPaymentNotice || dynamicPaymentNotice) && (
             <section className={`mb-8 rounded-xl border p-5 ${failedPaymentNotice ? 'border-rose-300 bg-rose-50' : 'border-amber-300 bg-amber-50'}`}>
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Action Required</p>
-              <h2 className={`mt-1 text-xl font-bold ${failedPaymentNotice ? 'text-rose-900' : 'text-amber-900'}`}>{(failedPaymentNotice || paymentNotice).title}</h2>
-              <p className={`mt-1 text-sm ${failedPaymentNotice ? 'text-rose-900' : 'text-amber-900'}`}>{(failedPaymentNotice || paymentNotice).description}</p>
+              <h2 className={`mt-1 text-xl font-bold ${failedPaymentNotice ? 'text-rose-900' : 'text-amber-900'}`}>{(failedPaymentNotice || dynamicPaymentNotice).title}</h2>
+              <p className={`mt-1 text-sm ${failedPaymentNotice ? 'text-rose-900' : 'text-amber-900'}`}>{(failedPaymentNotice || dynamicPaymentNotice).description}</p>
               <Link className="mt-3 inline-block" to={failedPaymentNotice ? failedPaymentRoute : requiredRoute}>
-                <Button>{(failedPaymentNotice || paymentNotice).cta}</Button>
+                <Button>{(failedPaymentNotice || dynamicPaymentNotice).cta}</Button>
               </Link>
             </section>
           )}

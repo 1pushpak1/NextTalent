@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Document = require('../models/Document');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
+const { getProgramFeeBreakdown } = require('../utils/programFee');
 const Stripe = require('stripe');
 const fs = require('fs');
 const path = require('path');
@@ -10,7 +11,6 @@ const multer = require('multer');
 
 const amountByType = {
   initial: 500,
-  program: 3500,
   final: 4000,
 };
 
@@ -44,13 +44,18 @@ const getStripeClient = () => {
   return new Stripe(process.env.STRIPE_SECRET_KEY);
 };
 
+const getDefaultAmountForType = (type) => {
+  if (type === 'program') return getProgramFeeBreakdown(null).total;
+  return amountByType[type];
+};
+
 const saveCompletedPayment = async (session, fallback = {}) => {
   const metadata = session.metadata || {};
   const userId = metadata.userId || fallback.userId;
   const type = metadata.type || fallback.type;
   const method = metadata.method || fallback.method || 'card';
 
-  if (!userId || !type || !amountByType[type]) {
+  if (!userId || !type || !getDefaultAmountForType(type)) {
     throw new Error('Missing payment metadata in checkout session');
   }
 
@@ -58,7 +63,11 @@ const saveCompletedPayment = async (session, fallback = {}) => {
   const existing = await Payment.findOne({ transactionId });
   if (existing) return existing;
 
-  const amount = typeof session.amount_total === 'number' ? session.amount_total / 100 : amountByType[type];
+  let amount = typeof session.amount_total === 'number' ? session.amount_total / 100 : getDefaultAmountForType(type);
+  if (type === 'program' && typeof session.amount_total !== 'number') {
+    const profile = await Profile.findOne({ userId }).sort({ createdAt: -1 }).lean();
+    amount = getProgramFeeBreakdown(profile).total;
+  }
 
   const payment = await Payment.create({
     userId,
@@ -105,7 +114,7 @@ const createPaymentIntent = async (req, res) => {
   try {
     const stripe = getStripeClient();
     const { type, method = 'card' } = req.body;
-    if (!amountByType[type]) {
+    if (!getDefaultAmountForType(type)) {
       return res.status(400).json({ message: 'Invalid payment type' });
     }
     if (type !== 'initial') {
@@ -132,7 +141,7 @@ const createPaymentIntent = async (req, res) => {
           quantity: 1,
           price_data: {
             currency: 'usd',
-            unit_amount: amountByType[type] * 100,
+            unit_amount: getDefaultAmountForType(type) * 100,
             product_data: {
               name: `NextStep Talent - ${type.charAt(0).toUpperCase() + type.slice(1)} Payment`,
             },
@@ -151,7 +160,7 @@ const createPaymentIntent = async (req, res) => {
     res.json({
       sessionId: session.id,
       checkoutUrl: session.url,
-      amount: amountByType[type],
+      amount: getDefaultAmountForType(type),
       currency: 'USD',
       method,
       provider: 'stripe_checkout',
@@ -171,10 +180,11 @@ const submitBankTransferPayment = async (req, res) => {
       return res.status(400).json({ message: 'Transfer receipt file is required' });
     }
 
-    const [payments, user, docs] = await Promise.all([
+    const [payments, user, docs, profile] = await Promise.all([
       Payment.find({ userId: req.user._id }),
       User.findById(req.user._id),
       Document.find({ userId: req.user._id }),
+      Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
     ]);
     const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
     const hasProgramCompleted = payments.some((p) => p.type === 'program' && p.status === 'completed');
@@ -192,10 +202,13 @@ const submitBankTransferPayment = async (req, res) => {
       if (hasFinalCompleted) return res.status(400).json({ message: 'Final payment already completed' });
     }
 
+    const programFeeBreakdown = type === 'program' ? getProgramFeeBreakdown(profile) : null;
+    const paymentAmount = type === 'program' ? programFeeBreakdown.total : amountByType[type];
+
     const payment = await Payment.create({
       userId: req.user._id,
       type,
-      amount: amountByType[type],
+      amount: paymentAmount,
       currency: 'USD',
       method: 'bank_transfer',
       status: 'pending',
@@ -210,12 +223,19 @@ const submitBankTransferPayment = async (req, res) => {
       stepKey: type === 'program' ? 'program_payment' : 'final_payment',
       heading: 'Payment receipt uploaded',
       message: type === 'program'
-        ? 'Your USD 3,500 payment receipt has been uploaded successfully and is now pending admin approval.'
+        ? `Your USD ${paymentAmount} payment receipt has been uploaded successfully and is now pending admin approval.`
         : 'Your payment receipt has been uploaded successfully and is now pending admin approval.',
       status: 'pending',
       details: [
         { label: 'Payment Type', value: type },
-        { label: 'Amount', value: `USD ${amountByType[type]}` },
+        { label: 'Amount', value: `USD ${paymentAmount}` },
+        ...(type === 'program'
+          ? [
+              { label: 'Program Fee', value: `USD ${programFeeBreakdown.baseProgramFee}` },
+              { label: 'Background Verification', value: `USD ${programFeeBreakdown.backgroundVerificationFee}` },
+              { label: 'India Compliance Surcharge', value: `USD ${programFeeBreakdown.indiaComplianceSurcharge}` },
+            ]
+          : []),
         { label: 'Reference', value: String(bankReference || '—') },
       ],
       cta: { label: 'View Payment History', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/payment-history` },

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -15,14 +15,35 @@ const BANK_DETAILS = {
   iban: 'DE89370400440532013000',
 };
 
-const PROGRAM_FEE_AMOUNT = 'USD 3,500';
+const PROGRAM_FEE_BASE_USD = 3500;
+const BACKGROUND_VERIFICATION_USD = 100;
+const INDIA_COMPLIANCE_SURCHARGE_USD = 200;
+
+const formatUsd = (amount) => `USD ${Number(amount || 0).toLocaleString('en-US')}`;
+const isIndiaResidence = (value = '') => String(value || '').trim().toLowerCase() === 'india';
+
+function InfoTooltip({ text }) {
+  return (
+    <span className="group relative inline-flex">
+      <span className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-[#002147]/35 bg-white text-[11px] font-bold text-[#002147]">i</span>
+      <span className="pointer-events-none absolute left-1/2 top-[calc(100%+10px)] z-20 w-60 -translate-x-1/2 rounded-lg border border-black/70 bg-black p-2 text-xs font-medium leading-5 text-white opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100">
+        {text}
+      </span>
+    </span>
+  );
+}
 
 export default function ProgramFeePaymentPage() {
   const [loading, setLoading] = useState(false);
   const [bankReference, setBankReference] = useState('');
   const [receipt, setReceipt] = useState(null);
+  const [countryOfResidence, setCountryOfResidence] = useState('');
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
+
+  const indiaResident = useMemo(() => isIndiaResidence(countryOfResidence), [countryOfResidence]);
+  const indiaSurcharge = indiaResident ? INDIA_COMPLIANCE_SURCHARGE_USD : 0;
+  const totalProgramFee = PROGRAM_FEE_BASE_USD + BACKGROUND_VERIFICATION_USD + indiaSurcharge;
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -32,6 +53,8 @@ export default function ProgramFeePaymentPage() {
     const guard = async () => {
       try {
         const { data } = await api.get('/dashboard/me');
+        const country = data?.profile?.personalDetails?.currentCountryOfResidence || '';
+        setCountryOfResidence(country);
         const required = getCandidateNextRoute(data);
         if (required !== '/payment/program-fee') {
           navigate(required, { replace: true });
@@ -78,12 +101,49 @@ export default function ProgramFeePaymentPage() {
         <div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-6 px-6 lg:grid-cols-12">
           <section className="nst-card rounded-xl p-6 lg:col-span-8">
             <h1 className="mb-2 text-4xl font-bold text-[#002147]">Program Fee Payment</h1>
-            <p className="mb-4 text-[#44474e]">Transfer {PROGRAM_FEE_AMOUNT} to the account below, then upload your transfer receipt.</p>
+            <p className="mb-4 text-[#44474e]">Transfer {formatUsd(totalProgramFee)} to the account below, then upload your transfer receipt.</p>
 
             <div className="mb-6 rounded-xl border border-[#002147]/20 bg-[#002147]/5 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#002147]">Amount To Pay</p>
-              <p className="mt-1 text-3xl font-extrabold text-[#002147]">{PROGRAM_FEE_AMOUNT}</p>
-              {/* <p className="mt-1 text-sm text-slate-700">Please transfer exactly this amount before submitting the receipt.</p> */}
+              <p className="mt-1 text-3xl font-extrabold text-[#002147]">{formatUsd(totalProgramFee)}</p>
+              <p className="mt-1 text-sm text-slate-700">Please transfer exactly this total amount before submitting the receipt.</p>
+            </div>
+
+            <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#002147]">Fee Breakdown</p>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                  <span className="font-medium text-slate-700">Program Fee</span>
+                  <span className="font-semibold text-slate-900">{formatUsd(PROGRAM_FEE_BASE_USD)}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                  <span className="flex items-center gap-2 font-medium text-slate-700">
+                    Background Verification
+                    <InfoTooltip text="This covers candidate background verification processing before onward program actions." />
+                  </span>
+                  <span className="font-semibold text-slate-900">{formatUsd(BACKGROUND_VERIFICATION_USD)}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                  <span className="flex items-center gap-2 font-medium text-slate-700">
+                    India Residence Compliance Fee
+                    <InfoTooltip text="Applied only when your current country of residence is India, for additional local compliance handling." />
+                  </span>
+                  <span className="font-semibold text-slate-900">
+                    {indiaResident ? formatUsd(INDIA_COMPLIANCE_SURCHARGE_USD) : `${formatUsd(0)} (Not Applicable)`}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 border-t border-slate-200 pt-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold uppercase tracking-[0.12em] text-[#002147]">Total Payable</span>
+                  <span className="text-xl font-extrabold text-[#002147]">{formatUsd(totalProgramFee)}</span>
+                </div>
+                {!!countryOfResidence && (
+                  <p className="mt-2 text-xs text-slate-600">
+                    Current Country of Residence: <span className="font-semibold text-slate-800">{countryOfResidence}</span>
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm md:grid-cols-2">
@@ -121,7 +181,7 @@ export default function ProgramFeePaymentPage() {
               </div>
             </div>
 
-            <Button className="mt-6 text-white" onClick={submit} disabled={loading}>{loading ? 'Submitting...' : `Submit ${PROGRAM_FEE_AMOUNT} Receipt`}</Button>
+            <Button className="mt-6 text-white" onClick={submit} disabled={loading}>{loading ? 'Submitting...' : `Submit ${formatUsd(totalProgramFee)} Receipt`}</Button>
           </section>
 
           <aside className="rounded-xl bg-[#002147] p-6 text-white lg:col-span-4">

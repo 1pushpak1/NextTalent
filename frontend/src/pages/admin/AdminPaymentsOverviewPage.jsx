@@ -60,7 +60,7 @@ export default function AdminPaymentsOverviewPage() {
         <h2 className="text-lg font-semibold text-slate-900">Payment Subsections</h2>
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           <Link className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium hover:bg-slate-50" to="/admin/payments/initial">Initial Payment ($500)</Link>
-          <Link className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium hover:bg-slate-50" to="/admin/payments/program">Program Payment ($3500)</Link>
+          <Link className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium hover:bg-slate-50" to="/admin/payments/program">Program Payment (USD 3,600 / 3,800)</Link>
           <Link className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium hover:bg-slate-50" to="/admin/payments/final">Final Payment ($4000)</Link>
         </div>
       </div>

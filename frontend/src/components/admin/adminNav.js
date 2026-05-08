@@ -1,16 +1,16 @@
 export const adminMainNav = [
-  { label: 'Dashboard', to: '/admin/dashboard' },
-  { label: 'Candidates', to: '/admin/candidates' },
-  { label: 'Internal Evaluation', to: '/admin/evaluation' },
-  { label: 'Document Verification', to: '/admin/document-verification' },
-  { label: 'Hiring Partner Stage', to: '/admin/hiring' },
-  { label: 'Selection Results', to: '/admin/selection' },
-  { label: 'Testimonials', to: '/admin/testimonials' },
+  { label: 'Dashboard', to: '/admin/dashboard', requiredPermission: 'candidates:read' },
+  { label: 'Candidates', to: '/admin/candidates', requiredPermission: 'candidates:read' },
+  { label: 'Internal Evaluation', to: '/admin/evaluation', requiredPermission: 'evaluation:approve' },
+  { label: 'Document Verification', to: '/admin/document-verification', requiredPermission: 'documents:verify' },
+  { label: 'Hiring Partner Stage', to: '/admin/hiring', requiredPermission: 'candidates:update' },
+  { label: 'Selection Results', to: '/admin/selection', requiredRoles: ['super_admin', 'payment_admin'] },
+  { label: 'Testimonials', to: '/admin/testimonials', requiredPermission: 'candidates:read' },
 ];
 
 export const adminPaymentNav = [
-  { label: 'Overview', to: '/admin/payments' },
-  { label: 'Initial Payment ($500)', to: '/admin/payments/initial' },
-  { label: 'Program Payment ($3500)', to: '/admin/payments/program' },
-  { label: 'Final Payment ($4000)', to: '/admin/payments/final' },
+  { label: 'Overview', to: '/admin/payments', requiredPermission: 'payments:verify' },
+  { label: 'Initial Payment ($500)', to: '/admin/payments/initial', requiredPermission: 'payments:verify' },
+  { label: 'Program Payment (USD 3,600 / 3,800)', to: '/admin/payments/program', requiredPermission: 'payments:verify' },
+  { label: 'Final Payment ($4000)', to: '/admin/payments/final', requiredPermission: 'payments:verify' },
 ];

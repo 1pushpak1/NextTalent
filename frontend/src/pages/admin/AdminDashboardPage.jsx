@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchAdminDashboardSummary } from '../../api/adminApi';
+import usePermissions from '../../hooks/usePermissions';
 
 const cardConfig = [
-  { key: 'totalApplications', label: 'Total Candidates', to: '/admin/candidates' },
-  { key: 'eligibleCandidates', label: 'Eligible Candidates', to: '/admin/candidates?profileStatus=accepted' },
-  { key: 'profilesPendingReview', label: 'Profiles Pending Review', to: '/admin/candidates?stage=profile_review&pendingFrom=admin' },
-  { key: 'paymentsPendingVerification', label: 'Payments Pending Verification', to: '/admin/candidates?paymentStatus=pending_verification' },
-  { key: 'documentsPendingVerification', label: 'Documents Pending Verification', to: '/admin/candidates?documentStatus=under_review&pendingFrom=admin' },
-  { key: 'interviewsPendingScheduled', label: 'Results Pending Announcement', to: '/admin/candidates?stage=selection' },
-  { key: 'selectedCandidates', label: 'Selected Candidates', to: '/admin/candidates?selectionStatus=selected' },
-  { key: 'rejectedCandidates', label: 'Rejected Candidates', to: '/admin/candidates?selectionStatus=rejected' },
-  { key: 'totalRevenue', label: 'Total Revenue' },
+  { key: 'totalApplications', label: 'Total Candidates', to: '/admin/candidates', requiredPermission: 'candidates:read' },
+  { key: 'eligibleCandidates', label: 'Eligible Candidates', to: '/admin/candidates?profileStatus=accepted', requiredPermission: 'evaluation:approve' },
+  { key: 'profilesPendingReview', label: 'Profiles Pending Review', to: '/admin/candidates?stage=profile_review&pendingFrom=admin', requiredPermission: 'evaluation:approve' },
+  { key: 'paymentsPendingVerification', label: 'Payments Pending Verification', to: '/admin/candidates?paymentStatus=pending_verification', requiredPermission: 'payments:verify' },
+  { key: 'documentsPendingVerification', label: 'Documents Pending Verification', to: '/admin/candidates?documentStatus=under_review&pendingFrom=admin', requiredPermission: 'documents:verify' },
+  { key: 'interviewsPendingScheduled', label: 'Results Pending Announcement', to: '/admin/candidates?stage=selection', requiredRoles: ['super_admin', 'payment_admin'] },
+  { key: 'selectedCandidates', label: 'Selected Candidates', to: '/admin/candidates?selectionStatus=selected', requiredRoles: ['super_admin', 'payment_admin'] },
+  { key: 'rejectedCandidates', label: 'Rejected Candidates', to: '/admin/candidates?selectionStatus=rejected', requiredRoles: ['super_admin', 'payment_admin'] },
+  { key: 'totalRevenue', label: 'Total Revenue', requiredPermission: 'payments:verify' },
 ];
 
 const formatDate = (value) => {
@@ -23,6 +24,7 @@ const formatDate = (value) => {
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
+  const { can, role } = usePermissions();
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
   const [summary, setSummary] = useState({
@@ -75,6 +77,13 @@ export default function AdminDashboardPage() {
     };
   }, [load]);
 
+  const visibleCards = cardConfig.filter((card) => {
+    if (card.requiredPermission && !can(card.requiredPermission)) return false;
+    if (Array.isArray(card.requiredRoles) && card.requiredRoles.length && !card.requiredRoles.includes(String(role || ''))) return false;
+    return true;
+  });
+  const showRecentPayments = can('payments:verify');
+
   return (
     <section className="space-y-5">
       <div>
@@ -83,7 +92,7 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {cardConfig.map((card) => (
+        {visibleCards.map((card) => (
           <button key={card.key} type="button" onClick={() => card.to && navigate(card.to)} className="rounded-xl border border-slate-200 bg-white p-4 text-left">
             <p className="text-xs uppercase tracking-wide text-slate-500">{card.label}</p>
             <p className="mt-2 text-2xl font-bold text-slate-900">
@@ -93,7 +102,7 @@ export default function AdminDashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className={`grid gap-4 ${showRecentPayments ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="text-lg font-semibold text-slate-900">Recent Applications</h2>
           {loading && <p className="mt-3 text-sm text-slate-500">Loading...</p>}
@@ -118,25 +127,27 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="text-lg font-semibold text-slate-900">Recent Payments</h2>
-          {loading && <p className="mt-3 text-sm text-slate-500">Loading...</p>}
-          {!loading && !summary.recentPayments.length && <p className="mt-3 text-sm text-slate-500">No recent payments.</p>}
-          {!loading && summary.recentPayments.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {summary.recentPayments.map((item) => (
-                <div key={item._id} className="rounded-lg border border-slate-200 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900">{item.candidateName}</p>
-                    <p className="text-xs text-slate-500">{formatDate(item.date)}</p>
+        {showRecentPayments && (
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <h2 className="text-lg font-semibold text-slate-900">Recent Payments</h2>
+            {loading && <p className="mt-3 text-sm text-slate-500">Loading...</p>}
+            {!loading && !summary.recentPayments.length && <p className="mt-3 text-sm text-slate-500">No recent payments.</p>}
+            {!loading && summary.recentPayments.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {summary.recentPayments.map((item) => (
+                  <div key={item._id} className="rounded-lg border border-slate-200 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-900">{item.candidateName}</p>
+                      <p className="text-xs text-slate-500">{formatDate(item.date)}</p>
+                    </div>
+                    <p className="text-xs text-slate-600">{item.type} • {item.currency} {item.amount} • {item.status}</p>
+                    <p className="text-xs text-slate-500">Txn: {item.transactionId || '—'}</p>
                   </div>
-                  <p className="text-xs text-slate-600">{item.type} • {item.currency} {item.amount} • {item.status}</p>
-                  <p className="text-xs text-slate-500">Txn: {item.transactionId || '—'}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

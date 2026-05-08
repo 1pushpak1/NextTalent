@@ -113,7 +113,7 @@ export default function DocumentsPage() {
 
             <aside className="space-y-4 lg:col-span-4">
               <div className="rounded-xl bg-[#002147] p-6 text-white">
-                <h4 className="mb-3 text-xl font-semibold">Pro Tips</h4>
+                <h4 className="mb-3 text-xl font-semibold">Note</h4>
                 <ul className="space-y-3 text-sm text-blue-100">
                   <li className="flex gap-2"><span className="material-symbols-outlined text-base">lightbulb</span> Only PDF format is supported.</li>
                   <li className="flex gap-2"><span className="material-symbols-outlined text-base">attach_file</span> Maximum file size is 10MB per document.</li>

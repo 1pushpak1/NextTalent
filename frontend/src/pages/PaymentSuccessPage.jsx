@@ -12,7 +12,7 @@ const contentByType = {
     label: 'Proceed to Declaration',
   },
   program: {
-    message: 'Thank you. Your payment of USD 3,500 has been received.',
+    message: 'Thank you. Your program fee payment has been received.',
     cta: '/candidate-dashboard',
     label: 'Go to Dashboard',
   },

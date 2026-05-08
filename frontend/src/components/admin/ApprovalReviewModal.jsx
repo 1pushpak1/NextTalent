@@ -50,7 +50,7 @@ export default function ApprovalReviewModal({
   const requiredEvidence = evidenceItems.filter((item) => item.required !== false);
   const evidenceViewed = requiredEvidence.length
     ? requiredEvidence.every((item) => viewedEvidence[item.key])
-    : false;
+    : true;
   const pendingChecks = [
     !evidenceViewed ? 'Open and review the required evidence.' : null,
     !note.trim() ? 'Add a decision reason or note.' : null,
@@ -109,22 +109,24 @@ export default function ApprovalReviewModal({
           </div>
         )}
 
-        <div>
-          <h4 className="text-sm font-semibold text-white">Submitted Evidence</h4>
-          <div className="mt-3 space-y-2">
-            {evidenceItems.map((item) => (
-              <div key={item.key} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-                <div>
-                  <p className="text-sm font-medium text-white">{item.label}</p>
-                  <p className="text-xs text-slate-400">{item.description || 'Open and review before deciding.'}</p>
+        {!!evidenceItems.length && (
+          <div>
+            <h4 className="text-sm font-semibold text-white">Submitted Evidence</h4>
+            <div className="mt-3 space-y-2">
+              {evidenceItems.map((item) => (
+                <div key={item.key} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">{item.label}</p>
+                    <p className="text-xs text-slate-400">{item.description || 'Open and review before deciding.'}</p>
+                  </div>
+                  <Button variant="adminSecondary" className="text-white" type="button" onClick={() => openEvidence(item)}>
+                    {viewedEvidence[item.key] ? 'Reviewed' : item.buttonLabel || 'Open Review'}
+                  </Button>
                 </div>
-                <Button variant="adminSecondary" type="button" onClick={() => openEvidence(item)}>
-                  {viewedEvidence[item.key] ? 'Reviewed' : item.buttonLabel || 'Open Review'}
-                </Button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-white" htmlFor="approval-note">Decision Reason / Note</label>
@@ -173,6 +175,7 @@ export default function ApprovalReviewModal({
             <Button
               key={option.value}
               variant={option.variant || 'primary'}
+              className={['Keep Under Review', 'Keep Pending'].includes(option.label) ? 'text-white' : ''}
               type="button"
               disabled={!note.trim() || !confirmed || !evidenceViewed || Boolean(submittingDecision)}
               onClick={() => submitDecision(option.value)}

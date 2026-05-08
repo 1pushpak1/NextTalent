@@ -114,7 +114,7 @@ export default function App() {
           <Route path="testimonials" element={<AdminStageCandidatesPage title="Testimonials" stageKey="testimonials" />} />
           <Route path="payments" element={<AdminPaymentsOverviewPage />} />
           <Route path="payments/initial" element={<AdminPaymentTypePage title="Initial Payment ($500)" type="initial" />} />
-          <Route path="payments/program" element={<AdminPaymentTypePage title="Program Payment ($3500)" type="program" />} />
+          <Route path="payments/program" element={<AdminPaymentTypePage title="Program Payment (USD 3,600 / USD 3,800 for India residence)" type="program" />} />
           <Route path="payments/final" element={<AdminPaymentTypePage title="Final Payment ($4000)" type="final" />} />
           <Route path="candidate/:id" element={<AdminCandidateProfilePage />} />
           <Route path="candidate/:id/edit" element={<AdminCandidatePage />} />

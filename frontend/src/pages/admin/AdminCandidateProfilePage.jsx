@@ -112,15 +112,22 @@ export default function AdminCandidateProfilePage() {
   const [profileReviewNote, setProfileReviewNote] = useState('');
   const [profileReviewConfirmed, setProfileReviewConfirmed] = useState(false);
   const [profileReviewSubmitting, setProfileReviewSubmitting] = useState('');
+  const [allowReviewedProfileEditor, setAllowReviewedProfileEditor] = useState(false);
   const [hiringPartnerDraft, setHiringPartnerDraft] = useState('');
   const [stageSaving, setStageSaving] = useState('');
 
   const currentParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const canViewAuditHistory = String(role || '') === 'super_admin';
-  const visibleTabs = useMemo(
-    () => (canViewAuditHistory ? tabs : tabs.filter((tab) => tab !== 'history')),
-    [canViewAuditHistory],
-  );
+  const visibleTabs = useMemo(() => {
+    const hiddenTabs = new Set();
+    if (!canViewAuditHistory) hiddenTabs.add('history');
+    if (String(role || '') === 'evaluation_admin') {
+      hiddenTabs.add('payments');
+      hiddenTabs.add('hiring');
+      hiddenTabs.add('selection');
+    }
+    return tabs.filter((tab) => !hiddenTabs.has(tab));
+  }, [canViewAuditHistory, role]);
   const activeTabParam = currentParams.get('tab');
   const tabFromUrl = visibleTabs.includes(activeTabParam) ? activeTabParam : 'overview';
   const [activeTab, setActiveTabState] = useState(tabFromUrl);
@@ -183,10 +190,17 @@ export default function AdminCandidateProfilePage() {
     ['selected', 'rejected'].includes(String(progress?.selectionStatus || '').toLowerCase());
 
   const filteredHistory = (types) => approvalHistory.filter((item) => types.includes(item.approvalType));
-  const isInlineProfileReview = activeTab === 'profile' && reviewParam === 'evaluation' && Boolean(profile) && can('evaluation:approve');
+  const isInlineProfileReview =
+    activeTab === 'profile' &&
+    reviewParam === 'evaluation' &&
+    Boolean(profile) &&
+    can('evaluation:approve') &&
+    (profile?.status !== 'accepted' && profile?.status !== 'rejected' ? true : allowReviewedProfileEditor);
   const profileReviewHistory = filteredHistory(['profile_evaluation']);
   const lastProfileReview = profileReviewHistory[0] || null;
-  const profileAlreadyReviewed = profile?.status === 'accepted' || profile?.status === 'rejected';
+  const profileAlreadyReviewed =
+    Boolean(lastProfileReview) ||
+    ['accepted', 'rejected', 'under_review'].includes(String(profile?.status || '').toLowerCase());
   const profileDecisionState = normalizeProfileDecision(profile?.status, lastProfileReview?.decision);
   const notesHistory = filteredHistory(['admin_notes']);
 
@@ -203,7 +217,17 @@ export default function AdminCandidateProfilePage() {
     const review = currentParams.get('review');
     if (!review) return;
 
-    if (review === 'document-verification' && documents[0] && can('documents:verify')) {
+    const programPaymentApprovedForEvaluationAdmin = payments.some((payment) => {
+      const type = String(payment?.type || '').toLowerCase();
+      const status = String(payment?.status || '').toLowerCase();
+      return type === 'program' && status === 'completed';
+    });
+    const canOpenDocumentReviewFromUrl =
+      can('documents:verify') &&
+      documents[0] &&
+      (String(role || '') !== 'evaluation_admin' || programPaymentApprovedForEvaluationAdmin);
+
+    if (review === 'document-verification' && canOpenDocumentReviewFromUrl) {
       setActiveReview({ type: 'document', item: documents[0] });
       return;
     }
@@ -212,7 +236,7 @@ export default function AdminCandidateProfilePage() {
       return;
     }
     setActiveReview(null);
-  }, [data, currentParams, documents, can, canReviewSelection]);
+  }, [data, currentParams, documents, payments, can, canReviewSelection, role]);
 
   useEffect(() => {
     if (!isInlineProfileReview) {
@@ -231,6 +255,7 @@ export default function AdminCandidateProfilePage() {
   };
 
   const openProfileReview = () => {
+    setAllowReviewedProfileEditor(true);
     const next = new URLSearchParams(currentParams);
     next.set('tab', 'profile');
     next.set('review', 'evaluation');
@@ -238,6 +263,7 @@ export default function AdminCandidateProfilePage() {
   };
 
   const closeReview = () => {
+    setAllowReviewedProfileEditor(false);
     setActiveReview(null);
     const next = new URLSearchParams(currentParams);
     next.delete('review');
@@ -253,7 +279,7 @@ export default function AdminCandidateProfilePage() {
       { label: 'Candidate Name', value: candidate?.name || candidate?.email },
       { label: 'Profile Status', value: humanize(profile.status) },
       { label: 'Email Verified', value: candidate?.emailVerified ? 'Yes' : 'No' },
-      { label: 'Phone Verified', value: candidate?.phoneVerified ? 'Yes' : 'No' },
+      { label: 'Mobile No Provided', value: candidate?.phoneVerified ? 'Yes' : 'No' },
       { label: 'Financial Disclosure', value: profile.financialDisclosureAccepted ? 'Accepted' : 'Pending' },
       { label: 'Signature', value: profile.signature ? 'Submitted' : 'Pending' },
     ];
@@ -477,15 +503,7 @@ export default function AdminCandidateProfilePage() {
           { label: 'Hiring Partner', value: candidate?.assignedHiringPartner || '—' },
           { label: 'Candidate Current Stage', value: progress?.currentStage || '—' },
         ],
-        evidenceItems: [
-          {
-            key: 'selection-summary',
-            label: 'Open stage summary',
-            description: 'Review hiring assignment and current candidate progress before announcing result.',
-            onOpen: () => window.open(`data:text/plain;charset=utf-8,${encodeURIComponent(JSON.stringify({ candidate, progress }, null, 2))}`, '_blank', 'noopener,noreferrer'),
-            buttonLabel: 'Open Summary',
-          },
-        ],
+        evidenceItems: [],
         history: filteredHistory(['final_selection', 'interview_selection']),
         decisionOptions: [
           { label: 'Mark Selected', value: 'accepted', variant: 'primary' },
@@ -661,12 +679,19 @@ export default function AdminCandidateProfilePage() {
     const status = String(payment?.status || '').toLowerCase();
     return canReviewPayment(payment) && status === 'pending';
   }) || latestReviewablePayment;
+  const programPaymentApproved = payments.some((payment) => {
+    const type = String(payment?.type || '').toLowerCase();
+    const status = String(payment?.status || '').toLowerCase();
+    return type === 'program' && status === 'completed';
+  });
   const canReviewDocument = (document) => {
     if (!can('documents:verify') || !document) return false;
+    if (String(role || '') === 'evaluation_admin' && !programPaymentApproved) return false;
     const status = String(document.status || '').toLowerCase();
     return status !== 'accepted';
   };
   const latestReviewableDocument = documents.find((document) => canReviewDocument(document)) || null;
+  const showProgramPaymentPendingMessage = String(role || '') === 'evaluation_admin' && !programPaymentApproved;
 
   const latestActionCard = useMemo(() => {
     const currentStageKey = String(progress?.currentStageKey || '').toLowerCase();
@@ -752,12 +777,12 @@ export default function AdminCandidateProfilePage() {
             <p className="mt-2 text-sm text-slate-300">{candidate?.email || '—'} {candidate?.phone ? `• ${candidate.phone}` : ''}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {profile ? (
-                <Button variant="adminSecondary" onClick={openProfilePdf} className="px-3 py-2 text-xs">
+                <Button variant="adminSecondary" onClick={openProfilePdf} className="px-3 py-2 text-xs text-white">
                   Open Profile
                 </Button>
               ) : null}
               {profile ? (
-                <Button variant="adminSecondary" onClick={exportProfile} className="px-3 py-2 text-xs">
+                <Button variant="adminSecondary" onClick={exportProfile} className="px-3 py-2 text-xs text-white">
                   Export Profile
                 </Button>
               ) : null}
@@ -915,7 +940,7 @@ export default function AdminCandidateProfilePage() {
                 ) : null}
 
                 <div className="flex flex-wrap justify-end gap-3">
-                  <Button variant="adminSecondary" onClick={() => submitInlineProfileReview('under_review')} disabled={!profileReviewNote.trim() || !profileReviewConfirmed || Boolean(profileReviewSubmitting)}>
+                  <Button variant="adminSecondary" onClick={() => submitInlineProfileReview('under_review')} disabled={!profileReviewNote.trim() || !profileReviewConfirmed || Boolean(profileReviewSubmitting)} className="text-white">
                     {profileReviewSubmitting === 'under_review' ? 'Saving...' : 'Keep Under Review'}
                   </Button>
                   <Button variant="danger" onClick={() => submitInlineProfileReview('rejected')} disabled={!profileReviewNote.trim() || !profileReviewConfirmed || Boolean(profileReviewSubmitting)}>
@@ -935,12 +960,12 @@ export default function AdminCandidateProfilePage() {
             actions={
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {profile ? (
-                  <Button variant="adminSecondary" onClick={openProfilePdf} className="px-3 py-2 text-xs">
+                  <Button variant="adminSecondary" onClick={openProfilePdf} className="px-3 py-2 text-xs !text-white">
                     Open Profile
                   </Button>
                 ) : null}
                 {profile ? (
-                  <Button variant="adminSecondary" onClick={exportProfile} className="px-3 py-2 text-xs">
+                  <Button variant="adminSecondary" onClick={exportProfile} className="px-3 py-2 text-xs !text-white">
                     Export Profile
                   </Button>
                 ) : null}
@@ -948,7 +973,7 @@ export default function AdminCandidateProfilePage() {
                   profileAlreadyReviewed && lastProfileReview ? (
                     <>
                       <div className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-                        profileDecisionState === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                        profileDecisionState === 'approved' ? 'bg-emerald-700 text-white' :
                         profileDecisionState === 'rejected' ? 'bg-rose-50 text-rose-700' :
                         'bg-amber-50 text-amber-700'
                       }`}>
@@ -956,7 +981,7 @@ export default function AdminCandidateProfilePage() {
                          profileDecisionState === 'rejected' ? '✗ Profile Rejected' :
                          '— Under Review'}
                       </div>
-                      <Button variant="adminSecondary" onClick={openProfileReview} className="px-3 py-2 text-xs">Edit Response</Button>
+                      <Button variant="adminSecondary" onClick={openProfileReview} className="px-3 py-2 text-xs !text-white">Edit Response</Button>
                     </>
                   ) : (
                     <Button variant="adminPrimary" onClick={openProfileReview}>{isInlineProfileReview ? 'Review In Progress' : 'Review & Decide'}</Button>
@@ -1020,7 +1045,11 @@ export default function AdminCandidateProfilePage() {
                     <div className="flex flex-wrap gap-2">
                       {payment.receiptUrl ? <a className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100" href={`${getBackendBaseUrl()}${payment.receiptUrl}`} target="_blank" rel="noreferrer">Open Receipt</a> : null}
                       {canReviewPayment(payment) ? (
-                        <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'payment', item: payment })}>
+                        <Button
+                          variant="adminSecondary"
+                          className="text-white"
+                          onClick={() => setActiveReview({ type: 'payment', item: payment })}
+                        >
                           {String(payment.status || '').toLowerCase() === 'pending' ? 'Review' : 'Edit Review'}
                         </Button>
                       ) : null}
@@ -1039,6 +1068,11 @@ export default function AdminCandidateProfilePage() {
           subtitle="Every document decision is audit logged."
           actions={latestReviewableDocument ? <Button variant="adminPrimary" onClick={() => setActiveReview({ type: 'document', item: latestReviewableDocument })}>Review Latest Document</Button> : null}
         >
+          {showProgramPaymentPendingMessage ? (
+            <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+              Program fee payment pending
+            </div>
+          ) : null}
           {!documents.length ? <p className="text-sm text-slate-500">No documents uploaded yet.</p> : (
             <div className="space-y-3">
               {documents.map((document) => (
@@ -1049,7 +1083,7 @@ export default function AdminCandidateProfilePage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <a className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100" href={`${getBackendBaseUrl()}${document.fileUrl}`} target="_blank" rel="noreferrer">Open File</a>
-                    {canReviewDocument(document) ? <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'document', item: document })}>Review</Button> : null}
+                    {canReviewDocument(document) ? <Button variant="adminSecondary" className="text-white" onClick={() => setActiveReview({ type: 'document', item: document })}>Review</Button> : null}
                   </div>
                 </div>
               ))}
@@ -1106,7 +1140,7 @@ export default function AdminCandidateProfilePage() {
                   {stageSaving === 'hiring' ? 'Saving...' : hiringAccepted ? 'Update Assignment' : 'Send To Hiring Partner'}
                 </Button>
                 {!hiringAccepted ? (
-                  <Button variant="adminSecondary" onClick={() => submitHiringDecision('under_review')} disabled={!can('candidates:update') || stageSaving === 'hiring'}>
+                  <Button variant="adminSecondary" onClick={() => submitHiringDecision('under_review')} disabled={!can('candidates:update') || stageSaving === 'hiring'} className="text-white">
                     Keep Under Review
                   </Button>
                 ) : null}
@@ -1133,7 +1167,7 @@ export default function AdminCandidateProfilePage() {
 
               <div className="flex flex-wrap gap-2">
                 {canReviewSelection ? (
-                  <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'selection' })}>
+                  <Button variant="adminSecondary" className="text-white" onClick={() => setActiveReview({ type: 'selection' })}>
                     {selectionAnnounced ? 'Edit Announced Result' : 'Announce Result'}
                   </Button>
                 ) : null}

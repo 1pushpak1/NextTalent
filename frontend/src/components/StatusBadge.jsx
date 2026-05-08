@@ -7,7 +7,7 @@ export default function StatusBadge({ status }) {
     Accepted: 'border border-[rgba(34,197,94,0.5)] bg-[rgba(34,197,94,0.22)] text-white',
     Rejected: 'border border-[rgba(255,255,255,0.16)] bg-[rgba(255,255,255,0.06)] text-[#f3d9d9]',
     Inactive: 'border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] text-[#9a9aa2]',
-    Uploaded: 'border border-[rgba(200,169,107,0.24)] bg-[rgba(200,169,107,0.14)] text-[#f4dfb2]',
+    Uploaded: 'border border-[rgba(34,197,94,0.5)] bg-[rgba(34,197,94,0.22)] text-white',
   };
 
   return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${cls[status] || cls.Pending}`}>{status}</span>;

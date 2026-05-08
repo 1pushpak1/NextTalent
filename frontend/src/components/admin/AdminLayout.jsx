@@ -1,14 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AdminSidebar from './AdminSidebar';
+import usePermissions from '../../hooks/usePermissions';
 
 export default function AdminLayout() {
   const { logout, user } = useAuth();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { can, role } = usePermissions();
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mainContentRef = useRef(null);
+
+  const canAccessAdminPath = (path) => {
+    if (path.startsWith('/admin/payments')) return can('payments:verify');
+    if (path.startsWith('/admin/evaluation')) return can('evaluation:approve');
+    if (path.startsWith('/admin/document-verification')) return can('documents:verify');
+    if (path.startsWith('/admin/selection')) return ['super_admin', 'payment_admin'].includes(String(role || ''));
+    if (path.startsWith('/admin/hiring')) return can('candidates:update');
+    if (path.startsWith('/admin/candidates') || path.startsWith('/admin/candidate')) return can('candidates:read');
+    if (path.startsWith('/admin/dashboard') || path.startsWith('/admin/testimonials')) return can('candidates:read');
+    return true;
+  };
 
   // Auto-scroll main content to top when route changes
   useEffect(() => {
@@ -16,6 +30,12 @@ export default function AdminLayout() {
       mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [pathname]);
+
+  useEffect(() => {
+    if (!canAccessAdminPath(pathname)) {
+      navigate('/admin/dashboard', { replace: true });
+    }
+  }, [pathname, navigate, role, can]);
 
   return (
     <div className="nst-shell nst-admin-shell min-h-screen">

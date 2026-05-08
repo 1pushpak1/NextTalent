@@ -13,6 +13,7 @@ const {
   createApprovalAuditLog,
   filterAuditEntriesForAdmin,
 } = require('../utils/approvalAudit');
+const { getProgramFeeBreakdown } = require('../utils/programFee');
 
 const validProfileStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 const validDocumentStatuses = ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'];
@@ -556,7 +557,7 @@ const paymentStageMatcher = (type, snapshot) => {
 
 const paymentExpectedAmount = {
   initial: 500,
-  program: 3500,
+  program: getProgramFeeBreakdown(null).total,
   final: 4000,
 };
 
@@ -567,6 +568,13 @@ const paymentStatusLabel = (rawStatus = '') => {
   if (normalized === 'pending') return 'Pending Verification';
   if (normalized === 'refunded') return 'Refunded';
   return 'Pending';
+};
+
+const expectedPaymentAmountForSnapshot = (type, snapshot) => {
+  if (type === 'program') {
+    return getProgramFeeBreakdown(snapshot?.profile).total;
+  }
+  return paymentExpectedAmount[type];
 };
 
 const listPaymentsByType = async (req, res) => {
@@ -588,7 +596,7 @@ const listPaymentsByType = async (req, res) => {
           email: snapshot.candidate.email,
           paymentId: latest?._id || null,
           paymentType: type,
-          amount: latest?.amount ?? paymentExpectedAmount[type],
+          amount: latest?.amount ?? expectedPaymentAmountForSnapshot(type, snapshot),
           status: latest ? paymentStatusLabel(latest.status) : 'Pending',
           rawStatus: latest?.status || 'pending',
           date: latest?.createdAt || null,

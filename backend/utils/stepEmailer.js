@@ -70,7 +70,7 @@ const variantThemes = {
     chipText: '#1e3a8a',
     cardBg: '#f8fafc',
     cardBorder: '#e2e8f0',
-    title: 'Process Update',
+    title: '',
   },
   payment: {
     chipBg: '#ecfdf3',
@@ -120,6 +120,12 @@ const normalizeStatus = (value = '') =>
     .trim()
     .toLowerCase()
     .replaceAll(' ', '_');
+
+const stripLeadingStepLabel = (value = '') =>
+  String(value || '')
+    .replace(/^\s*step\s*\d+\s*[:.\-–—•]\s*/i, '')
+    .replace(/^\s*step\s*\d+\s+/i, '')
+    .trim();
 
 const shouldSuppressEmail = ({ stepKey, status }) => {
   const normalizedStepKey = normalizeStepKey(stepKey);
@@ -181,7 +187,7 @@ const inferVariant = ({ eventType, stepKey, status }) => {
   return 'general';
 };
 
-const buildHtml = ({ candidateName, heading, message, stepNo, stepName, status, details = [], cta, variant = 'general', logoSrc }) => {
+const buildHtml = ({ candidateName, heading, message, stepName, status, details = [], cta, variant = 'general', logoSrc }) => {
   const theme = variantThemes[variant] || variantThemes.general;
   const detailsHtml = details.length
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-collapse:collapse;background:${theme.cardBg};border:1px solid ${theme.cardBorder};border-radius:10px;padding:10px">${details
@@ -222,7 +228,7 @@ const buildHtml = ({ candidateName, heading, message, stepNo, stepName, status, 
             <tr>
               <td style="padding:24px">
                 <p style="margin:0 0 6px;color:#64748b;font-size:11px;letter-spacing:.08em;text-transform:uppercase">${escapeHtml(theme.title)}</p>
-                <p style="margin:0 0 6px;color:#5a6472;font-size:12px;letter-spacing:.08em;text-transform:uppercase">Step ${escapeHtml(stepNo)} • ${escapeHtml(stepName)}</p>
+                <p style="margin:0 0 6px;color:#5a6472;font-size:12px;letter-spacing:.08em;text-transform:uppercase">${escapeHtml(stepName)}</p>
                 <h1 style="margin:0 0 10px;font-size:24px;line-height:1.3;color:#0b1526">${escapeHtml(heading)}</h1>
                 <p style="margin:0 0 14px;color:#334155;font-size:14px;line-height:1.6">${escapeHtml(message)}</p>
                 <div style="display:inline-block;background:${theme.chipBg};color:${theme.chipText};font-size:12px;font-weight:700;padding:6px 10px;border-radius:999px">Status: ${escapeHtml(status)}</div>
@@ -239,6 +245,134 @@ const buildHtml = ({ candidateName, heading, message, stepNo, stepName, status, 
 </html>`;
 };
 
+const buildCongratulationsHtml = ({ candidateName, heading, message, stepName, status, details = [], cta, logoSrc }) => {
+  const detailsHtml = details.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-collapse:collapse;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px">${details
+        .map(
+          (row) =>
+            `<tr><td style="padding:8px 0;color:#166534;font-size:13px;width:40%">${escapeHtml(row.label)}</td><td style="padding:8px 0;color:#052e16;font-size:13px;font-weight:700">${escapeHtml(row.value)}</td></tr>`
+        )
+        .join('')}</table>`
+    : '';
+
+  const ctaHtml = cta?.label && cta?.url
+    ? `<div style="margin-top:20px"><a href="${escapeHtml(cta.url)}" style="display:inline-block;background:#166534;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;font-size:13px">${escapeHtml(
+        cta.label
+      )}</a></div>`
+    : '';
+
+  return `<!doctype html>
+<html>
+  <body style="margin:0;background:#ecfdf3;font-family:Arial,sans-serif;color:#052e16">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:92%;background:#ffffff;border:1px solid #bbf7d0;border-radius:14px;overflow:hidden">
+            <tr>
+              <td style="padding:22px 24px;background:linear-gradient(135deg,#14532d,#166534)">
+                <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+                  <tr>
+                    <td style="vertical-align:middle;padding-right:10px">
+                      <img src="${escapeHtml(logoSrc || getBrandLogoUrl())}" alt="NextStep Talent Logo" style="height:44px;width:auto;display:block;border:0;outline:none;text-decoration:none" />
+                    </td>
+                    <td style="vertical-align:middle">
+                      <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:.02em">NextStep Talent</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px">
+                <p style="margin:0 0 6px;color:#166534;font-size:11px;letter-spacing:.08em;text-transform:uppercase">Congratulations</p>
+                <p style="margin:0 0 6px;color:#15803d;font-size:12px;letter-spacing:.08em;text-transform:uppercase">${escapeHtml(stepName)}</p>
+                <h1 style="margin:0 0 10px;font-size:24px;line-height:1.3;color:#052e16">${escapeHtml(heading)}</h1>
+                <p style="margin:0 0 14px;color:#14532d;font-size:14px;line-height:1.7">${escapeHtml(message)}</p>
+                <div style="display:inline-block;background:#dcfce7;color:#166534;font-size:12px;font-weight:700;padding:6px 10px;border-radius:999px">Status: ${escapeHtml(status)}</div>
+                ${detailsHtml}
+                ${ctaHtml}
+                <p style="margin:24px 0 0;color:#166534;font-size:12px;line-height:1.6">Great work, ${escapeHtml(candidateName || 'Candidate')}. Keep following your dashboard for the next steps.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+};
+
+const buildRejectionHtml = ({ candidateName, heading, message, stepName, status, details = [], cta, logoSrc }) => {
+  const detailsHtml = details.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-collapse:collapse;background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:10px">${details
+        .map(
+          (row) =>
+            `<tr><td style="padding:8px 0;color:#9f1239;font-size:13px;width:40%">${escapeHtml(row.label)}</td><td style="padding:8px 0;color:#4c0519;font-size:13px;font-weight:700">${escapeHtml(row.value)}</td></tr>`
+        )
+        .join('')}</table>`
+    : '';
+
+  const ctaHtml = cta?.label && cta?.url
+    ? `<div style="margin-top:20px"><a href="${escapeHtml(cta.url)}" style="display:inline-block;background:#be123c;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;font-size:13px">${escapeHtml(
+        cta.label
+      )}</a></div>`
+    : '';
+
+  return `<!doctype html>
+<html>
+  <body style="margin:0;background:#fff1f2;font-family:Arial,sans-serif;color:#4c0519">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:92%;background:#ffffff;border:1px solid #fecdd3;border-radius:14px;overflow:hidden">
+            <tr>
+              <td style="padding:22px 24px;background:linear-gradient(135deg,#9f1239,#be123c)">
+                <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+                  <tr>
+                    <td style="vertical-align:middle;padding-right:10px">
+                      <img src="${escapeHtml(logoSrc || getBrandLogoUrl())}" alt="NextStep Talent Logo" style="height:44px;width:auto;display:block;border:0;outline:none;text-decoration:none" />
+                    </td>
+                    <td style="vertical-align:middle">
+                      <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:.02em">NextStep Talent</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px">
+                <p style="margin:0 0 6px;color:#be123c;font-size:11px;letter-spacing:.08em;text-transform:uppercase">Decision Update</p>
+                <p style="margin:0 0 6px;color:#9f1239;font-size:12px;letter-spacing:.08em;text-transform:uppercase">${escapeHtml(stepName)}</p>
+                <h1 style="margin:0 0 10px;font-size:24px;line-height:1.3;color:#4c0519">${escapeHtml(heading)}</h1>
+                <p style="margin:0 0 14px;color:#7f1d1d;font-size:14px;line-height:1.7">${escapeHtml(message)}</p>
+                <div style="display:inline-block;background:#ffe4e6;color:#9f1239;font-size:12px;font-weight:700;padding:6px 10px;border-radius:999px">Status: ${escapeHtml(status)}</div>
+                ${detailsHtml}
+                ${ctaHtml}
+                <p style="margin:24px 0 0;color:#9f1239;font-size:12px;line-height:1.6">This is an automated update for ${escapeHtml(candidateName || 'your account')}.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+};
+
+const inferEmailTone = ({ stepKey, status, heading, message }) => {
+  const normalizedStatus = normalizeStatus(status);
+  const normalizedStep = normalizeStepKey(stepKey);
+  const text = `${String(heading || '')} ${String(message || '')}`.toLowerCase();
+
+  if (['rejected', 'failed', 'not_selected', 'not received'].includes(normalizedStatus)) return 'rejection';
+  if (text.includes('not selected') || text.includes('rejected')) return 'rejection';
+
+  if (normalizedStep === 'selection' && ['accepted', 'approved', 'selected'].includes(normalizedStatus)) return 'congratulations';
+  if (text.includes('congratulations')) return 'congratulations';
+
+  return 'process_update';
+};
+
 const sendStepUpdateEmail = async ({
   to,
   candidateId,
@@ -251,15 +385,17 @@ const sendStepUpdateEmail = async ({
   details = [],
   cta,
   eventType,
+  subjectOverride,
 }) => {
   if (!to) return;
   if (shouldSuppressEmail({ stepKey, status })) return;
 
   const candidateNextAction = await resolveNextCandidateAction({ candidateId, to });
   const stepInfo = stepInfoFor(stepKey, stepName || 'Process Update');
-  const effectiveStepName = stepName || stepInfo.name;
+  const effectiveStepName = stripLeadingStepLabel(stepName || stepInfo.name) || 'Process Update';
   const effectiveStatus = statusLabelMap[String(status || '').toLowerCase()] || titleCase(String(status || 'Updated'));
   const variant = inferVariant({ eventType, stepKey, status: effectiveStatus });
+  const emailTone = inferEmailTone({ stepKey, status, heading, message });
   const enrichedDetails = [
     ...details,
     ...(candidateNextAction
@@ -267,24 +403,52 @@ const sendStepUpdateEmail = async ({
       : []),
   ];
 
-  const subject = `Step ${stepInfo.no}: ${effectiveStepName} - ${effectiveStatus}`;
+  const defaultSubject =
+    emailTone === 'congratulations'
+      ? `Congratulations! ${effectiveStepName} Approved`
+      : emailTone === 'rejection'
+        ? `${effectiveStepName} - Decision Update`
+        : `${effectiveStepName} - ${effectiveStatus}`;
+  const subject = stripLeadingStepLabel(String(subjectOverride || '').trim() || defaultSubject);
   const hasInlineLogo = logoFileExists();
   const logoSrc = hasInlineLogo ? `cid:${BRAND_LOGO_CID}` : getBrandLogoUrl();
-  const html = buildHtml({
-    candidateName,
-    heading,
-    message,
-    stepNo: stepInfo.no,
-    stepName: effectiveStepName,
-    status: effectiveStatus,
-    details: enrichedDetails,
-    cta,
-    variant,
-    logoSrc,
-  });
+  const html =
+    emailTone === 'congratulations'
+      ? buildCongratulationsHtml({
+          candidateName,
+          heading,
+          message,
+          stepName: effectiveStepName,
+          status: effectiveStatus,
+          details: enrichedDetails,
+          cta,
+          logoSrc,
+        })
+      : emailTone === 'rejection'
+        ? buildRejectionHtml({
+            candidateName,
+            heading,
+            message,
+            stepName: effectiveStepName,
+            status: effectiveStatus,
+            details: enrichedDetails,
+            cta,
+            logoSrc,
+          })
+        : buildHtml({
+            candidateName,
+            heading,
+            message,
+            stepName: effectiveStepName,
+            status: effectiveStatus,
+            details: enrichedDetails,
+            cta,
+            variant,
+            logoSrc,
+          });
 
   const textLines = [
-    `Step ${stepInfo.no}: ${effectiveStepName}`,
+    effectiveStepName,
     `Status: ${effectiveStatus}`,
     `Candidate: ${candidateName || 'Candidate'}`,
     heading,

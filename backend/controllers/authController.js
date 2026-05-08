@@ -38,6 +38,7 @@ const isStrongPassword = (value = '') =>
   /[^A-Za-z0-9]/.test(value);
 
 const sendVerificationEmail = async (user) => {
+  const verifyEmailSubject = 'Verify your email to activate your NextStep Talent account and continue your application';
   const { token, hash } = createEmailVerificationToken();
   user.emailVerificationTokenHash = hash;
   user.emailVerificationExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
@@ -48,6 +49,7 @@ const sendVerificationEmail = async (user) => {
     to: user.email,
     candidateName: user.name || user.email.split('@')[0],
     stepKey: 'account',
+    subjectOverride: verifyEmailSubject,
     heading: 'Verify your email address',
     message: 'Please verify your email to continue your application. This link will expire in 30 minutes.',
     status: 'pending',
@@ -100,6 +102,7 @@ const signup = async (req, res) => {
       to: user.email,
       candidateName: user.name || user.email.split('@')[0],
       stepKey: 'account',
+      subjectOverride: 'Verify your email for your NextStep Talent application',
       heading: 'Account created successfully',
       message: 'Your account has been created. Please verify your email to continue.',
       status: 'completed',
@@ -214,20 +217,6 @@ const verifyEmail = async (req, res) => {
     user.status = user.phoneVerified ? user.status : 'email_verified';
     await user.save();
 
-    await sendStepUpdateEmail({
-      to: user.email,
-      candidateName: user.name || user.email.split('@')[0],
-      stepKey: 'account',
-      heading: 'Email verified',
-      message: 'Your email verification is complete. Please finish the remaining verification step and then complete your profile submission to continue.',
-      status: 'completed',
-      details: [
-        { label: 'Verification', value: 'Email verified' },
-        { label: 'Next Step', value: 'Verify phone and complete profile submission' },
-      ],
-      cta: { label: 'Continue Verification', url: `${getFrontendBaseUrl()}/verify-phone` },
-    });
-
     res.json({ message: 'Email verified', user });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -258,20 +247,6 @@ const verifyPhone = async (req, res) => {
     user.phoneVerified = true;
     user.status = 'phone_verified';
     await user.save();
-
-    await sendStepUpdateEmail({
-      to: user.email,
-      candidateName: user.name || user.email.split('@')[0],
-      stepKey: 'account',
-      heading: 'Phone verified',
-      message: 'Your account is now fully verified. Please complete your profile submission to move into internal evaluation.',
-      status: 'completed',
-      details: [
-        { label: 'Phone', value: user.phone || `${countryCode}${phone}` },
-        { label: 'Next Step', value: 'Complete profile submission' },
-      ],
-      cta: { label: 'Continue Profile', url: `${getFrontendBaseUrl()}/profile-submission` },
-    });
 
     res.json({ message: 'Phone verified', user });
   } catch (error) {

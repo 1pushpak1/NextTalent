@@ -1,9 +1,20 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { adminMainNav, adminPaymentNav } from './adminNav';
+import usePermissions from '../../hooks/usePermissions';
 
 export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen, setMobileOpen, onLogout }) {
   const location = useLocation();
+  const { can, role } = usePermissions();
   const inPayments = location.pathname.startsWith('/admin/payments');
+  const canAccessEntry = (entry) => {
+    const requiredRoles = Array.isArray(entry?.requiredRoles) ? entry.requiredRoles : [];
+    const requiredPermission = entry?.requiredPermission || '';
+    if (requiredRoles.length && !requiredRoles.includes(String(role || ''))) return false;
+    if (requiredPermission && !can(requiredPermission)) return false;
+    return true;
+  };
+  const visibleMainNav = adminMainNav.filter(canAccessEntry);
+  const visiblePaymentNav = adminPaymentNav.filter(canAccessEntry);
 
   return (
     <>
@@ -30,7 +41,7 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
         <div className="flex h-[calc(100vh-92px)] flex-col px-3 py-4">
           <nav className="flex-1 overflow-y-auto pr-1">
             <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#9f9fa7]">Pipeline</p>
-            {adminMainNav.map((item) => (
+            {visibleMainNav.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -45,35 +56,39 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
               </NavLink>
             ))}
 
-            <p className="mb-2 mt-4 px-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#9f9fa7]">Payments</p>
-            <button
-              type="button"
-              onClick={() => setPaymentsOpen((v) => !v)}
-              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
-                inPayments ? 'bg-[#c8a96b] text-black' : 'text-slate-300 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <span>Payments</span>
-              <span className="material-symbols-outlined text-base">{paymentsOpen ? 'expand_less' : 'expand_more'}</span>
-            </button>
+            {visiblePaymentNav.length > 0 && (
+              <>
+                <p className="mb-2 mt-4 px-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#9f9fa7]">Payments</p>
+                <button
+                  type="button"
+                  onClick={() => setPaymentsOpen((v) => !v)}
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+                    inPayments ? 'bg-[#c8a96b] text-black' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <span>Payments</span>
+                  <span className="material-symbols-outlined text-base">{paymentsOpen ? 'expand_less' : 'expand_more'}</span>
+                </button>
 
-            {paymentsOpen && (
-              <div className="mt-1 space-y-1 pl-3">
-                {adminPaymentNav.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    onClick={() => setMobileOpen(false)}
-                    className={({ isActive }) =>
-                      `block rounded-lg px-3 py-2 text-xs font-medium transition ${
-                        isActive ? 'bg-[#c8a96b]/20 text-[#f7f3ea]' : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                      }`
-                    }
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
+                {paymentsOpen && (
+                  <div className="mt-1 space-y-1 pl-3">
+                    {visiblePaymentNav.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        onClick={() => setMobileOpen(false)}
+                        className={({ isActive }) =>
+                          `block rounded-lg px-3 py-2 text-xs font-medium transition ${
+                            isActive ? 'bg-[#c8a96b]/20 text-[#f7f3ea]' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                          }`
+                        }
+                      >
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </nav>
 
