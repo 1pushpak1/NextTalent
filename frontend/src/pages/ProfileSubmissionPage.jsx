@@ -120,7 +120,15 @@ const getWorkFutureEndDateError = (workExperience) => {
 const blankQualification = () => ({ qualificationName: '', field: '', startDate: '', endDate: '', country: '' });
 const blankCertification = () => ({ certificationName: '', issuingOrganization: '', yearCompleted: '' });
 const blankWork = (experienceType = 'work') => ({ experienceType, organizationName: '', jobTitle: '', responsibilities: '', startDate: '', endDate: '', currentlyWorkingHere: false, country: '' });
-const blankLanguage = () => ({ language: '', proficiencyLevel: '', certified: 'No', certificateTitle: '' });
+const blankLanguage = () => ({ language: '', proficiencyLevel: '' });
+const getLanguageOptionsByEligibilityCountry = (countryName) => {
+  const normalized = String(countryName || '').trim().toLowerCase();
+  if (normalized === 'germany') return ['German'];
+  if (normalized === 'switzerland') return ['German', 'French', 'Italian'];
+  if (normalized === 'austria') return ['German'];
+  if (normalized === 'poland') return ['German', 'English'];
+  return [];
+};
 const ensureExperienceRows = (items = []) => {
   const normalized = (Array.isArray(items) ? items : []).map((w) => ({
     ...blankWork(w?.experienceType || 'work'),
@@ -435,7 +443,7 @@ const getStepValidation = (step, form, { requireVisa, technicalSkills, financial
 
   if (step === 6) {
     form.languages.forEach((lang, idx) => {
-      const touched = idx === 0 || hasValue(lang.language) || hasValue(lang.proficiencyLevel) || lang.certified === 'Yes';
+      const touched = idx === 0 || hasValue(lang.language) || hasValue(lang.proficiencyLevel);
       if (!touched) return;
 
       if (!hasValue(lang.language)) addError(errors, `languages.${idx}.language`, `Language is required for entry ${idx + 1}.`);
@@ -610,6 +618,12 @@ export default function ProfileSubmissionPage() {
 
   const fullName = `${form.personalDetails.firstName} ${form.personalDetails.lastName}`.trim();
   const signedDateTime = new Date().toLocaleString();
+  const allowedLanguageOptions = useMemo(
+    () => getLanguageOptionsByEligibilityCountry(eligibilityDetails?.country),
+    [eligibilityDetails?.country],
+  );
+  const languageOptions = allowedLanguageOptions.length ? allowedLanguageOptions : ['German', 'English', 'French', 'Italian'];
+  const canAddLanguage = allowedLanguageOptions.length >= 2 && form.languages.length < languageOptions.length;
   const acknowledgementText = `By proceeding with this submission, you confirm that all information provided by you is true, accurate, and complete to the best of your knowledge.
 
 You understand that this information will be used for evaluation, verification, and alignment with international opportunities as part of the NextStep Talent process.
@@ -617,6 +631,23 @@ You understand that this information will be used for evaluation, verification, 
 You acknowledge that any incorrect, misleading, or incomplete information may impact your eligibility or progression within the program.
 
 By signing below, you accept full responsibility for the authenticity of the details submitted.`;
+
+  useEffect(() => {
+    if (!allowedLanguageOptions.length) return;
+    setForm((prev) => {
+      const sanitized = (prev.languages || []).map((entry) => {
+        if (!entry?.language) return entry;
+        return allowedLanguageOptions.includes(entry.language)
+          ? entry
+          : { ...entry, language: '', proficiencyLevel: '' };
+      });
+      const withAtLeastOne = sanitized.length ? sanitized : [blankLanguage()];
+      if (!withAtLeastOne[0].language && allowedLanguageOptions.length === 1) {
+        withAtLeastOne[0] = { ...withAtLeastOne[0], language: allowedLanguageOptions[0] };
+      }
+      return { ...prev, languages: withAtLeastOne };
+    });
+  }, [allowedLanguageOptions]);
 
   const technicalSkills = useMemo(
     () => form.skills.technical.split(',').map((skill) => skill.trim()).filter(Boolean),
@@ -1452,11 +1483,21 @@ By signing below, you accept full responsibility for the authenticity of the det
                       x
                     </button>
                   )}
-                  <Input required={idx === 0} label="Language" error={getFieldError(`languages.${idx}.language`)} value={lang.language} onChange={(e) => {
-                    const next = [...form.languages];
-                    next[idx].language = e.target.value;
-                    updateSection('languages', next);
-                  }} />
+                  <Select
+                    required={idx === 0}
+                    label="Language"
+                    error={getFieldError(`languages.${idx}.language`)}
+                    options={languageOptions.filter((option) => {
+                      const selectedInOtherRows = form.languages.some((item, itemIdx) => itemIdx !== idx && item.language === option);
+                      return !selectedInOtherRows || lang.language === option;
+                    })}
+                    value={lang.language}
+                    onChange={(e) => {
+                      const next = [...form.languages];
+                      next[idx].language = e.target.value;
+                      updateSection('languages', next);
+                    }}
+                  />
                   <Select
                     required={idx === 0}
                     label="Proficiency Level"
@@ -1469,23 +1510,13 @@ By signing below, you accept full responsibility for the authenticity of the det
                       updateSection('languages', next);
                     }}
                   />
-                  <Select
-                    label="Certified"
-                    error={getFieldError(`languages.${idx}.certified`)}
-                    options={['Yes', 'No']}
-                    value={lang.certified}
-                    onChange={(e) => {
-                      const next = [...form.languages];
-                      next[idx].certified = e.target.value;
-                      if (e.target.value !== 'Yes') next[idx].certificateTitle = '';
-                      updateSection('languages', next);
-                    }}
-                  />
                 </div>
               ))}
-              <Button className="mt-3 text-white" variant="secondary" onClick={() => updateSection('languages', [...form.languages, blankLanguage()])}>
-                Add Language
-              </Button>
+              {canAddLanguage ? (
+                <Button className="mt-3 text-white" variant="secondary" onClick={() => updateSection('languages', [...form.languages, blankLanguage()])}>
+                  Add Language
+                </Button>
+              ) : null}
             </div>
           )}
 
@@ -1678,17 +1709,16 @@ By signing below, you accept full responsibility for the authenticity of the det
                   <h3 className="text-lg font-bold text-slate-900">Languages</h3>
                   {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(6)}>Edit</Button>}
                 </div>
-                {form.languages.some((lang) => lang.language || lang.proficiencyLevel || lang.certified === 'Yes') ? (
+                {form.languages.some((lang) => lang.language || lang.proficiencyLevel) ? (
                   <div className="space-y-3 text-sm">
                     {form.languages
-                      .filter((lang) => lang.language || lang.proficiencyLevel || lang.certified === 'Yes')
+                      .filter((lang) => lang.language || lang.proficiencyLevel)
                       .map((lang, idx) => (
                         <div key={idx} className="rounded-lg bg-white p-4">
                           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Language {idx + 1}</p>
                           <div className="grid gap-3 md:grid-cols-2">
                             <div><p className="text-slate-500">Language</p><p className="font-medium text-slate-900">{reviewValue(lang.language)}</p></div>
                             <div><p className="text-slate-500">Proficiency Level</p><p className="font-medium text-slate-900">{reviewValue(lang.proficiencyLevel)}</p></div>
-                            <div><p className="text-slate-500">Certified</p><p className="font-medium text-slate-900">{reviewValue(lang.certified)}</p></div>
                           </div>
                         </div>
                       ))}

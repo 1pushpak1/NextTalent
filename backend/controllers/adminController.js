@@ -467,6 +467,15 @@ const getDashboardSummary = async (req, res) => {
       ['pending_verification'].includes(row.paymentStatus.program) ||
       ['pending_verification'].includes(row.paymentStatus.final)
     ).length;
+    const paymentsPendingVerificationInitial = rows.filter(
+      (row) => row.paymentStatus?.initial === 'pending_verification'
+    ).length;
+    const paymentsPendingVerificationProgram = rows.filter(
+      (row) => row.paymentStatus?.program === 'pending_verification'
+    ).length;
+    const paymentsPendingVerificationFinal = rows.filter(
+      (row) => row.paymentStatus?.final === 'pending_verification'
+    ).length;
     const documentsPendingVerification = rows.filter(
       (row) =>
         row.paymentStatus?.program === 'verified' &&
@@ -510,6 +519,9 @@ const getDashboardSummary = async (req, res) => {
         eligibleCandidates,
         profilesPendingReview,
         paymentsPendingVerification,
+        paymentsPendingVerificationInitial,
+        paymentsPendingVerificationProgram,
+        paymentsPendingVerificationFinal,
         documentsPendingVerification,
         hiringPendingAssignment,
         interviewsPendingScheduled,

@@ -11,6 +11,9 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
     profilesPendingReview: 0,
     documentsPendingVerification: 0,
     paymentsPendingVerification: 0,
+    paymentsPendingVerificationInitial: 0,
+    paymentsPendingVerificationProgram: 0,
+    paymentsPendingVerificationFinal: 0,
     hiringPendingAssignment: 0,
     interviewsPendingScheduled: 0,
   });
@@ -32,9 +35,9 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
       '/admin/hiring': Number(summaryCards.hiringPendingAssignment || 0),
       '/admin/selection': Number(summaryCards.interviewsPendingScheduled || 0),
       '/admin/payments': Number(summaryCards.paymentsPendingVerification || 0),
-      '/admin/payments/initial': Number(summaryCards.paymentsPendingVerification || 0),
-      '/admin/payments/program': Number(summaryCards.paymentsPendingVerification || 0),
-      '/admin/payments/final': Number(summaryCards.paymentsPendingVerification || 0),
+      '/admin/payments/initial': Number(summaryCards.paymentsPendingVerificationInitial || 0),
+      '/admin/payments/program': Number(summaryCards.paymentsPendingVerificationProgram || 0),
+      '/admin/payments/final': Number(summaryCards.paymentsPendingVerificationFinal || 0),
     }),
     [summaryCards],
   );

@@ -110,7 +110,9 @@ export default function App() {
           <Route path="evaluation" element={<AdminStageCandidatesPage title="Internal Evaluation" stageKey="evaluation" />} />
           <Route path="document-verification" element={<AdminStageCandidatesPage title="Document Verification" stageKey="document-verification" />} />
           <Route path="hiring" element={<AdminStageCandidatesPage title="Hiring Partner Stage" stageKey="hiring" />} />
+          <Route path="hiringpage" element={<Navigate to="/admin/hiring" replace />} />
           <Route path="selection" element={<AdminStageCandidatesPage title="Selection Results" stageKey="selection" />} />
+          <Route path="selectionpage" element={<Navigate to="/admin/selection" replace />} />
           <Route path="testimonials" element={<AdminStageCandidatesPage title="Testimonials" stageKey="testimonials" />} />
           <Route path="payments" element={<AdminPaymentsOverviewPage />} />
           <Route path="payments/initial" element={<AdminPaymentTypePage title="Initial Payment ($500)" type="initial" />} />

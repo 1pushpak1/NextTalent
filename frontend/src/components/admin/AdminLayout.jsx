@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AdminSidebar from './AdminSidebar';
@@ -6,14 +6,15 @@ import usePermissions from '../../hooks/usePermissions';
 
 export default function AdminLayout() {
   const { logout, user } = useAuth();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname, search } = location;
   const navigate = useNavigate();
   const { can, role } = usePermissions();
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mainContentRef = useRef(null);
 
-  const canAccessAdminPath = (path) => {
+  const canAccessAdminPath = useCallback((path) => {
     if (path.startsWith('/admin/payments')) return can('payments:verify');
     if (path.startsWith('/admin/evaluation')) return can('evaluation:approve');
     if (path.startsWith('/admin/document-verification')) return can('documents:verify');
@@ -22,7 +23,7 @@ export default function AdminLayout() {
     if (path.startsWith('/admin/candidates') || path.startsWith('/admin/candidate')) return can('candidates:read');
     if (path.startsWith('/admin/dashboard') || path.startsWith('/admin/testimonials')) return can('candidates:read');
     return true;
-  };
+  }, [can, role]);
 
   // Auto-scroll main content to top when route changes
   useEffect(() => {
@@ -35,7 +36,7 @@ export default function AdminLayout() {
     if (!canAccessAdminPath(pathname)) {
       navigate('/admin/dashboard', { replace: true });
     }
-  }, [pathname, navigate, role, can]);
+  }, [pathname, navigate, canAccessAdminPath]);
 
   return (
     <div className="nst-shell nst-admin-shell min-h-screen">
@@ -76,7 +77,9 @@ export default function AdminLayout() {
         </header>
 
         <main className="min-h-screen overflow-y-auto p-4" ref={mainContentRef}>
-          <Outlet />
+          <div key={`${pathname}${search}`}>
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
