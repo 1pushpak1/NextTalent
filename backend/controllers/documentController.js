@@ -7,6 +7,14 @@ const Profile = require('../models/Profile');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const uploadDir = path.join(__dirname, '..', 'uploads', 'documents');
+const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_PDF_MIME_TYPES = new Set(['application/pdf']);
+
+const isPdfFile = (file = {}) => {
+  const mimeType = String(file.mimetype || '').toLowerCase();
+  const extension = String(path.extname(file.originalname || '') || '').toLowerCase();
+  return ALLOWED_PDF_MIME_TYPES.has(mimeType) || extension === '.pdf';
+};
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -21,7 +29,13 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: MAX_DOCUMENT_SIZE_BYTES },
+  fileFilter: (req, file, cb) => {
+    if (!isPdfFile(file)) {
+      return cb(new Error('Only PDF files are supported.'));
+    }
+    return cb(null, true);
+  },
 });
 
 const uploadDocument = async (req, res) => {
@@ -34,6 +48,7 @@ const uploadDocument = async (req, res) => {
       return res.status(403).json({ message: 'This application is not active for further document submissions.' });
     }
     if (!req.file) return res.status(400).json({ message: 'File is required' });
+    if (!isPdfFile(req.file)) return res.status(400).json({ message: 'Only PDF files are supported.' });
     const { documentType } = req.body;
     if (!documentType) return res.status(400).json({ message: 'documentType is required' });
 

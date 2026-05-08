@@ -318,6 +318,81 @@ input[type='reset']:not(:disabled) {
   background: linear-gradient(130deg, #002147 0%, #153e74 100%);
 }
 
+.nst-admin-shell {
+  background: linear-gradient(180deg, #060606 0%, #0a0a0b 100%);
+}
+
+.nst-admin-shell .text-slate-900 {
+  color: #f7f3ea !important;
+}
+
+.nst-admin-shell .text-slate-800,
+.nst-admin-shell .text-slate-700,
+.nst-admin-shell .text-slate-600,
+.nst-admin-shell .text-slate-500,
+.nst-admin-shell .text-slate-400 {
+  color: #bdbdc3 !important;
+}
+
+.nst-admin-shell .bg-white {
+  background-color: rgba(255, 255, 255, 0.035) !important;
+}
+
+.nst-admin-shell .bg-slate-50,
+.nst-admin-shell .bg-slate-100 {
+  background-color: rgba(255, 255, 255, 0.055) !important;
+}
+
+.nst-admin-shell .border-slate-100,
+.nst-admin-shell .border-slate-200,
+.nst-admin-shell .border-slate-300 {
+  border-color: rgba(200, 169, 107, 0.2) !important;
+}
+
+.nst-admin-shell .text-blue-700,
+.nst-admin-shell .text-blue-600,
+.nst-admin-shell .text-blue-500 {
+  color: #d7c08a !important;
+}
+
+.nst-admin-shell .border-blue-200,
+.nst-admin-shell .border-blue-300,
+.nst-admin-shell .border-blue-400,
+.nst-admin-shell .border-blue-500 {
+  border-color: rgba(200, 169, 107, 0.28) !important;
+}
+
+.nst-admin-shell .bg-blue-50,
+.nst-admin-shell .bg-blue-100 {
+  background-color: rgba(200, 169, 107, 0.1) !important;
+}
+
+.nst-admin-shell .hover\:bg-slate-50:hover,
+.nst-admin-shell .hover\:bg-slate-100:hover {
+  background-color: rgba(200, 169, 107, 0.12) !important;
+}
+
+.nst-admin-shell input,
+.nst-admin-shell select,
+.nst-admin-shell textarea {
+  background-color: rgba(255, 255, 255, 0.035) !important;
+  color: #f7f3ea !important;
+  border-color: rgba(200, 169, 107, 0.24) !important;
+}
+
+.nst-admin-shell input::placeholder,
+.nst-admin-shell textarea::placeholder {
+  color: #a9a9b0 !important;
+}
+
+.nst-admin-shell input:focus,
+.nst-admin-shell select:focus,
+.nst-admin-shell textarea:focus {
+  outline: none;
+  border-color: rgba(200, 169, 107, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(200, 169, 107, 0.16) !important;
+}
+
 .nst-mesh {
   background-image:
     radial-gradient(circle at 0% 0%, rgba(58, 95, 148, 0.08) 0, rgba(58, 95, 148, 0) 48%),

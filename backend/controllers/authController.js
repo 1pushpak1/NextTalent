@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Eligibility = require('../models/Eligibility');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const { getConfiguredAdminUsers, getPermissionsForRole } = require('../utils/adminPermissions');
+const sendEmail = require('../utils/sendEmail');
 
 const findConfiguredAdminByEmail = (email) =>
   getConfiguredAdminUsers().find((entry) => entry.email === String(email || '').toLowerCase().trim());
@@ -22,6 +23,19 @@ const createEmailVerificationToken = () => {
   const hash = crypto.createHash('sha256').update(token).digest('hex');
   return { token, hash };
 };
+
+const createPasswordResetToken = () => {
+  const token = crypto.randomBytes(32).toString('hex');
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  return { token, hash };
+};
+
+const isStrongPassword = (value = '') =>
+  value.length >= 8 &&
+  /[A-Z]/.test(value) &&
+  /[a-z]/.test(value) &&
+  /\d/.test(value) &&
+  /[^A-Za-z0-9]/.test(value);
 
 const sendVerificationEmail = async (user) => {
   const { token, hash } = createEmailVerificationToken();
@@ -265,4 +279,113 @@ const verifyPhone = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, verifyEmail, resendVerificationEmail, verifyPhone };
+const forgotPassword = async (req, res) => {
+  try {
+    const email = String(req.body?.email || '').toLowerCase().trim();
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (user) {
+      const { token, hash } = createPasswordResetToken();
+      user.passwordResetTokenHash = hash;
+      user.passwordResetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      await user.save();
+
+      const isAdminAccount = user.role === 'admin';
+      const resetUrl = `${getFrontendBaseUrl()}/reset-password?token=${encodeURIComponent(token)}${isAdminAccount ? '&mode=admin&next=%2Fadmin' : ''}`;
+      const subject = isAdminAccount ? 'Reset your NextStep Talent admin password' : 'Reset your NextStep Talent password';
+      const html = `<!doctype html>
+<html>
+  <body style="margin:0;background:#f3f6fb;font-family:Arial,sans-serif;color:#0f172a">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="width:640px;max-width:92%;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden">
+            <tr>
+              <td style="padding:22px 24px;background:linear-gradient(135deg,#00152d,#002147)">
+                <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:.02em">NextStep Talent</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px">
+                <p style="margin:0 0 6px;color:#64748b;font-size:11px;letter-spacing:.08em;text-transform:uppercase">Account Security</p>
+                <h1 style="margin:0 0 10px;font-size:24px;line-height:1.3;color:#0b1526">Password reset requested</h1>
+                <p style="margin:0 0 14px;color:#334155;font-size:14px;line-height:1.6">We received a request to reset your password. Use the secure button below to set a new password.</p>
+                <div style="display:inline-block;background:#eef2ff;color:#1e3a8a;font-size:12px;font-weight:700;padding:6px 10px;border-radius:999px">Expires in 30 minutes</div>
+                <div style="margin-top:20px">
+                  <a href="${resetUrl}" style="display:inline-block;background:#002147;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;font-size:13px">Reset Password</a>
+                </div>
+                <p style="margin:18px 0 0;color:#64748b;font-size:12px;line-height:1.6">If you did not request this, you can ignore this email and your password will remain unchanged.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+      const text = [
+        'Password reset requested',
+        'Use this link to reset your password (valid for 30 minutes):',
+        resetUrl,
+        'If you did not request this, you can ignore this email.',
+      ].join('\n');
+
+      await sendEmail({
+        to: user.email,
+        subject,
+        text,
+        html,
+      });
+    }
+
+    return res.json({
+      message: 'If an account exists with this email, a password reset link has been sent.',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const token = String(req.body?.token || '').trim();
+    const newPassword = String(req.body?.newPassword || '');
+    const confirmPassword = String(req.body?.confirmPassword || '');
+
+    if (!token || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: 'token, newPassword and confirmPassword are required' });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: 'Passwords do not match' });
+    }
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.',
+      });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.passwordResetTokenHash = '';
+    user.passwordResetExpiresAt = null;
+    await user.save();
+
+    return res.json({ message: 'Password has been reset successfully. Please login with your new password.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { signup, login, verifyEmail, resendVerificationEmail, verifyPhone, forgotPassword, resetPassword };

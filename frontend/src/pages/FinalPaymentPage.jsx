@@ -14,6 +14,8 @@ const BANK_DETAILS = {
   iban: 'DE89370400440532013000',
 };
 
+const FINAL_ONBOARDING_AMOUNT = 'USD 4,000';
+
 export default function FinalPaymentPage() {
   const [loading, setLoading] = useState(false);
   const [bankReference, setBankReference] = useState('');
@@ -60,7 +62,12 @@ export default function FinalPaymentPage() {
         <div className="mx-auto max-w-[900px] px-6">
           <section className="nst-card rounded-xl p-8">
             <h1 className="mb-2 text-4xl font-bold text-[#002147]">Final Onboarding Payment</h1>
-            <p className="mb-6 text-[#44474e]">Transfer USD 4,000 to the account below, then upload your transfer receipt.</p>
+            <p className="mb-4 text-[#44474e]">Transfer {FINAL_ONBOARDING_AMOUNT} to the account below, then upload your transfer receipt.</p>
+            <div className="mb-6 rounded-xl border border-[#002147]/20 bg-[#002147]/5 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#002147]">Amount To Pay</p>
+              <p className="mt-1 text-3xl font-extrabold text-[#002147]">{FINAL_ONBOARDING_AMOUNT}</p>
+              {/* <p className="mt-1 text-sm text-slate-700">Please transfer exactly this amount before submitting the receipt.</p> */}
+            </div>
             <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm md:grid-cols-2">
               <p><b>Account Name:</b> {BANK_DETAILS.accountName}</p>
               <p><b>Account Number:</b> {BANK_DETAILS.accountNumber}</p>
@@ -72,7 +79,7 @@ export default function FinalPaymentPage() {
             <div className="grid gap-3 md:grid-cols-2">
               <input
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none"
-                placeholder="Bank transfer reference (optional)"
+                placeholder="Bank transfer reference"
                 value={bankReference}
                 onChange={(e) => setBankReference(e.target.value)}
               />
@@ -94,7 +101,7 @@ export default function FinalPaymentPage() {
                 </div>
               </div>
             </div>
-            <Button className="mt-6 text-white" onClick={submit} disabled={loading}>{loading ? 'Submitting...' : 'Submit Transfer Receipt'}</Button>
+            <Button className="mt-6 text-white" onClick={submit} disabled={loading}>{loading ? 'Submitting...' : `Submit ${FINAL_ONBOARDING_AMOUNT} Receipt`}</Button>
           </section>
         </div>
       </main>

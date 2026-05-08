@@ -47,11 +47,11 @@ export default function AdminStageCandidatesPage({ title, stageKey }) {
           <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
           <p className="text-sm text-slate-600">Use this queue to find candidates who need attention, then open the review workspace to inspect submitted evidence before deciding.</p>
         </div>
-        <div className="flex rounded-lg border border-slate-200 bg-white p-1">
+        <div className="ml-auto flex rounded-lg border border-slate-200 bg-white p-1">
           <button
             type="button"
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              viewFilter === 'current' ? 'bg-[#1d4ed8] text-white' : 'text-slate-600 hover:bg-slate-100'
+              viewFilter === 'current' ? 'bg-[#c8a96b] text-black' : 'text-slate-600 hover:bg-slate-100'
             }`}
             onClick={() => setViewFilter('current')}
           >
@@ -60,7 +60,7 @@ export default function AdminStageCandidatesPage({ title, stageKey }) {
           <button
             type="button"
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              viewFilter === 'passed' ? 'bg-[#1d4ed8] text-white' : 'text-slate-600 hover:bg-slate-100'
+              viewFilter === 'passed' ? 'bg-[#c8a96b] text-black' : 'text-slate-600 hover:bg-slate-100'
             }`}
             onClick={() => setViewFilter('passed')}
           >

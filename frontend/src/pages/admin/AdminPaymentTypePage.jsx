@@ -138,7 +138,7 @@ export default function AdminPaymentTypePage({ title, type }) {
                     </td>
                     <td className="px-4 py-3 text-slate-700">
                       {row.receiptUrl ? (
-                        <a className="text-blue-700 underline" href={`${getBackendBaseUrl()}${row.receiptUrl}`} target="_blank" rel="noreferrer">
+                        <a className="text-[#d7c08a] underline" href={`${getBackendBaseUrl()}${row.receiptUrl}`} target="_blank" rel="noreferrer">
                           View receipt
                         </a>
                       ) : (
@@ -149,7 +149,7 @@ export default function AdminPaymentTypePage({ title, type }) {
                       {row.paymentId && can('payments:verify') ? (
                         <button
                           type="button"
-                          className="rounded-xl border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+                          className="rounded-xl border border-[rgba(200,169,107,0.35)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)]"
                           onClick={() => openReview(row)}
                         >
                           {String(row.rawStatus || '').toLowerCase() === 'pending' ? 'Review & Decide' : 'Edit Status'}

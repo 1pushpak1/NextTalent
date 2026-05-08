@@ -9,7 +9,7 @@ router.post('/upload', protect, (req, res, next) => {
   upload.single('file')(req, res, (error) => {
     if (!error) return next();
     if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ message: 'File size exceeds 10MB limit' });
+      return res.status(400).json({ message: 'Each document must be 10MB or smaller.' });
     }
     return res.status(400).json({ message: error.message || 'Upload failed' });
   });

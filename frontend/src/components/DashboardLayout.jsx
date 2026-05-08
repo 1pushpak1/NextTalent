@@ -5,7 +5,6 @@ const items = [
   { name: 'Profile', to: '/profile-submission' },
   { name: 'Payments', to: '/initial-payment' },
   { name: 'Documents', to: '/documents' },
-  { name: 'Interviews', to: '/interviews' },
   { name: 'Messages', to: '/email-sent' },
   { name: 'Settings', to: '/candidate-dashboard' },
 ];

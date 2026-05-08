@@ -18,7 +18,7 @@ export default function AdminLayout() {
   }, [pathname]);
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc,#eef2f7)]">
+    <div className="nst-shell nst-admin-shell min-h-screen">
       <AdminSidebar
         paymentsOpen={paymentsOpen}
         setPaymentsOpen={setPaymentsOpen}
@@ -30,26 +30,26 @@ export default function AdminLayout() {
       <div className="lg:pl-72">
         <button
           type="button"
-          className="fixed left-4 top-4 z-30 rounded-md border border-slate-200 bg-white p-2 shadow-sm lg:hidden"
+          className="fixed left-4 top-4 z-30 rounded-md border border-[rgba(200,169,107,0.35)] bg-[rgba(255,255,255,0.08)] p-2 text-[#f7f3ea] shadow-sm lg:hidden"
           onClick={() => setMobileOpen(true)}
           aria-label="Open admin sidebar"
         >
           <span className="material-symbols-outlined text-base">menu</span>
         </button>
 
-        <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 px-4 py-4 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-[rgba(200,169,107,0.24)] bg-[rgba(8,8,9,0.9)] px-4 py-4 backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">NextStep Talent Admin</p>
-              <h1 className="text-lg font-semibold text-slate-900">Operations Workspace</h1>
+              <p className="text-xs uppercase tracking-[0.22em] text-[#c8a96b]">NextStep Talent Admin</p>
+              <h1 className="text-lg font-semibold text-[#f7f3ea]">Operations Workspace</h1>
             </div>
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2">
-              <div className="h-10 w-10 rounded-full bg-slate-900/90 text-center text-sm font-bold leading-10 text-white">
+            <div className="flex items-center gap-3 rounded-2xl border border-[rgba(200,169,107,0.24)] bg-[rgba(255,255,255,0.04)] px-4 py-2">
+              <div className="h-10 w-10 rounded-full bg-[#c8a96b]/90 text-center text-sm font-bold leading-10 text-black">
                 {String(user?.name || 'A').charAt(0).toUpperCase()}
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-900">{user?.name || 'Admin'}</p>
-                <p className="text-xs text-slate-500">{String(user?.adminRole || '').replaceAll('_', ' ') || 'admin'}</p>
+                <p className="text-sm font-semibold text-[#f7f3ea]">{user?.name || 'Admin'}</p>
+                <p className="text-xs text-[#bdbdc3]">{String(user?.adminRole || '').replaceAll('_', ' ') || 'admin'}</p>
               </div>
             </div>
           </div>

@@ -11,7 +11,6 @@ const formatDate = (value) => {
 const stageReviewMap = {
   evaluation: 'profile',
   'document-verification': 'documents',
-  interviews: 'interviews',
   selection: 'selection',
   hiring: 'hiring',
   testimonials: 'history',
@@ -21,14 +20,26 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
   const navigate = useNavigate();
   const { can } = usePermissions();
 
-  if (loading) return <p className="text-sm text-slate-500">Loading applications...</p>;
-  if (!rows.length) return <p className="text-sm text-slate-500">No applications found for this stage.</p>;
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-[rgba(200,169,107,0.24)] bg-[rgba(255,255,255,0.04)] p-5 text-sm text-[#bdbdc3]">
+        Loading applications...
+      </div>
+    );
+  }
+  if (!rows.length) {
+    return (
+      <div className="rounded-2xl border border-[rgba(200,169,107,0.24)] bg-[rgba(255,255,255,0.04)] p-5 text-center">
+        <p className="text-base font-semibold text-[#f7f3ea]">No applications found for this stage.</p>
+        <p className="mt-1 text-sm text-[#bdbdc3]">Try switching queue filters or check back after new updates.</p>
+      </div>
+    );
+  }
 
   const canReviewStage =
     (stageKey === 'evaluation' && can('evaluation:approve')) ||
     (stageKey === 'document-verification' && can('documents:verify')) ||
     (stageKey === 'selection' && can('candidates:update')) ||
-    (stageKey === 'interviews' && can('interviews:manage')) ||
     (stageKey === 'hiring' && can('candidates:update'));
 
   return (
@@ -58,14 +69,14 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                      className="rounded-xl border border-[rgba(200,169,107,0.36)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)]"
                       onClick={() => navigate(`/admin/candidates/${row._id}?tab=${stageReviewMap[stageKey] || 'overview'}${canReviewStage ? `&review=${stageKey}` : ''}`)}
                     >
                       {canReviewStage ? (String(row.stepStatus || '').toLowerCase() === 'accepted' ? 'Edit Response' : 'Review & Decide') : 'Open Candidate'}
                     </button>
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-100"
+                      className="inline-flex items-center gap-1 rounded-xl border border-[rgba(200,169,107,0.28)] px-3 py-2 text-xs font-semibold text-[#d7c08a] transition hover:bg-[rgba(200,169,107,0.1)]"
                       onClick={() => navigate(`/admin/candidates/${row._id}`)}
                     >
                       View Profile

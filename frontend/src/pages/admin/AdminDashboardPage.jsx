@@ -8,7 +8,7 @@ const cardConfig = [
   { key: 'profilesPendingReview', label: 'Profiles Pending Review', to: '/admin/candidates?stage=profile_review&pendingFrom=admin' },
   { key: 'paymentsPendingVerification', label: 'Payments Pending Verification', to: '/admin/candidates?paymentStatus=pending_verification' },
   { key: 'documentsPendingVerification', label: 'Documents Pending Verification', to: '/admin/candidates?documentStatus=under_review&pendingFrom=admin' },
-  { key: 'interviewsPendingScheduled', label: 'Interviews Pending/Scheduled', to: '/admin/candidates?stage=interviews' },
+  { key: 'interviewsPendingScheduled', label: 'Results Pending Announcement', to: '/admin/candidates?stage=selection' },
   { key: 'selectedCandidates', label: 'Selected Candidates', to: '/admin/candidates?selectionStatus=selected' },
   { key: 'rejectedCandidates', label: 'Rejected Candidates', to: '/admin/candidates?selectionStatus=rejected' },
   { key: 'totalRevenue', label: 'Total Revenue' },

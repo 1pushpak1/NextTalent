@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
 import Card from '../components/Card';
 import Button from '../components/Button';
-import Input from '../components/Input';
 import Select from '../components/Select';
 import StatusBadge from '../components/StatusBadge';
 import api from '../api/axios';
@@ -29,14 +26,6 @@ export default function AdminCandidatePage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [docStatusDraft, setDocStatusDraft] = useState({});
-  const [interviewForm, setInterviewForm] = useState({
-    hiringPartner: '',
-    country: '',
-    role: '',
-    date: '',
-    time: '',
-    meetingLink: '',
-  });
 
   const loadDetails = async () => {
     if (!isAdmin) return;
@@ -73,7 +62,6 @@ export default function AdminCandidatePage() {
   const profile = data?.profile;
   const candidate = data?.candidate;
   const documents = data?.documents || [];
-  const interviews = data?.interviews || [];
   const payments = data?.payments || [];
 
   const profileSummary = useMemo(() => {
@@ -127,35 +115,8 @@ export default function AdminCandidatePage() {
     }
   };
 
-  const scheduleInterview = async () => {
-    if (!interviewForm.hiringPartner || !interviewForm.country || !interviewForm.role || !interviewForm.date || !interviewForm.time) {
-      alert('Please fill all required interview fields.');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await api.post(`/admin/candidates/${id}/interviews`, interviewForm);
-      setInterviewForm({
-        hiringPartner: '',
-        country: '',
-        role: '',
-        date: '',
-        time: '',
-        meetingLink: '',
-      });
-      await loadDetails();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Unable to schedule interview');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Navbar />
-      <main className="mx-auto max-w-6xl space-y-5 px-4 pb-16 pt-28">
+    <section className="mx-auto max-w-6xl space-y-5 px-1 pb-10">
         <Card className="rounded-xl border border-slate-200 p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -164,7 +125,7 @@ export default function AdminCandidatePage() {
               <p className="text-sm text-slate-600">{candidate?.email || '—'}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link to="/admin"><Button variant="secondary">Back to Candidate List</Button></Link>
+              <Link to="/admin/candidates"><Button variant="secondary">Back to Candidate List</Button></Link>
               <Button variant="secondary" onClick={loadDetails} disabled={loading || saving}>Refresh</Button>
             </div>
           </div>
@@ -264,37 +225,6 @@ export default function AdminCandidatePage() {
         </Card>
 
         <Card className="rounded-xl border border-slate-200 p-6">
-          <h2 className="text-xl font-bold text-slate-900">Interview Management</h2>
-          <p className="mt-1 text-sm text-slate-600">Schedule interviews directly for this candidate.</p>
-
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <Input required label="Hiring Partner" value={interviewForm.hiringPartner} onChange={(e) => setInterviewForm({ ...interviewForm, hiringPartner: e.target.value })} />
-            <Input required label="Country" value={interviewForm.country} onChange={(e) => setInterviewForm({ ...interviewForm, country: e.target.value })} />
-            <Input required label="Role" value={interviewForm.role} onChange={(e) => setInterviewForm({ ...interviewForm, role: e.target.value })} />
-            <Input required label="Date" value={interviewForm.date} onChange={(e) => setInterviewForm({ ...interviewForm, date: e.target.value })} />
-            <Input required label="Time" value={interviewForm.time} onChange={(e) => setInterviewForm({ ...interviewForm, time: e.target.value })} />
-            <Input label="Meeting Link" value={interviewForm.meetingLink} onChange={(e) => setInterviewForm({ ...interviewForm, meetingLink: e.target.value })} />
-          </div>
-          <Button className="mt-4" onClick={scheduleInterview} disabled={saving}>Schedule Interview</Button>
-
-          <div className="mt-5 space-y-3">
-            <h3 className="text-lg font-semibold text-slate-900">Scheduled Interviews</h3>
-            {!interviews.length && <p className="text-sm text-slate-600">No interviews scheduled yet.</p>}
-            {interviews.map((item) => (
-              <div key={item._id} className="rounded-lg border border-slate-200 p-3 text-sm">
-                <p><b>Hiring Partner:</b> {item.hiringPartner}</p>
-                <p><b>Country:</b> {item.country}</p>
-                <p><b>Role:</b> {item.role}</p>
-                <p><b>Date:</b> {item.date}</p>
-                <p><b>Time:</b> {item.time}</p>
-                <p><b>Status:</b> {item.status}</p>
-                {item.meetingLink && <a className="font-medium text-[#3a5f94] underline" href={item.meetingLink} target="_blank" rel="noreferrer">Open Meeting Link</a>}
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="rounded-xl border border-slate-200 p-6">
           <h2 className="mb-3 text-xl font-bold text-slate-900">Payment Records</h2>
           {!payments.length && <p className="text-sm text-slate-600">No payment records yet.</p>}
           <div className="space-y-3">
@@ -309,8 +239,6 @@ export default function AdminCandidatePage() {
             ))}
           </div>
         </Card>
-      </main>
-      <Footer />
-    </div>
+    </section>
   );
 }

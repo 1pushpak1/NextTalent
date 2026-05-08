@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import api from '../api/axios';
@@ -45,6 +45,14 @@ export default function LoginPage() {
       <form className="space-y-4" onSubmit={submit}>
         <Input label="Email Address" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <Input label="Password" type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+        <div className="text-right">
+          <Link
+            className="text-sm font-semibold text-[#c8a96b] transition hover:text-[#e7d5ac]"
+            to={`/forgot-password${form.email ? `?email=${encodeURIComponent(form.email)}&next=${encodeURIComponent(next)}` : `?next=${encodeURIComponent(next)}`}`}
+          >
+            Forgot Password?
+          </Link>
+        </div>
         <Button className="w-full" disabled={loading}>{loading ? 'Logging in...' : 'Login'}</Button>
       </form>
     </AuthSplitLayout>

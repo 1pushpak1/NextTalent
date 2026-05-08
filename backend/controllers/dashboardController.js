@@ -28,13 +28,6 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
   const docsUploaded = docs.length > 0;
   const docsUnderReview = docs.some((d) => d.status === 'Under Review');
   const docsAccepted = docs.length > 0 && docs.every((d) => d.status === 'Accepted');
-  const anyInterview = interviews.length > 0;
-  const hasScheduledInterview =
-    interviews.some((interview) => String(interview.status || '').toLowerCase() === 'scheduled') ||
-    user.status === 'interview_scheduled';
-  const hasCompletedInterview =
-    interviews.some((interview) => String(interview.status || '').toLowerCase() === 'completed') ||
-    user.status === 'interview_completed';
   const selectionDecision = String(user?.stageStatuses?.get ? user.stageStatuses.get('selection') : user?.stageStatuses?.selection || '').toLowerCase();
   const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews });
 
@@ -43,7 +36,9 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
   const profileRejected = profile?.status === 'rejected';
   const selectionAccepted = selectionDecision === 'accepted' || (selectionDecision !== 'rejected' && selected);
   const selectionRejected = selectionDecision === 'rejected' || (selectionDecision !== 'accepted' && rejected);
-  const selectionUnderReview = selectionDecision === 'under_review' || (!selected && !rejected && user.status === 'interview_completed');
+  const selectionUnderReview =
+    selectionDecision === 'under_review' ||
+    (!selected && !rejected && (user.status === 'sent_to_partners' || user.status === 'interview_completed'));
   const declarationDone =
     user.status === 'declaration_signed' ||
     user.status === 'onboarding_complete' ||
@@ -111,11 +106,7 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
     },
     {
       name: 'Sent to Hiring Partners',
-      status: profileRejected ? 'Inactive' : user.status === 'sent_to_partners' || anyInterview || selected ? 'Completed' : 'Pending',
-    },
-    {
-      name: 'Interviews',
-      status: profileRejected ? 'Inactive' : hasCompletedInterview ? 'Completed' : hasScheduledInterview ? 'In Progress' : anyInterview ? 'Pending' : 'Pending',
+      status: profileRejected ? 'Inactive' : user.status === 'sent_to_partners' || selected ? 'Completed' : 'Pending',
     },
     {
       name: 'Selection Result',
@@ -218,7 +209,7 @@ const getDashboard = async (req, res) => {
       currentStage = stages.find((s) => s.name === 'Final Payment' && s.status !== 'Completed') || stages.find((s) => s.name === 'Testimonial') || currentStage;
     } else if (selectionDecision === 'rejected' || user.status === 'not_selected') {
       currentStage = stages.find((s) => s.name === 'Selection Result') || currentStage;
-    } else if (!currentStage && (selectionDecision === 'under_review' || user.status === 'interview_completed' || user.status === 'interview_scheduled')) {
+    } else if (!currentStage && (selectionDecision === 'under_review' || user.status === 'sent_to_partners' || user.status === 'interview_completed')) {
       currentStage = stages.find((s) => s.name === 'Selection Result') || currentStage;
     }
     if (!currentStage) {

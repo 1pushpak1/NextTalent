@@ -1,6 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 const sendEmail = require('./sendEmail');
+const User = require('../models/User');
+const Profile = require('../models/Profile');
+const Eligibility = require('../models/Eligibility');
+const Document = require('../models/Document');
+const Interview = require('../models/Interview');
+const Payment = require('../models/Payment');
+const Testimonial = require('../models/Testimonial');
+const { deriveCandidateProgress } = require('./candidateProgress');
 
 const getFrontendBaseUrl = () => String(process.env.FRONTEND_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
 const BRAND_LOGO_CID = 'nextstep-talent-logo';
@@ -42,6 +50,19 @@ const stepCatalog = {
   final_payment: { no: 14, name: 'Final Payment' },
   testimonial: { no: 15, name: 'Testimonial' },
 };
+
+const suppressedStepStatusEmails = new Set([
+  'account:pending',
+  'profile:submitted',
+  'declaration:completed',
+  'onboarding:completed',
+  'documents:uploaded',
+  'program_payment:pending',
+  'hiring:accepted',
+  'interviews:accepted',
+  'final_payment:completed',
+  'testimonial:completed',
+]);
 
 const variantThemes = {
   general: {
@@ -87,6 +108,62 @@ const titleCase = (value = '') =>
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+
+const normalizeStepKey = (value = '') =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replaceAll('-', '_');
+
+const normalizeStatus = (value = '') =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replaceAll(' ', '_');
+
+const shouldSuppressEmail = ({ stepKey, status }) => {
+  const normalizedStepKey = normalizeStepKey(stepKey);
+  const normalizedStatus = normalizeStatus(status);
+  return suppressedStepStatusEmails.has(`${normalizedStepKey}:${normalizedStatus}`);
+};
+
+const resolveNextCandidateAction = async ({ candidateId, to }) => {
+  try {
+    const candidate = candidateId
+      ? await User.findOne({ _id: candidateId, role: 'candidate' }).lean()
+      : await User.findOne({ email: String(to || '').toLowerCase().trim(), role: 'candidate' }).lean();
+    if (!candidate?._id) return null;
+
+    const [profile, eligibility, documents, interviews, payments, testimonial] = await Promise.all([
+      Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Document.find({ userId: candidate._id }).sort({ uploadedAt: -1 }).lean(),
+      Interview.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Payment.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Testimonial.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+    ]);
+
+    const progress = deriveCandidateProgress({
+      candidate,
+      profile,
+      eligibility,
+      documents,
+      interviews,
+      payments,
+      testimonial,
+    });
+
+    if (progress?.pendingFrom !== 'candidate') return null;
+    if (!progress?.nextAction || progress.nextAction === 'No pending action') return null;
+
+    return {
+      currentStage: progress.currentStage || '',
+      nextAction: progress.nextAction,
+    };
+  } catch {
+    return null;
+  }
+};
 
 const stepInfoFor = (stepKey, fallbackName = 'Process Update') => {
   const base = stepCatalog[stepKey] || null;
@@ -164,6 +241,7 @@ const buildHtml = ({ candidateName, heading, message, stepNo, stepName, status, 
 
 const sendStepUpdateEmail = async ({
   to,
+  candidateId,
   candidateName,
   stepKey,
   stepName,
@@ -175,10 +253,19 @@ const sendStepUpdateEmail = async ({
   eventType,
 }) => {
   if (!to) return;
+  if (shouldSuppressEmail({ stepKey, status })) return;
+
+  const candidateNextAction = await resolveNextCandidateAction({ candidateId, to });
   const stepInfo = stepInfoFor(stepKey, stepName || 'Process Update');
   const effectiveStepName = stepName || stepInfo.name;
   const effectiveStatus = statusLabelMap[String(status || '').toLowerCase()] || titleCase(String(status || 'Updated'));
   const variant = inferVariant({ eventType, stepKey, status: effectiveStatus });
+  const enrichedDetails = [
+    ...details,
+    ...(candidateNextAction
+      ? [{ label: 'Next Pending Candidate Step', value: `${candidateNextAction.nextAction}${candidateNextAction.currentStage ? ` (${candidateNextAction.currentStage})` : ''}` }]
+      : []),
+  ];
 
   const subject = `Step ${stepInfo.no}: ${effectiveStepName} - ${effectiveStatus}`;
   const hasInlineLogo = logoFileExists();
@@ -190,7 +277,7 @@ const sendStepUpdateEmail = async ({
     stepNo: stepInfo.no,
     stepName: effectiveStepName,
     status: effectiveStatus,
-    details,
+    details: enrichedDetails,
     cta,
     variant,
     logoSrc,
@@ -199,9 +286,10 @@ const sendStepUpdateEmail = async ({
   const textLines = [
     `Step ${stepInfo.no}: ${effectiveStepName}`,
     `Status: ${effectiveStatus}`,
+    `Candidate: ${candidateName || 'Candidate'}`,
     heading,
     message,
-    ...details.map((d) => `${d.label}: ${d.value}`),
+    ...enrichedDetails.map((d) => `${d.label}: ${d.value}`),
     ...(cta?.label && cta?.url ? [`${cta.label}: ${cta.url}`] : []),
   ];
 

@@ -16,6 +16,8 @@ const userSchema = new mongoose.Schema(
     phoneOtp: { type: String, default: '' },
     emailVerificationTokenHash: { type: String, default: '' },
     emailVerificationExpiresAt: { type: Date, default: null },
+    passwordResetTokenHash: { type: String, default: '' },
+    passwordResetExpiresAt: { type: Date, default: null },
   },
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } }
 );

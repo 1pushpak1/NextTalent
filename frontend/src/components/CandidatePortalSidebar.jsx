@@ -6,7 +6,6 @@ import api from '../api/axios';
 const sideItems = [
   { name: 'Profile', icon: 'account_circle', to: '/profile-submission' },
   { name: 'Dashboard', icon: 'dashboard', to: '/candidate-dashboard' },
-  { name: 'Interviews', icon: 'work_history', to: '/interviews' },
   { name: 'Payment History', icon: 'receipt_long', to: '/payment-history' },
   { name: 'Settings', icon: 'settings', to: '/candidate-dashboard' },
 ];

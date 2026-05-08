@@ -851,7 +851,7 @@ export default function AdminCandidateDetailPage() {
             <div className="rounded-md bg-slate-100 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Method</p><p className="mt-1 font-medium text-slate-900">{selectedPayment.method || '—'}</p></div>
             <div className="rounded-md bg-slate-100 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Transaction ID</p><p className="mt-1 font-medium text-slate-900">{selectedPayment.transactionId || '—'}</p></div>
             <div className="rounded-md bg-slate-100 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Date</p><p className="mt-1 font-medium text-slate-900">{formatDate(selectedPayment.createdAt)}</p></div>
-            <div className="rounded-md bg-slate-100 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Receipt</p><p className="mt-1 font-medium text-slate-900">{selectedPayment.receiptUrl ? <a className="text-blue-700 underline" href={`${getBackendBaseUrl()}${selectedPayment.receiptUrl}`} target="_blank" rel="noreferrer">Open receipt</a> : '—'}</p></div>
+            <div className="rounded-md bg-slate-100 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Receipt</p><p className="mt-1 font-medium text-slate-900">{selectedPayment.receiptUrl ? <a className="text-[#d7c08a] underline" href={`${getBackendBaseUrl()}${selectedPayment.receiptUrl}`} target="_blank" rel="noreferrer">Open receipt</a> : '—'}</p></div>
           </div>
         )}
       </Modal>

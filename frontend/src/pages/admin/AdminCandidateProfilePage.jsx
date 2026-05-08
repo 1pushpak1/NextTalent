@@ -10,12 +10,11 @@ import {
   reviewCandidateProfile,
   reviewCandidateStage,
   reviewPayment,
-  scheduleCandidateInterview,
   updateCandidateNotes,
 } from '../../api/adminApi';
 import usePermissions from '../../hooks/usePermissions';
 
-const tabs = ['overview', 'profile', 'eligibility', 'payments', 'documents', 'hiring', 'interviews', 'notes', 'history'];
+const tabs = ['overview', 'profile', 'eligibility', 'payments', 'documents', 'hiring', 'selection', 'notes', 'history'];
 
 const humanize = (value) =>
   String(value || '—')
@@ -42,7 +41,6 @@ const stageSequence = [
   'documents_upload',
   'program_payment',
   'document_verification',
-  'interviews',
   'selection',
   'final_payment',
   'testimonial',
@@ -116,19 +114,15 @@ export default function AdminCandidateProfilePage() {
   const [profileReviewSubmitting, setProfileReviewSubmitting] = useState('');
   const [hiringPartnerDraft, setHiringPartnerDraft] = useState('');
   const [stageSaving, setStageSaving] = useState('');
-  const [interviewForm, setInterviewForm] = useState({
-    hiringPartner: '',
-    country: '',
-    role: '',
-    date: '',
-    time: '',
-    meetingLink: '',
-  });
-  const [showInterviewForm, setShowInterviewForm] = useState(false);
 
   const currentParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const canViewAuditHistory = String(role || '') === 'super_admin';
+  const visibleTabs = useMemo(
+    () => (canViewAuditHistory ? tabs : tabs.filter((tab) => tab !== 'history')),
+    [canViewAuditHistory],
+  );
   const activeTabParam = currentParams.get('tab');
-  const tabFromUrl = tabs.includes(activeTabParam) ? activeTabParam : 'overview';
+  const tabFromUrl = visibleTabs.includes(activeTabParam) ? activeTabParam : 'overview';
   const [activeTab, setActiveTabState] = useState(tabFromUrl);
   const reviewParam = currentParams.get('review');
   const canReviewSelection = ['super_admin', 'payment_admin'].includes(String(role || ''));
@@ -136,6 +130,16 @@ export default function AdminCandidateProfilePage() {
   useEffect(() => {
     setActiveTabState(tabFromUrl);
   }, [tabFromUrl]);
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab)) {
+      setActiveTabState('overview');
+      const next = new URLSearchParams(currentParams);
+      next.set('tab', 'overview');
+      next.delete('review');
+      setSearchParams(next);
+    }
+  }, [activeTab, currentParams, setSearchParams, visibleTabs]);
 
   // Auto-scroll to top when tab changes
   useEffect(() => {
@@ -167,21 +171,13 @@ export default function AdminCandidateProfilePage() {
   const eligibility = data?.eligibility;
   const payments = data?.payments || [];
   const documents = data?.documents || [];
-  const interviews = data?.interviews || [];
   const progress = data?.progress;
   const approvalHistory = data?.approvalHistory || [];
-  const latestInterview = interviews[0] || null;
   const documentVerificationDecision = readStageDecision(candidate, 'document-verification');
   const hiringDecision = readStageDecision(candidate, 'hiring');
-  const interviewDecision = readStageDecision(candidate, 'interviews');
   const selectionDecision = readStageDecision(candidate, 'selection');
   const documentVerificationAccepted = documentVerificationDecision === 'accepted' || progress?.documentStatus === 'verified';
   const hiringAccepted = hiringDecision === 'accepted' || Boolean(candidate?.assignedHiringPartner);
-  const interviewCompleted =
-    String(latestInterview?.status || '').toLowerCase() === 'completed' ||
-    interviewDecision === 'accepted' ||
-    String(candidate?.status || '').toLowerCase() === 'interview_completed' ||
-    String(progress?.interviewStatus || '').toLowerCase() === 'completed';
   const selectionAnnounced =
     ['accepted', 'rejected'].includes(selectionDecision) ||
     ['selected', 'rejected'].includes(String(progress?.selectionStatus || '').toLowerCase());
@@ -200,10 +196,7 @@ export default function AdminCandidateProfilePage() {
     if (assigned && !hiringPartnerDraft) {
       setHiringPartnerDraft(assigned);
     }
-    if (assigned && !interviewForm.hiringPartner) {
-      setInterviewForm((prev) => ({ ...prev, hiringPartner: assigned }));
-    }
-  }, [candidate, hiringPartnerDraft, interviewForm.hiringPartner]);
+  }, [candidate, hiringPartnerDraft]);
 
   useEffect(() => {
     if (!data) return;
@@ -311,23 +304,6 @@ export default function AdminCandidateProfilePage() {
     }
   };
 
-  const markLatestInterviewCompleted = async () => {
-    setStageSaving('interviews-complete');
-    setError('');
-    try {
-      await reviewCandidateStage(id, 'interviews', {
-        status: 'accepted',
-        reasonNote: 'Interview completed by admin',
-        sourcePage: '/admin/candidates/interviews',
-      });
-      await load();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to mark interview completed');
-    } finally {
-      setStageSaving('');
-    }
-  };
-
   const submitInlineProfileReview = async (decision) => {
     if (!profileReviewNote.trim() || !profileReviewConfirmed) return;
     setProfileReviewSubmitting(decision);
@@ -422,39 +398,6 @@ export default function AdminCandidateProfilePage() {
     }
   };
 
-  const submitInterviewSchedule = async () => {
-    if (!interviewForm.hiringPartner.trim() || !interviewForm.country.trim() || !interviewForm.role.trim() || !interviewForm.date.trim() || !interviewForm.time.trim()) {
-      setError('Please fill hiring partner, country, role, date, and time to schedule interview.');
-      return;
-    }
-
-    setStageSaving('interviews');
-    setError('');
-    try {
-      await scheduleCandidateInterview(id, {
-        hiringPartner: interviewForm.hiringPartner.trim(),
-        country: interviewForm.country.trim(),
-        role: interviewForm.role.trim(),
-        date: interviewForm.date.trim(),
-        time: interviewForm.time.trim(),
-        meetingLink: interviewForm.meetingLink.trim(),
-      });
-      setInterviewForm({
-        hiringPartner: interviewForm.hiringPartner.trim(),
-        country: '',
-        role: '',
-        date: '',
-        time: '',
-        meetingLink: '',
-      });
-      await load();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to schedule interview');
-    } finally {
-      setStageSaving('');
-    }
-  };
-
   const reviewConfig = (() => {
     if (!activeReview) return null;
 
@@ -524,23 +467,22 @@ export default function AdminCandidateProfilePage() {
     }
 
     if (activeReview.type === 'selection') {
-      const latestInterview = interviews[0];
       return {
         title: 'Final Selection Review',
         currentStage: 'Selection Result',
         currentStatus: progress?.selectionStatus,
         summaryRows: [
           { label: 'Current Selection Status', value: humanize(progress?.selectionStatus) },
-          { label: 'Latest Interview Role', value: latestInterview?.role || '—' },
-          { label: 'Latest Interview Status', value: latestInterview?.status || '—' },
-          { label: 'Hiring Partner', value: latestInterview?.hiringPartner || candidate?.assignedHiringPartner || '—' },
+          { label: 'Hiring Stage', value: hiringAccepted ? 'Completed' : 'Pending' },
+          { label: 'Hiring Partner', value: candidate?.assignedHiringPartner || '—' },
+          { label: 'Candidate Current Stage', value: progress?.currentStage || '—' },
         ],
         evidenceItems: [
           {
             key: 'selection-summary',
-            label: 'Open interview summary',
-            description: 'Review the latest interview details and current candidate progress.',
-            onOpen: () => window.open(`data:text/plain;charset=utf-8,${encodeURIComponent(JSON.stringify({ interviews, progress }, null, 2))}`, '_blank', 'noopener,noreferrer'),
+            label: 'Open stage summary',
+            description: 'Review hiring assignment and current candidate progress before announcing result.',
+            onOpen: () => window.open(`data:text/plain;charset=utf-8,${encodeURIComponent(JSON.stringify({ candidate, progress }, null, 2))}`, '_blank', 'noopener,noreferrer'),
             buttonLabel: 'Open Summary',
           },
         ],
@@ -769,12 +711,12 @@ export default function AdminCandidateProfilePage() {
       };
     }
 
-    if (canReviewSelection && currentStageKey === 'selection' && interviewCompleted) {
+    if (canReviewSelection && currentStageKey === 'selection' && hiringAccepted) {
       return {
         ...base,
         buttonLabel: 'Review Final Selection',
         onClick: () => setActiveReview({ type: 'selection' }),
-        helperText: 'Interview is complete. Selection decision can be announced.',
+        helperText: 'Hiring transfer is complete. Selection decision can be announced.',
       };
     }
 
@@ -795,7 +737,7 @@ export default function AdminCandidateProfilePage() {
     profileAlreadyReviewed,
     openProfileReview,
     canReviewSelection,
-    interviewCompleted,
+    hiringAccepted,
     latestPendingReviewPayment,
     latestReviewableDocument,
   ]);
@@ -805,7 +747,7 @@ export default function AdminCandidateProfilePage() {
       <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(200,169,107,0.18),_transparent_28%),linear-gradient(135deg,#0f172a,#1e293b)] p-6 text-white shadow-xl">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-blue-200/85">Admin Review Workspace</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-[#c8a96b]">Admin Review Workspace</p>
             <h1 className="mt-2 text-3xl font-bold">{candidate?.name || candidate?.email || 'Candidate Review'}</h1>
             <p className="mt-2 text-sm text-slate-300">{candidate?.email || '—'} {candidate?.phone ? `• ${candidate.phone}` : ''}</p>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -854,7 +796,7 @@ export default function AdminCandidateProfilePage() {
               className={`rounded-full px-3 py-1 text-xs font-semibold ${
                 allStagesCompleted ? 'bg-emerald-500/20 text-emerald-100' :
                 index < stageIndex ? 'bg-emerald-500/20 text-emerald-100' :
-                index === stageIndex ? 'bg-blue-500 text-white' :
+                index === stageIndex ? 'bg-[#c8a96b] text-black' :
                 'bg-white/5 text-slate-400'
               }`}
             >
@@ -865,7 +807,7 @@ export default function AdminCandidateProfilePage() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {tabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab}
             type="button"
@@ -924,7 +866,7 @@ export default function AdminCandidateProfilePage() {
               actions={<Button variant="adminGhost" onClick={closeReview}>Exit Review</Button>}
             >
               <div className="space-y-5">
-                <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <div className="rounded-2xl border border-[rgba(200,169,107,0.28)] bg-[rgba(200,169,107,0.1)] p-4">
                   <p className="text-sm font-semibold text-slate-900">{candidate?.name || candidate?.email}</p>
                   <p className="mt-1 text-sm text-slate-600">{candidate?.email || '—'}</p>
                   <p className="mt-3 text-sm text-slate-700">This page is the full internal evaluation workspace. Review the submitted profile below, add a reason, then record your decision.</p>
@@ -936,7 +878,7 @@ export default function AdminCandidateProfilePage() {
                   <label className="block text-sm font-medium text-slate-900" htmlFor="profile-review-note">Decision Reason / Note</label>
                   <textarea
                     id="profile-review-note"
-                    className="mt-2 min-h-32 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+                    className="mt-2 min-h-32 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-[rgba(200,169,107,0.5)]"
                     placeholder="Explain what you reviewed and why you are approving, rejecting, or keeping this profile under review."
                     value={profileReviewNote}
                     onChange={(event) => setProfileReviewNote(event.target.value)}
@@ -963,12 +905,14 @@ export default function AdminCandidateProfilePage() {
                   </div>
                 )}
 
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Previous Approval History</h3>
-                  <div className="mt-3">
-                    <AuditHistoryPanel history={filteredHistory(['profile_evaluation'])} />
+                {canViewAuditHistory ? (
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Previous Approval History</h3>
+                    <div className="mt-3">
+                      <AuditHistoryPanel history={filteredHistory(['profile_evaluation'])} />
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
                 <div className="flex flex-wrap justify-end gap-3">
                   <Button variant="adminSecondary" onClick={() => submitInlineProfileReview('under_review')} disabled={!profileReviewNote.trim() || !profileReviewConfirmed || Boolean(profileReviewSubmitting)}>
@@ -1117,7 +1061,7 @@ export default function AdminCandidateProfilePage() {
       {!loading && !error && candidate && activeTab === 'hiring' && (
         <Card
           title="Hiring Partner Stage"
-          subtitle="After document verification, assign the candidate to a hiring partner before interview scheduling."
+          subtitle="After document verification, assign the candidate to a hiring partner. Selection result is announced after this stage."
         >
           {!documentVerificationAccepted ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -1144,7 +1088,7 @@ export default function AdminCandidateProfilePage() {
                   <input
                     id="hiring-partner"
                     list="hiring-partner-options"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[rgba(200,169,107,0.5)]"
                     value={hiringPartnerDraft}
                     onChange={(event) => setHiringPartnerDraft(event.target.value)}
                     placeholder="Enter hiring partner name"
@@ -1172,129 +1116,28 @@ export default function AdminCandidateProfilePage() {
         </Card>
       )}
 
-      {!loading && !error && candidate && activeTab === 'interviews' && (
-        <Card title="Interviews and Selection" subtitle="Schedule interviews after hiring assignment, then publish final selection.">
+      {!loading && !error && candidate && activeTab === 'selection' && (
+        <Card title="Selection Results" subtitle="After hiring partner assignment, announce final selection result directly from this stage.">
           {!hiringAccepted ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              Assign and approve hiring partner first, then interview scheduling will be enabled.
+              Complete hiring partner assignment first. Selection announcement is enabled immediately after hiring is completed.
             </div>
           ) : (
             <div className="space-y-4">
+              <KeyValueGrid rows={[
+                { label: 'Hiring Stage', value: hiringAccepted ? 'Completed' : 'Pending' },
+                { label: 'Assigned Hiring Partner', value: candidate?.assignedHiringPartner || 'Not assigned' },
+                { label: 'Selection Status', value: humanize(progress?.selectionStatus) },
+                { label: 'Current Stage', value: progress?.currentStage || '—' },
+              ]} />
+
               <div className="flex flex-wrap gap-2">
-                {!showInterviewForm ? (
-                  <Button variant="adminPrimary" onClick={() => setShowInterviewForm(true)} disabled={!can('interviews:manage')}>
-                    Schedule New Interview
+                {canReviewSelection ? (
+                  <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'selection' })}>
+                    {selectionAnnounced ? 'Edit Announced Result' : 'Announce Result'}
                   </Button>
                 ) : null}
-                {showInterviewForm && interviews.length ? (
-                  <Button variant="adminSecondary" onClick={() => setShowInterviewForm(false)} disabled={stageSaving === 'interviews'}>
-                    Hide Form
-                  </Button>
-                ) : null}
-                {canReviewSelection && interviewCompleted ? <Button variant="adminSecondary" onClick={() => setActiveReview({ type: 'selection' })}>{selectionAnnounced ? 'Edit Announced Result' : 'Announce Result'}</Button> : null}
               </div>
-
-              {showInterviewForm ? (
-                <>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-hiring-partner">Hiring Partner</label>
-                      <input
-                        id="interview-hiring-partner"
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                        value={interviewForm.hiringPartner}
-                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, hiringPartner: event.target.value }))}
-                        placeholder="Hiring partner"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-country">Country</label>
-                      <input
-                        id="interview-country"
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                        value={interviewForm.country}
-                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, country: event.target.value }))}
-                        placeholder="Country"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-role">Role</label>
-                      <input
-                        id="interview-role"
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                        value={interviewForm.role}
-                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, role: event.target.value }))}
-                        placeholder="Interview role"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-date">Date</label>
-                      <input
-                        id="interview-date"
-                        type="date"
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                        value={interviewForm.date}
-                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, date: event.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-time">Time</label>
-                      <input
-                        id="interview-time"
-                        type="time"
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                        value={interviewForm.time}
-                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, time: event.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="interview-meeting-link">Meeting Link</label>
-                      <input
-                        id="interview-meeting-link"
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
-                        value={interviewForm.meetingLink}
-                        onChange={(event) => setInterviewForm((prev) => ({ ...prev, meetingLink: event.target.value }))}
-                        placeholder="https://..."
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="adminPrimary" onClick={submitInterviewSchedule} disabled={!can('interviews:manage') || stageSaving === 'interviews'}>
-                      {stageSaving === 'interviews' ? 'Scheduling...' : 'Schedule Interview'}
-                    </Button>
-                  </div>
-                </>
-              ) : null}
-
-              {canReviewSelection && !interviewCompleted ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  Mark interview as completed to enable result announcement.
-                </div>
-              ) : null}
-
-              {!interviews.length ? <p className="text-sm text-slate-500">No interviews scheduled yet.</p> : (
-                <div className="space-y-3">
-                  {interviews.map((interview) => (
-                    <div key={interview._id} className="rounded-2xl border border-slate-200 p-4">
-                      <KeyValueGrid rows={[
-                        { label: 'Role', value: interview.role },
-                        { label: 'Hiring Partner', value: interview.hiringPartner },
-                        { label: 'Country', value: interview.country },
-                        { label: 'Date', value: interview.date },
-                        { label: 'Time', value: interview.time },
-                        { label: 'Status', value: interview.status },
-                      ]} />
-                      {String(interview.status || '').toLowerCase() === 'scheduled' && interviews[0]?._id === interview._id ? (
-                        <div className="mt-3 flex justify-end">
-                          <Button variant="adminSecondary" onClick={markLatestInterviewCompleted} disabled={!can('candidates:update') || stageSaving === 'interviews-complete'}>
-                            {stageSaving === 'interviews-complete' ? 'Saving...' : 'Mark Interview Completed'}
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </Card>
@@ -1314,17 +1157,19 @@ export default function AdminCandidateProfilePage() {
             </Button>
           </div>
 
-          <div className="mt-6">
-            <h3 className="text-sm font-semibold text-slate-900">Saved Notes History</h3>
-            <p className="mt-1 text-xs text-slate-500">Version-wise record of who saved notes, when, and what content was saved.</p>
-            <div className="mt-3">
-              <AuditHistoryPanel history={notesHistory} emptyMessage="No notes history yet." />
+          {canViewAuditHistory ? (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-slate-900">Saved Notes History</h3>
+              <p className="mt-1 text-xs text-slate-500">Version-wise record of who saved notes, when, and what content was saved.</p>
+              <div className="mt-3">
+                <AuditHistoryPanel history={notesHistory} emptyMessage="No notes history yet." />
+              </div>
             </div>
-          </div>
+          ) : null}
         </Card>
       )}
 
-      {!loading && !error && candidate && activeTab === 'history' && (
+      {!loading && !error && candidate && activeTab === 'history' && canViewAuditHistory && (
         <Card title="Approval History" subtitle="Complete approval and status history shown according to your audit permissions.">
           <AuditHistoryPanel history={approvalHistory} />
         </Card>
@@ -1339,7 +1184,7 @@ export default function AdminCandidateProfilePage() {
         currentStatus={reviewConfig?.currentStatus}
         summaryRows={reviewConfig?.summaryRows || []}
         evidenceItems={reviewConfig?.evidenceItems || []}
-        history={reviewConfig?.history || []}
+        history={canViewAuditHistory ? reviewConfig?.history || [] : []}
         decisionOptions={reviewConfig?.decisionOptions || []}
         onSubmit={submitReview}
       />

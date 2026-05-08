@@ -41,7 +41,7 @@ const selectionBannerConfig = {
   Accepted: {
     eyebrow: 'Selection Result',
     title: 'Congratulations, you have been selected.',
-    description: 'Your interview journey has paid off. You are now cleared for the next step in your pathway.',
+    description: 'Your result has been announced. You are now cleared for the next step in your pathway.',
     className: 'border-emerald-500 bg-emerald-600 text-white',
     eyebrowClassName: 'text-emerald-100',
     iconWrapClassName: 'bg-white/20 text-white ring-1 ring-white/30',
@@ -57,6 +57,8 @@ const selectionBannerConfig = {
     iconWrapClassName: 'bg-white/85 text-rose-900 ring-1 ring-rose-300',
   },
 };
+
+const isLegacyInterviewStage = (name = '') => /interview/i.test(String(name).trim());
 
 export default function CandidateDashboardPage() {
   const [data, setData] = useState(null);
@@ -97,13 +99,12 @@ export default function CandidateDashboardPage() {
   const internalEvaluationPassed = data?.profileStatus === 'accepted';
   const profileRejected = data?.profileStatus === 'rejected';
   const showEligibilityForCandidate = data?.profileStatus === 'accepted';
-  const interviewScheduled = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'scheduled');
-  const interviewCompleted = data?.interviewStatus?.some((interview) => String(interview.status || '').toLowerCase() === 'completed');
   const testimonialSubmitted = Boolean(data?.testimonialSubmitted);
   const testimonialPending = finalPaid && !testimonialSubmitted;
   const selected = data?.candidate?.status === 'selected';
   const journeyLocked = profileRejected || ['not_selected', 'rejected'].includes(String(data?.candidate?.status || '').toLowerCase());
   const requiredRoute = getCandidateNextRoute(data);
+  const failedPaymentRoute = programFailed ? '/payment/program-fee' : finalFailed ? '/payment/final-payment' : '';
   const paymentNotice = paymentRouteNotice[requiredRoute] || null;
   const failedPaymentNotice = programFailed || finalFailed
     ? {
@@ -112,8 +113,7 @@ export default function CandidateDashboardPage() {
         cta: programFailed ? 'Re-upload Program Fee Receipt' : 'Re-upload Final Payment Receipt',
       }
     : null;
-  const currentStageLabel =
-    data?.currentStage === 'Interviews' && interviewCompleted ? 'Selection Result' : data?.currentStage || 'Pending';
+  const currentStageLabel = isLegacyInterviewStage(data?.currentStage) ? 'Selection Result' : data?.currentStage || 'Pending';
   const selectionStageStatus = useMemo(() => {
     if (profileRejected) return '';
     const fromStages = (data?.stages || []).find((stage) => stage.name === 'Selection Result')?.status;
@@ -124,16 +124,29 @@ export default function CandidateDashboardPage() {
   }, [data?.candidate?.status, data?.stages, profileRejected]);
   const selectionBanner = selectionBannerConfig[selectionStageStatus] || null;
   const timelineStages = useMemo(() => {
-    const stages = Array.isArray(data?.stages) ? data.stages : [];
-    if (!stages.length) return stages;
+    const rawStages = Array.isArray(data?.stages) ? data.stages : [];
+    if (!rawStages.length) return rawStages;
+
+    const hasSelectionResultStage = rawStages.some(
+      (stage) => String(stage?.name || '').trim().toLowerCase() === 'selection result',
+    );
+    const stages = rawStages
+      .filter((stage) => !(hasSelectionResultStage && isLegacyInterviewStage(stage?.name)))
+      .map((stage) =>
+        isLegacyInterviewStage(stage?.name)
+          ? {
+              ...stage,
+              name: 'Selection Result',
+              status: stage.status === 'Completed' ? 'Under Review' : stage.status,
+            }
+          : stage,
+      );
 
     const stageByName = new Map(stages.map((stage) => [stage.name, stage]));
     const accountCreatedDone = stageByName.get('Account Created')?.status === 'Completed';
     const profileSubmittedDone = stageByName.get('Profile Submitted')?.status === 'Completed';
     const internalEvalStatus = stageByName.get('Internal Evaluation')?.status;
     const internalEvalDone = internalEvalStatus === 'Accepted' || internalEvalStatus === 'Rejected' || internalEvalStatus === 'Under Review';
-    const interviewStageStatus = stageByName.get('Interviews')?.status;
-    const interviewStageDone = interviewStageStatus === 'Completed' || interviewCompleted;
     const shouldMarkEligibilityDone =
       stageByName.get('Eligibility Check')?.status === 'Completed' ||
       accountCreatedDone ||
@@ -143,8 +156,6 @@ export default function CandidateDashboardPage() {
     const normalized = stages.map((stage) =>
       stage.name === 'Eligibility Check' && shouldMarkEligibilityDone
         ? { ...stage, status: 'Completed' }
-        : stage.name === 'Interviews' && interviewStageDone
-          ? { ...stage, status: 'Completed' }
         : stage
     );
 
@@ -174,7 +185,7 @@ export default function CandidateDashboardPage() {
       if (stage.status === 'Inactive') return stage;
       return stage;
     });
-  }, [data?.stages]);
+  }, [data]);
 
   return (
     <div className="nst-shell">
@@ -273,7 +284,7 @@ export default function CandidateDashboardPage() {
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Action Required</p>
               <h2 className={`mt-1 text-xl font-bold ${failedPaymentNotice ? 'text-rose-900' : 'text-amber-900'}`}>{(failedPaymentNotice || paymentNotice).title}</h2>
               <p className={`mt-1 text-sm ${failedPaymentNotice ? 'text-rose-900' : 'text-amber-900'}`}>{(failedPaymentNotice || paymentNotice).description}</p>
-              <Link className="mt-3 inline-block" to={requiredRoute}>
+              <Link className="mt-3 inline-block" to={failedPaymentNotice ? failedPaymentRoute : requiredRoute}>
                 <Button>{(failedPaymentNotice || paymentNotice).cta}</Button>
               </Link>
             </section>
@@ -294,10 +305,8 @@ export default function CandidateDashboardPage() {
               <h3 className="text-2xl font-semibold text-[#002147]">{data?.paymentStatus?.length || 0} Records</h3>
             </div>
             <div className="nst-card rounded-xl p-6">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Interview Status</p>
-              <h3 className="text-2xl font-semibold text-[#002147]">
-                {interviewCompleted ? 'Completed' : interviewScheduled ? 'Scheduled' : 'Pending'}
-              </h3>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Selection Status</p>
+              <h3 className="text-2xl font-semibold text-[#002147]">{selectionStageStatus || 'Pending'}</h3>
             </div>
           </section>
 
@@ -320,7 +329,6 @@ export default function CandidateDashboardPage() {
             <div className="nst-card rounded-xl p-6 lg:col-span-2">
               <h3 className="mb-3 text-2xl font-semibold text-[#002147]">Milestone Actions</h3>
               <div className="flex flex-wrap gap-3">
-                {!journeyLocked && interviewScheduled && <Link to="/interviews"><Button className="text-white" variant="secondary">View Interview Details</Button></Link>}
                 {!journeyLocked && internalEvaluationPassed && !hasInitial && <Link to="/initial-payment"><Button>Pay Initial USD 500</Button></Link>}
                 {!journeyLocked && hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Link to="/payment/program-fee"><Button>{programFailed ? 'Re-upload Program Fee Receipt' : 'Pay Program Fee'}</Button></Link>}
                 {!journeyLocked && selected && !finalPaid && !finalPending && <Link to="/payment/final-payment"><Button>{finalFailed ? 'Re-upload Final Payment Receipt' : 'Pay Final Program Fee'}</Button></Link>}

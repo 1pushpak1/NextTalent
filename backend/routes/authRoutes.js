@@ -1,5 +1,13 @@
 const express = require('express');
-const { signup, login, verifyEmail, resendVerificationEmail, verifyPhone } = require('../controllers/authController');
+const {
+  signup,
+  login,
+  verifyEmail,
+  resendVerificationEmail,
+  verifyPhone,
+  forgotPassword,
+  resetPassword,
+} = require('../controllers/authController');
 
 const router = express.Router();
 
@@ -8,5 +16,7 @@ router.post('/login', login);
 router.post('/verify-email', verifyEmail);
 router.post('/resend-verification-email', resendVerificationEmail);
 router.post('/verify-phone', verifyPhone);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 module.exports = router;

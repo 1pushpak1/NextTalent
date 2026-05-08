@@ -25,7 +25,6 @@ const validStageKeys = [
   'documents',
   'document-verification',
   'hiring',
-  'interviews',
   'selection',
   'testimonials',
 ];
@@ -40,7 +39,6 @@ const stageLabelMap = {
   documents_submitted: 'Document Uploads',
   documents_received: 'Document Verification',
   sent_to_partners: 'Hiring Partner Stage',
-  interview_scheduled: 'Interviews',
   interview_completed: 'Selection Results',
   selected: 'Selection Results',
   not_selected: 'Selection Results',
@@ -53,7 +51,6 @@ const stagePageLabelMap = {
   documents: 'Document Uploads',
   'document-verification': 'Document Verification',
   hiring: 'Hiring Partner Stage',
-  interviews: 'Interviews',
   selection: 'Selection Results',
   testimonials: 'Testimonials',
 };
@@ -139,7 +136,6 @@ const buildCandidateSnapshot = ({ candidate, profile, eligibility, documents, in
   const hasInitial = Boolean(paymentByType.initial);
   const hasProgram = Boolean(paymentByType.program);
   const hasFinal = Boolean(paymentByType.final);
-  const hasInterviews = interviews.length > 0;
   const docsUploaded = documents.length > 0;
   const docsUnderReview = documents.some((d) => d.status === 'Under Review');
   const docsVerified = documents.length > 0 && documents.every((d) => d.status === 'Accepted');
@@ -155,7 +151,7 @@ const buildCandidateSnapshot = ({ candidate, profile, eligibility, documents, in
     candidate.status === 'selected' ||
     candidate.status === 'process_complete';
 
-  const eligibilityDone = Boolean(eligibility?.isEligible) || Boolean(profile) || hasInitial || docsUploaded || hasInterviews;
+  const eligibilityDone = Boolean(eligibility?.isEligible) || Boolean(profile) || hasInitial || docsUploaded;
 
   const currentStage =
     stageLabelMap[candidate.status] ||
@@ -179,7 +175,6 @@ const buildCandidateSnapshot = ({ candidate, profile, eligibility, documents, in
     hasInitial,
     hasProgram,
     hasFinal,
-    hasInterviews,
     docsUploaded,
     docsUnderReview,
     docsVerified,
@@ -191,13 +186,12 @@ const buildCandidateSnapshot = ({ candidate, profile, eligibility, documents, in
 };
 
 const deriveAdminStageKey = (snapshot) => {
-  const { candidate, profile, hasInitial, hasProgram, hasFinal, docsUploaded, hasInterviews } = snapshot;
+  const { candidate, profile, hasInitial, hasProgram, hasFinal, docsUploaded } = snapshot;
   const status = String(candidate?.status || '');
   const evaluationDecision = readStageDecision(candidate, 'evaluation');
   const declarationDecision = readStageDecision(candidate, 'declaration');
   const documentVerificationDecision = readStageDecision(candidate, 'document-verification');
   const hiringDecision = readStageDecision(candidate, 'hiring');
-  const interviewDecision = readStageDecision(candidate, 'interviews');
   const selectionDecision = readStageDecision(candidate, 'selection');
 
   if (status === 'process_complete') return 'testimonials';
@@ -205,8 +199,8 @@ const deriveAdminStageKey = (snapshot) => {
   if (['accepted', 'rejected'].includes(selectionDecision)) return 'selection';
   if (['not_selected', 'rejected'].includes(status)) return 'selection';
   if (status === 'selected') return 'selection';
-  if (status === 'interview_completed' || interviewDecision === 'accepted') return 'selection';
-  if (hasInterviews || status === 'interview_scheduled' || status === 'sent_to_partners') return 'interviews';
+  if (status === 'interview_completed') return 'selection';
+  if (status === 'sent_to_partners' || hiringDecision === 'accepted') return 'selection';
   if (!profile || profile.status === 'draft') return null;
 
   if (!hasInitial) return 'evaluation';
@@ -244,7 +238,7 @@ const stageMatcher = (stageKey, snapshot) => {
     case 'hiring':
       return derivedStage === 'hiring';
     case 'interviews':
-      return derivedStage === 'interviews';
+      return false;
     case 'selection':
       return derivedStage === 'selection';
     case 'testimonials':
@@ -378,13 +372,7 @@ const mapCandidateListRow = (snapshot) => {
             : 'not_started'
     ),
     documentStatusLabel: toHumanLabel(progress.documentStatus),
-    interviewSelectionStatusLabel: toHumanLabel(
-      progress.selectionStatus === 'selected'
-        ? 'selected'
-        : progress.selectionStatus === 'rejected'
-          ? 'rejected'
-          : progress.interviewStatus
-    ),
+    interviewSelectionStatusLabel: toHumanLabel(progress.selectionStatus),
   };
 };
 
@@ -479,7 +467,7 @@ const getDashboardSummary = async (req, res) => {
       ['pending_verification'].includes(row.paymentStatus.final)
     ).length;
     const documentsPendingVerification = rows.filter((row) => ['uploaded', 'under_review', 'needs_revision'].includes(row.documentStatus)).length;
-    const interviewsPendingScheduled = rows.filter((row) => ['not_scheduled', 'scheduled'].includes(row.interviewStatus)).length;
+    const interviewsPendingScheduled = rows.filter((row) => ['pending', 'under_review'].includes(row.selectionStatus)).length;
     const selectedCandidates = rows.filter((row) => row.selectionStatus === 'selected').length;
     const rejectedCandidates = rows.filter((row) => row.selectionStatus === 'rejected').length;
     const totalRevenue = snapshots.reduce((sum, s) => {
@@ -832,49 +820,9 @@ const updateCandidateDocumentStatus = async (req, res) => {
 
 const addCandidateInterview = async (req, res) => {
   try {
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
-    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
-
-    const { hiringPartner, country, role, date, time, meetingLink } = req.body || {};
-    if (!hiringPartner || !country || !role || !date || !time) {
-      return res.status(400).json({ message: 'hiringPartner, country, role, date and time are required' });
-    }
-
-    const interview = await Interview.create({
-      userId: candidate._id,
-      hiringPartner,
-      country,
-      role,
-      date,
-      time,
-      meetingLink: meetingLink || '',
-      status: 'Scheduled',
+    return res.status(400).json({
+      message: 'Interview scheduling is no longer part of the workflow. After hiring partner assignment, announce selection result directly.',
     });
-
-    if (!candidate.stageStatuses) {
-      candidate.stageStatuses = new Map();
-    }
-    candidate.stageStatuses.set('interviews', 'under_review');
-    candidate.status = 'interview_scheduled';
-    await candidate.save();
-
-    await sendStepUpdateEmail({
-      to: candidate.email,
-      candidateName: candidate.name || candidate.email?.split('@')[0],
-      stepKey: 'interviews',
-      heading: 'Interview scheduled',
-      message: 'Your interview details are now available.',
-      status: 'under_review',
-      details: [
-        { label: 'Hiring Partner', value: hiringPartner },
-        { label: 'Role', value: role },
-        { label: 'Date', value: date },
-        { label: 'Time', value: time },
-      ],
-      cta: { label: 'View Interviews', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/interviews` },
-    });
-
-    res.status(201).json(interview);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -1067,22 +1015,6 @@ const updateCandidateStageDecision = async (req, res) => {
       }
     }
 
-    if (stageKey === 'interviews') {
-      const interview = await Interview.findOne({ userId: candidate._id }).sort({ createdAt: -1 });
-      if (!interview) {
-        return res.status(404).json({ message: 'No interview found for this candidate' });
-      }
-
-      if (status === 'accepted') {
-        interview.status = 'Completed';
-        candidate.status = 'interview_completed';
-      } else if (status === 'under_review') {
-        interview.status = 'Scheduled';
-        candidate.status = 'interview_scheduled';
-      }
-      await interview.save();
-    }
-
     if (stageKey === 'selection') {
       if (status === 'accepted') {
         candidate.status = 'selected';
@@ -1103,23 +1035,11 @@ const updateCandidateStageDecision = async (req, res) => {
       documents: 'documents',
       'document-verification': 'document_verification',
       hiring: 'hiring',
-      interviews: 'interviews',
       selection: 'selection',
       testimonials: 'testimonial',
     };
 
     const stageEmailConfig = (() => {
-      if (stageKey === 'interviews') {
-        return {
-          heading: status === 'accepted' ? 'Interview completed' : status === 'under_review' ? 'Interview still scheduled' : 'Interview status updated',
-          message:
-            status === 'accepted'
-              ? 'Your interview has been marked as completed. Your selection result is now pending.'
-              : status === 'under_review'
-                ? 'Your interview remains scheduled. Please watch your dashboard for any new interview instructions.'
-                : 'Your interview status has been updated.',
-        };
-      }
       if (stageKey === 'selection') {
         return {
           heading: status === 'accepted' ? 'Selection result: approved' : status === 'rejected' ? 'Selection result: not selected' : 'Selection result under review',
@@ -1174,9 +1094,7 @@ const updateCandidateStageDecision = async (req, res) => {
       approvalType:
         stageKey === 'selection'
           ? 'final_selection'
-          : stageKey === 'interviews'
-            ? 'interview_selection'
-            : stageKey === 'evaluation'
+          : stageKey === 'evaluation'
               ? 'profile_evaluation'
               : stageKey === 'document-verification'
                 ? 'document_verification'

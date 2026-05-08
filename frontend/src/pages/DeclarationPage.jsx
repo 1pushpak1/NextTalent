@@ -27,7 +27,7 @@ By signing this declaration, I accept full responsibility for the authenticity o
     icon: 'gavel',
     body: `This Candidate Contract outlines the service scope, candidate obligations, payment structure, and process milestones under the NextStep Talent pathway.
 
-The candidate agrees to provide required documents on time, comply with interview schedules, and maintain truthful communication throughout the process.
+The candidate agrees to provide required documents on time, comply with partner coordination timelines, and maintain truthful communication throughout the process.
 
 NextStep Talent will provide structured support for evaluation, onboarding coordination, and partner process management as per program terms.
 

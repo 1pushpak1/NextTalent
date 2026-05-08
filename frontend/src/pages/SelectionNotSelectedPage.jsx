@@ -12,7 +12,7 @@ export default function SelectionNotSelectedPage() {
         <Card>
           <h1 className="text-2xl font-bold text-slate-900">Application Not Selected</h1>
           <p className="mt-3 text-slate-600">
-            Thank you for participating in the interview process. At this stage, your profile has not been selected.
+            Thank you for participating in the process. At this stage, your profile has not been selected.
             Our team will share applicable next steps where available.
           </p>
           <Link to="/candidate-dashboard" className="mt-5 inline-block"><Button>Return to Dashboard</Button></Link>

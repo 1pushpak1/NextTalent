@@ -12,7 +12,7 @@ export default function SelectionSelectedPage() {
         <Card>
           <h1 className="text-2xl font-bold text-slate-900">Congratulations, You Have Been Selected</h1>
           <p className="mt-3 text-slate-600">
-            You have successfully cleared the interview stage. Please complete the final payment step to continue.
+            Your result has been announced as selected. Please complete the final payment step to continue.
           </p>
           <Link to="/payment/final-payment" className="mt-5 inline-block"><Button>Pay Final Program Fee</Button></Link>
         </Card>

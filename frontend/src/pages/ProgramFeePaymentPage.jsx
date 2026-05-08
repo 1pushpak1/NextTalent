@@ -15,6 +15,8 @@ const BANK_DETAILS = {
   iban: 'DE89370400440532013000',
 };
 
+const PROGRAM_FEE_AMOUNT = 'USD 3,500';
+
 export default function ProgramFeePaymentPage() {
   const [loading, setLoading] = useState(false);
   const [bankReference, setBankReference] = useState('');
@@ -76,7 +78,13 @@ export default function ProgramFeePaymentPage() {
         <div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-6 px-6 lg:grid-cols-12">
           <section className="nst-card rounded-xl p-6 lg:col-span-8">
             <h1 className="mb-2 text-4xl font-bold text-[#002147]">Program Fee Payment</h1>
-            <p className="mb-6 text-[#44474e]">Transfer USD 3,500 to the account below, then upload your transfer receipt.</p>
+            <p className="mb-4 text-[#44474e]">Transfer {PROGRAM_FEE_AMOUNT} to the account below, then upload your transfer receipt.</p>
+
+            <div className="mb-6 rounded-xl border border-[#002147]/20 bg-[#002147]/5 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#002147]">Amount To Pay</p>
+              <p className="mt-1 text-3xl font-extrabold text-[#002147]">{PROGRAM_FEE_AMOUNT}</p>
+              {/* <p className="mt-1 text-sm text-slate-700">Please transfer exactly this amount before submitting the receipt.</p> */}
+            </div>
 
             <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm md:grid-cols-2">
               <p><b>Account Name:</b> {BANK_DETAILS.accountName}</p>
@@ -90,7 +98,7 @@ export default function ProgramFeePaymentPage() {
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               <input
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none"
-                placeholder="Bank transfer reference (optional)"
+                placeholder="Bank transfer reference"
                 value={bankReference}
                 onChange={(e) => setBankReference(e.target.value)}
               />
@@ -113,7 +121,7 @@ export default function ProgramFeePaymentPage() {
               </div>
             </div>
 
-            <Button className="mt-6 text-white" onClick={submit} disabled={loading}>{loading ? 'Submitting...' : 'Submit Transfer Receipt'}</Button>
+            <Button className="mt-6 text-white" onClick={submit} disabled={loading}>{loading ? 'Submitting...' : `Submit ${PROGRAM_FEE_AMOUNT} Receipt`}</Button>
           </section>
 
           <aside className="rounded-xl bg-[#002147] p-6 text-white lg:col-span-4">

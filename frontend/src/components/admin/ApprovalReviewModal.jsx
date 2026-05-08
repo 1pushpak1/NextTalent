@@ -82,7 +82,7 @@ export default function ApprovalReviewModal({
   return (
     <Modal isOpen={isOpen} onClose={() => !submittingDecision && onClose?.()} title={title}>
       <div className="space-y-5">
-        <div className="rounded-2xl border border-blue-400/30 bg-blue-50/10 p-4 text-sm text-slate-100">
+        <div className="rounded-2xl border border-[rgba(200,169,107,0.3)] bg-[rgba(200,169,107,0.08)] p-4 text-sm text-slate-100">
           <p className="font-semibold text-white">{candidate?.name || candidate?.email}</p>
           <p className="mt-1 text-slate-300">{candidate?.email || '—'}</p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -95,7 +95,7 @@ export default function ApprovalReviewModal({
               <p className="mt-1 text-sm text-white">{humanize(currentStatus)}</p>
             </div>
           </div>
-          <p className="mt-3 text-sm text-blue-200">{warningText}</p>
+          <p className="mt-3 text-sm text-[#d7c08a]">{warningText}</p>
         </div>
 
         {!!summaryRows.length && (
@@ -130,7 +130,7 @@ export default function ApprovalReviewModal({
           <label className="block text-sm font-medium text-white" htmlFor="approval-note">Decision Reason / Note</label>
           <textarea
             id="approval-note"
-            className="mt-2 min-h-28 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-300"
+            className="mt-2 min-h-28 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-[rgba(200,169,107,0.5)]"
             placeholder="Explain what you reviewed and why you are approving or rejecting this submission."
             value={note}
             onChange={(event) => setNote(event.target.value)}

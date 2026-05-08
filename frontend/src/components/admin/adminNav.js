@@ -4,7 +4,6 @@ export const adminMainNav = [
   { label: 'Internal Evaluation', to: '/admin/evaluation' },
   { label: 'Document Verification', to: '/admin/document-verification' },
   { label: 'Hiring Partner Stage', to: '/admin/hiring' },
-  { label: 'Interviews', to: '/admin/interviews' },
   { label: 'Selection Results', to: '/admin/selection' },
   { label: 'Testimonials', to: '/admin/testimonials' },
 ];

@@ -39,24 +39,12 @@ const canReadLimitedAudit = (permissions = []) => permissions.includes('approval
 
 const filterAuditEntriesForAdmin = (entries = [], req) => {
   const permissions = Array.isArray(req.user?.permissions) ? req.user.permissions : [];
-  if (canReadFullAudit(permissions)) return entries;
-  if (!canReadLimitedAudit(permissions)) return [];
-
   const role = String(req.user?.adminRole || '');
-  const allowedTypesByRole = {
-    evaluation_admin: ['profile_evaluation', 'document_verification', 'interview_selection', 'final_selection', 'admin_notes', 'stage_action'],
-    operations_admin: ['interview_selection', 'final_selection', 'admin_notes', 'stage_action'],
-  };
-  const allowedTypes = allowedTypesByRole[role] || [];
+  const isSuperAdmin = role === 'super_admin';
+  if (!isSuperAdmin) return [];
 
-  return entries
-    .filter((entry) => allowedTypes.includes(String(entry.approvalType || '')))
-    .map((entry) => ({
-      ...entry,
-      ipAddress: '',
-      userAgent: '',
-      adminEmail: role === 'operations_admin' ? '' : entry.adminEmail,
-    }));
+  if (!canReadFullAudit(permissions) && !canReadLimitedAudit(permissions)) return [];
+  return entries;
 };
 
 module.exports = {

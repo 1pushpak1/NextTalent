@@ -9,6 +9,8 @@ import SignupPage from './pages/SignupPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import VerifyPhonePage from './pages/VerifyPhonePage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import InitialPaymentPage from './pages/InitialPaymentPage';
 import PaymentSuccessPage from './pages/PaymentSuccessPage';
 import DeclarationPage from './pages/DeclarationPage';
@@ -17,7 +19,6 @@ import DocumentsPage from './pages/DocumentsPage';
 import CandidateDashboardPage from './pages/CandidateDashboardPage';
 import ProgramFeePaymentPage from './pages/ProgramFeePaymentPage';
 import FinalPaymentPage from './pages/FinalPaymentPage';
-import InterviewsPage from './pages/InterviewsPage';
 import PaymentHistoryPage from './pages/PaymentHistoryPage';
 import SelectionSelectedPage from './pages/SelectionSelectedPage';
 import SelectionNotSelectedPage from './pages/SelectionNotSelectedPage';
@@ -74,6 +75,8 @@ export default function App() {
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/verify-phone" element={<VerifyPhonePage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         <Route path="/initial-payment" element={<ProtectedRoute><InitialPaymentPage /></ProtectedRoute>} />
         <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccessPage /></ProtectedRoute>} />
@@ -83,7 +86,6 @@ export default function App() {
         <Route path="/candidate-dashboard" element={<ProtectedRoute><CandidateDashboardPage /></ProtectedRoute>} />
         <Route path="/payment/program-fee" element={<ProtectedRoute><ProgramFeePaymentPage /></ProtectedRoute>} />
         <Route path="/payment/final-payment" element={<ProtectedRoute><FinalPaymentPage /></ProtectedRoute>} />
-        <Route path="/interviews" element={<ProtectedRoute><InterviewsPage /></ProtectedRoute>} />
         <Route path="/payment-history" element={<ProtectedRoute><PaymentHistoryPage /></ProtectedRoute>} />
         <Route path="/testimonial" element={<ProtectedRoute><TestimonialPage /></ProtectedRoute>} />
         <Route path="/selection/selected" element={<ProtectedRoute><SelectionSelectedPage /></ProtectedRoute>} />
@@ -108,7 +110,6 @@ export default function App() {
           <Route path="evaluation" element={<AdminStageCandidatesPage title="Internal Evaluation" stageKey="evaluation" />} />
           <Route path="document-verification" element={<AdminStageCandidatesPage title="Document Verification" stageKey="document-verification" />} />
           <Route path="hiring" element={<AdminStageCandidatesPage title="Hiring Partner Stage" stageKey="hiring" />} />
-          <Route path="interviews" element={<AdminStageCandidatesPage title="Interviews" stageKey="interviews" />} />
           <Route path="selection" element={<AdminStageCandidatesPage title="Selection Results" stageKey="selection" />} />
           <Route path="testimonials" element={<AdminStageCandidatesPage title="Testimonials" stageKey="testimonials" />} />
           <Route path="payments" element={<AdminPaymentsOverviewPage />} />

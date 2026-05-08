@@ -1760,7 +1760,7 @@ By signing below, you accept full responsibility for the authenticity of the det
           <p className="font-semibold text-slate-900">Post Initial Evaluation</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>USD 500 non-refundable</li>
-            <li>USD 3,500 includes verification fee, payable before document submission, refundable only if not selected post interview stage</li>
+            <li>USD 3,500 includes verification fee, payable before document submission, refundable only if not selected after final result announcement</li>
             <li>USD 4,000 payable upon successful selection</li>
           </ul>
           <p className="mt-3 rounded-md bg-amber-50 p-2 text-black">

@@ -9,7 +9,6 @@ const stageLabels = {
   program_payment: 'Program Payment',
   document_verification: 'Document Verification',
   hiring: 'Hiring Partner Stage',
-  interviews: 'Interviews',
   selection: 'Selection Result',
   final_payment: 'Final Payment',
   testimonial: 'Testimonial',
@@ -53,16 +52,14 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
     declaration: String(toMapValue(candidate?.stageStatuses, 'declaration') || '').toLowerCase(),
     documentVerification: String(toMapValue(candidate?.stageStatuses, 'document-verification') || '').toLowerCase(),
     hiring: String(toMapValue(candidate?.stageStatuses, 'hiring') || '').toLowerCase(),
-    interviews: String(toMapValue(candidate?.stageStatuses, 'interviews') || '').toLowerCase(),
     selection: String(toMapValue(candidate?.stageStatuses, 'selection') || '').toLowerCase(),
   };
 
-  const latestInterview = interviews[0] || null;
-  const interviewStatus = latestInterview ? String(latestInterview.status || '').toLowerCase() : 'not_scheduled';
+  const interviewStatus = 'not_required';
   const selectionStatus =
     stageStatuses.selection === 'accepted' || candidate?.status === 'selected' ? 'selected' :
       stageStatuses.selection === 'rejected' || candidate?.status === 'not_selected' || candidate?.status === 'rejected' ? 'rejected' :
-        interviewStatus === 'completed' || candidate?.status === 'interview_completed' ? 'under_review' : 'pending';
+        stageStatuses.selection === 'under_review' || candidate?.status === 'sent_to_partners' ? 'under_review' : 'pending';
   const profileRejected = profileStatus === 'rejected';
   const selectionRejected = selectionStatus === 'rejected';
 
@@ -129,28 +126,6 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
       pendingFrom: stageStatuses.hiring === 'accepted' ? 'completed' : 'admin',
       action: 'Assign hiring partner',
       recommendation: 'Assign candidate to hiring partner and confirm',
-    },
-    {
-      key: 'interviews',
-      done: ['completed'].includes(interviewStatus) || ['selected', 'rejected'].includes(selectionStatus),
-      pendingFrom:
-        ['selected', 'rejected'].includes(selectionStatus)
-          ? 'completed'
-          : interviewStatus === 'completed'
-            ? 'completed'
-            : interviewStatus === 'scheduled'
-              ? 'admin'
-              : 'admin',
-      action:
-        ['selected', 'rejected'].includes(selectionStatus)
-          ? 'Interview stage completed'
-          : interviewStatus === 'scheduled'
-            ? 'Complete scheduled interview'
-            : 'Schedule interview',
-      recommendation:
-        ['selected', 'rejected'].includes(selectionStatus)
-          ? 'No action needed'
-          : 'Coordinate with hiring partner and update interview status',
     },
     {
       key: 'selection',
