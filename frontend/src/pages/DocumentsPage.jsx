@@ -12,6 +12,7 @@ import { getCandidateNextRoute } from '../utils/pathwayFlow';
 export default function DocumentsPage() {
   const [docs, setDocs] = useState([]);
   const [showDone, setShowDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -45,15 +46,19 @@ export default function DocumentsPage() {
   }, [docs]);
 
   const submitAll = async () => {
+    if (submitting) return;
     if (!docs.length) {
       alert('Upload at least one document before submission.');
       return;
     }
+    setSubmitting(true);
     try {
       await api.put('/dashboard/me/status', { status: 'documents_submitted' });
       setShowDone(true);
     } catch {
       alert('Unable to submit documents for review');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -131,7 +136,9 @@ export default function DocumentsPage() {
           </div>
 
           <div className="mt-10 flex justify-center">
-            <Button className="px-10 py-3 text-base" onClick={submitAll}>Submit Documents for Review</Button>
+            <Button className="px-10 py-3 text-base" onClick={submitAll} disabled={submitting}>
+              {submitting ? 'Submitting...' : 'Submit Documents for Review'}
+            </Button>
           </div>
         </div>
       </main>

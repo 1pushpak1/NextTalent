@@ -34,6 +34,7 @@ export default function AdminDashboardPage() {
       profilesPendingReview: 0,
       paymentsPendingVerification: 0,
       documentsPendingVerification: 0,
+      hiringPendingAssignment: 0,
       interviewsPendingScheduled: 0,
       selectedCandidates: 0,
       rejectedCandidates: 0,

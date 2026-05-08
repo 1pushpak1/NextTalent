@@ -15,7 +15,7 @@ export default function Input({ label, error, required = false, inputClassName =
           {...props}
         />
         {rightIcon && (
-          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+          <span className="absolute inset-y-0 right-3 flex items-center">
             {rightIcon}
           </span>
         )}

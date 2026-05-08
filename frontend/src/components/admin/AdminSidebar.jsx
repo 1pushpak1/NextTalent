@@ -1,20 +1,64 @@
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { adminMainNav, adminPaymentNav } from './adminNav';
 import usePermissions from '../../hooks/usePermissions';
+import { fetchAdminDashboardSummary } from '../../api/adminApi';
 
 export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen, setMobileOpen, onLogout }) {
   const location = useLocation();
   const { can, role } = usePermissions();
+  const [summaryCards, setSummaryCards] = useState({
+    profilesPendingReview: 0,
+    documentsPendingVerification: 0,
+    paymentsPendingVerification: 0,
+    hiringPendingAssignment: 0,
+    interviewsPendingScheduled: 0,
+  });
   const inPayments = location.pathname.startsWith('/admin/payments');
   const canAccessEntry = (entry) => {
     const requiredRoles = Array.isArray(entry?.requiredRoles) ? entry.requiredRoles : [];
     const requiredPermission = entry?.requiredPermission || '';
+    if (String(role || '') === 'evaluation_admin' && entry?.to === '/admin/hiring') return false;
     if (requiredRoles.length && !requiredRoles.includes(String(role || ''))) return false;
     if (requiredPermission && !can(requiredPermission)) return false;
     return true;
   };
   const visibleMainNav = adminMainNav.filter(canAccessEntry);
   const visiblePaymentNav = adminPaymentNav.filter(canAccessEntry);
+  const sidebarBubbles = useMemo(
+    () => ({
+      '/admin/evaluation': Number(summaryCards.profilesPendingReview || 0),
+      '/admin/document-verification': Number(summaryCards.documentsPendingVerification || 0),
+      '/admin/hiring': Number(summaryCards.hiringPendingAssignment || 0),
+      '/admin/selection': Number(summaryCards.interviewsPendingScheduled || 0),
+      '/admin/payments': Number(summaryCards.paymentsPendingVerification || 0),
+      '/admin/payments/initial': Number(summaryCards.paymentsPendingVerification || 0),
+      '/admin/payments/program': Number(summaryCards.paymentsPendingVerification || 0),
+      '/admin/payments/final': Number(summaryCards.paymentsPendingVerification || 0),
+    }),
+    [summaryCards],
+  );
+
+  useEffect(() => {
+    let mounted = true;
+    let intervalId = null;
+    const loadSummary = async () => {
+      try {
+        const { data } = await fetchAdminDashboardSummary();
+        if (!mounted) return;
+        setSummaryCards((prev) => ({ ...prev, ...(data?.cards || {}) }));
+      } catch {
+        if (!mounted) return;
+      }
+    };
+
+    loadSummary();
+    intervalId = window.setInterval(loadSummary, 15000);
+    return () => {
+      mounted = false;
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, []);
 
   return (
     <>
@@ -52,7 +96,14 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
                   }`
                 }
               >
-                {item.label}
+                <span className="flex items-center justify-between gap-2">
+                  <span>{item.label}</span>
+                  {sidebarBubbles[item.to] > 0 ? (
+                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
+                      {sidebarBubbles[item.to]}
+                    </span>
+                  ) : null}
+                </span>
               </NavLink>
             ))}
 
@@ -66,7 +117,14 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
                     inPayments ? 'bg-[#c8a96b] text-black' : 'text-slate-300 hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <span>Payments</span>
+                  <span className="flex items-center gap-2">
+                    <span>Payments</span>
+                    {sidebarBubbles['/admin/payments'] > 0 ? (
+                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
+                        {sidebarBubbles['/admin/payments']}
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="material-symbols-outlined text-base">{paymentsOpen ? 'expand_less' : 'expand_more'}</span>
                 </button>
 
@@ -83,7 +141,14 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
                           }`
                         }
                       >
-                        {item.label}
+                        <span className="flex items-center justify-between gap-2">
+                          <span>{item.label}</span>
+                          {sidebarBubbles[item.to] > 0 ? (
+                            <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
+                              {sidebarBubbles[item.to]}
+                            </span>
+                          ) : null}
+                        </span>
                       </NavLink>
                     ))}
                   </div>

@@ -37,6 +37,7 @@ export default function EligibilityCheckPage() {
   const [country, setCountry] = useState('');
   const [inactiveCorridor, setInactiveCorridor] = useState('');
   const [showValidationError, setShowValidationError] = useState(false);
+  const [checkingEligibility, setCheckingEligibility] = useState(false);
   const [answers, setAnswers] = useState({
     hasITBackground: '',
     qualification: '',
@@ -86,6 +87,8 @@ export default function EligibilityCheckPage() {
   }, [answers, country]);
 
   const submitEligibility = async () => {
+    if (checkingEligibility) return;
+    setCheckingEligibility(true);
     const normalizedEmail = String(email || '').toLowerCase().trim();
     const payload = {
       email: normalizedEmail,
@@ -114,6 +117,8 @@ export default function EligibilityCheckPage() {
         rejectionReason: error.response?.data?.message || 'Unable to evaluate eligibility right now.',
       });
       setStep(5);
+    } finally {
+      setCheckingEligibility(false);
     }
   };
 
@@ -321,6 +326,7 @@ export default function EligibilityCheckPage() {
                 </Button>
                 <Button
                   onClick={() => {
+                    if (checkingEligibility) return;
                     if (!areAllRequiredAnswersFilled) {
                       setShowValidationError(true);
                       return;
@@ -328,9 +334,9 @@ export default function EligibilityCheckPage() {
                     setShowValidationError(false);
                     submitEligibility();
                   }}
-                  disabled={!areAllRequiredAnswersFilled}
+                  disabled={!areAllRequiredAnswersFilled || checkingEligibility}
                 >
-                  Check Eligibility
+                  {checkingEligibility ? 'Checking...' : 'Check Eligibility'}
                 </Button>
               </div>
               {showValidationError && (

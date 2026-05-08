@@ -467,8 +467,15 @@ const getDashboardSummary = async (req, res) => {
       ['pending_verification'].includes(row.paymentStatus.program) ||
       ['pending_verification'].includes(row.paymentStatus.final)
     ).length;
-    const documentsPendingVerification = rows.filter((row) => ['uploaded', 'under_review', 'needs_revision'].includes(row.documentStatus)).length;
-    const interviewsPendingScheduled = rows.filter((row) => ['pending', 'under_review'].includes(row.selectionStatus)).length;
+    const documentsPendingVerification = rows.filter(
+      (row) =>
+        row.paymentStatus?.program === 'verified' &&
+        ['uploaded', 'under_review', 'needs_revision'].includes(row.documentStatus)
+    ).length;
+    const hiringPendingAssignment = rows.filter((row) => row.currentStageKey === 'hiring' && row.pendingFrom === 'admin').length;
+    const interviewsPendingScheduled = rows.filter(
+      (row) => row.currentStageKey === 'selection' && row.pendingFrom === 'admin'
+    ).length;
     const selectedCandidates = rows.filter((row) => row.selectionStatus === 'selected').length;
     const rejectedCandidates = rows.filter((row) => row.selectionStatus === 'rejected').length;
     const totalRevenue = snapshots.reduce((sum, s) => {
@@ -504,6 +511,7 @@ const getDashboardSummary = async (req, res) => {
         profilesPendingReview,
         paymentsPendingVerification,
         documentsPendingVerification,
+        hiringPendingAssignment,
         interviewsPendingScheduled,
         selectedCandidates,
         rejectedCandidates,

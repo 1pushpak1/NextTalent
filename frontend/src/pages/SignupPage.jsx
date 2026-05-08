@@ -11,6 +11,8 @@ export default function SignupPage() {
   const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' });
   const [lockedEligibilityEmail, setLockedEligibilityEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [passwordPopupPlacement, setPasswordPopupPlacement] = useState('bottom');
   const passwordFieldRef = useRef(null);
@@ -113,7 +115,7 @@ export default function SignupPage() {
         <div className="relative z-[100]" ref={passwordFieldRef}>
           <Input
             label="Password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             required
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -127,14 +129,28 @@ export default function SignupPage() {
                 : ''
             }
             rightIcon={
-              hasPassword ? (
-                isPasswordStrong ? (
-                  <span className="material-symbols-outlined text-[20px] text-emerald-600">check_circle</span>
-                ) : (
-                  <span className="material-symbols-outlined text-[20px] text-rose-600">cancel</span>
-                )
-              ) : null
+              <span className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="inline-flex items-center text-[#d3d3d8] transition hover:text-white"
+                >
+                  <span className="material-symbols-outlined text-[20px]">
+                    {showPassword ? 'visibility_off' : 'visibility'}
+                  </span>
+                </button>
+                {hasPassword ? (
+                  isPasswordStrong ? (
+                    <span className="material-symbols-outlined text-[20px] text-emerald-600">check_circle</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[20px] text-rose-600">cancel</span>
+                  )
+                ) : null}
+              </span>
             }
+            inputClassName="pr-20"
             aria-invalid={hasPassword && !isPasswordStrong}
           />
           {isPasswordFocused && !isPasswordStrong && (
@@ -165,23 +181,36 @@ export default function SignupPage() {
         </div>
         <Input
           label="Confirm Password"
-          type="password"
+          type={showConfirmPassword ? 'text' : 'password'}
           required
           value={form.confirmPassword}
           onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
           inputClassName={
-            passwordsMatch
+            `${passwordsMatch
               ? 'border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500/20'
               : passwordsMismatch
                 ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20'
-                : ''
+                : ''} pr-20`
           }
           rightIcon={
-            passwordsMatch ? (
-              <span className="material-symbols-outlined text-[20px] text-emerald-600">check_circle</span>
-            ) : passwordsMismatch ? (
-              <span className="material-symbols-outlined text-[20px] text-rose-600">cancel</span>
-            ) : null
+            <span className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                className="inline-flex items-center text-[#d3d3d8] transition hover:text-white"
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  {showConfirmPassword ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
+              {passwordsMatch ? (
+                <span className="material-symbols-outlined text-[20px] text-emerald-600">check_circle</span>
+              ) : passwordsMismatch ? (
+                <span className="material-symbols-outlined text-[20px] text-rose-600">cancel</span>
+              ) : null}
+            </span>
           }
           aria-invalid={passwordsMismatch}
         />

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import ApprovalReviewModal from '../../components/admin/ApprovalReviewModal';
@@ -128,33 +128,27 @@ export default function AdminCandidateProfilePage() {
     }
     return tabs.filter((tab) => !hiddenTabs.has(tab));
   }, [canViewAuditHistory, role]);
-  const activeTabParam = currentParams.get('tab');
-  const tabFromUrl = visibleTabs.includes(activeTabParam) ? activeTabParam : 'overview';
-  const [activeTab, setActiveTabState] = useState(tabFromUrl);
-  const reviewParam = currentParams.get('review');
+  const activeTabParam = searchParams.get('tab');
+  const activeTab = visibleTabs.includes(activeTabParam) ? activeTabParam : 'overview';
+  const reviewParam = searchParams.get('review');
   const canReviewSelection = ['super_admin', 'payment_admin'].includes(String(role || ''));
 
   useEffect(() => {
-    setActiveTabState(tabFromUrl);
-  }, [tabFromUrl]);
-
-  useEffect(() => {
-    if (!visibleTabs.includes(activeTab)) {
-      setActiveTabState('overview');
-      const next = new URLSearchParams(currentParams);
-      next.set('tab', 'overview');
-      next.delete('review');
-      setSearchParams(next);
-    }
-  }, [activeTab, currentParams, setSearchParams, visibleTabs]);
+    if (activeTabParam && visibleTabs.includes(activeTabParam)) return;
+    const next = new URLSearchParams(currentParams);
+    next.set('tab', 'overview');
+    next.delete('review');
+    setSearchParams(next, { replace: true });
+  }, [activeTabParam, currentParams, setSearchParams, visibleTabs]);
 
   // Auto-scroll to top when tab changes
   useEffect(() => {
     if (contentRef.current) {
       contentRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [activeTab]);
-  const load = async () => {
+  }, [activeTab, location.pathname, location.search]);
+
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -167,11 +161,11 @@ export default function AdminCandidateProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     load();
-  }, [id]);
+  }, [load]);
 
   const candidate = data?.candidate;
   const profile = data?.profile;
@@ -247,7 +241,6 @@ export default function AdminCandidateProfilePage() {
   }, [isInlineProfileReview]);
 
   const setTab = (tab) => {
-    setActiveTabState(tab);
     const next = new URLSearchParams(currentParams);
     next.set('tab', tab);
     next.delete('review');
@@ -767,6 +760,23 @@ export default function AdminCandidateProfilePage() {
     latestReviewableDocument,
   ]);
 
+  const tabNotificationCounts = useMemo(() => {
+    const counts = {};
+    const pendingFromAdmin = String(progress?.pendingFrom || '').toLowerCase() === 'admin';
+    const stageKey = String(progress?.currentStageKey || '').toLowerCase();
+    const normalizedRole = String(role || '');
+
+    if (!pendingFromAdmin) return counts;
+
+    if (stageKey === 'profile_review' && can('evaluation:approve')) counts.profile = 1;
+    if (stageKey === 'document_verification' && can('documents:verify')) counts.documents = 1;
+    if (stageKey === 'hiring' && can('candidates:update')) counts.hiring = 1;
+    if (stageKey === 'selection' && ['super_admin', 'payment_admin'].includes(normalizedRole)) counts.selection = 1;
+    if (['initial_payment', 'program_payment', 'final_payment'].includes(stageKey) && can('payments:verify')) counts.payments = 1;
+
+    return counts;
+  }, [progress?.pendingFrom, progress?.currentStageKey, can, role]);
+
   return (
     <section ref={contentRef} className="space-y-5">
       <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(200,169,107,0.18),_transparent_28%),linear-gradient(135deg,#0f172a,#1e293b)] p-6 text-white shadow-xl">
@@ -841,7 +851,14 @@ export default function AdminCandidateProfilePage() {
             }`}
             onClick={() => setTab(tab)}
           >
-            {humanize(tab)}
+            <span className="inline-flex items-center gap-2">
+              <span>{humanize(tab)}</span>
+              {Number(tabNotificationCounts[tab] || 0) > 0 ? (
+                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
+                  {tabNotificationCounts[tab]}
+                </span>
+              ) : null}
+            </span>
           </button>
         ))}
       </div>
