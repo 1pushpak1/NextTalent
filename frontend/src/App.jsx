@@ -38,6 +38,7 @@ import AdminCandidatePage from './pages/AdminCandidatePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import CookiePolicyPage from './pages/CookiePolicyPage';
+import PaymentRefundPolicyPage from './pages/PaymentRefundPolicyPage';
 import GlobalOfficesPage from './pages/GlobalOfficesPage';
 import SupportPage from './pages/SupportPage';
 import ContactPage from './pages/ContactPage';
@@ -116,13 +117,14 @@ export default function App() {
           <Route path="testimonials" element={<AdminStageCandidatesPage title="Testimonials" stageKey="testimonials" />} />
           <Route path="payments" element={<AdminPaymentsOverviewPage />} />
           <Route path="payments/initial" element={<AdminPaymentTypePage title="Initial Payment ($500)" type="initial" />} />
-          <Route path="payments/program" element={<AdminPaymentTypePage title="Program Payment (USD 3,600 / USD 3,800 for India residence)" type="program" />} />
-          <Route path="payments/final" element={<AdminPaymentTypePage title="Final Payment ($4000)" type="final" />} />
+          <Route path="payments/program" element={<AdminPaymentTypePage title="Program Payment (USD 3,100)" type="program" />} />
+          <Route path="payments/final" element={<AdminPaymentTypePage title="Final Payment (USD 3,100)" type="final" />} />
           <Route path="candidate/:id" element={<AdminCandidateProfilePage />} />
           <Route path="candidate/:id/edit" element={<AdminCandidatePage />} />
           <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
         </Route>
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/payment-refund-policy" element={<PaymentRefundPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
         <Route path="/cookie-policy" element={<CookiePolicyPage />} />
         <Route path="/global-offices" element={<GlobalOfficesPage />} />

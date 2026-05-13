@@ -4,6 +4,12 @@ const Profile = require('../models/Profile');
 const Document = require('../models/Document');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const { getProgramFeeBreakdown } = require('../utils/programFee');
+const {
+  generateInitialPaymentReceiptPdf,
+  generateProgramPaymentReceiptPdf,
+  generateFinalPaymentReceiptPdf,
+} = require('../utils/paymentReceiptPdf');
+const { generateStage1InvoicePdf, generateStage2InvoicePdf } = require('../utils/invoicePdf');
 const Stripe = require('stripe');
 const fs = require('fs');
 const path = require('path');
@@ -11,7 +17,7 @@ const multer = require('multer');
 
 const amountByType = {
   initial: 500,
-  final: 4000,
+  final: 3100,
 };
 
 const statusByType = {
@@ -61,7 +67,22 @@ const saveCompletedPayment = async (session, fallback = {}) => {
 
   const transactionId = session.payment_intent || session.id;
   const existing = await Payment.findOne({ transactionId });
-  if (existing) return existing;
+  if (existing) {
+    if (existing.type === 'initial' && !existing.receiptUrl) {
+      const [candidate, profile] = await Promise.all([
+        User.findById(existing.userId).lean(),
+        Profile.findOne({ userId: existing.userId }).sort({ createdAt: -1 }).lean(),
+      ]);
+      const { receiptUrl } = await generateInitialPaymentReceiptPdf({
+        payment: existing,
+        candidate,
+        profile,
+      });
+      existing.receiptUrl = receiptUrl;
+      await existing.save();
+    }
+    return existing;
+  }
 
   let amount = typeof session.amount_total === 'number' ? session.amount_total / 100 : getDefaultAmountForType(type);
   if (type === 'program' && typeof session.amount_total !== 'number') {
@@ -78,6 +99,20 @@ const saveCompletedPayment = async (session, fallback = {}) => {
     status: 'completed',
     transactionId,
   });
+
+  if (type === 'initial') {
+    const [candidate, profile] = await Promise.all([
+      User.findById(userId).lean(),
+      Profile.findOne({ userId }).sort({ createdAt: -1 }).lean(),
+    ]);
+    const { receiptUrl } = await generateInitialPaymentReceiptPdf({
+      payment,
+      candidate,
+      profile,
+    });
+    payment.receiptUrl = receiptUrl;
+    await payment.save();
+  }
 
   await User.findByIdAndUpdate(userId, { status: statusByType[type] });
   const user = await User.findById(userId);
@@ -217,6 +252,22 @@ const submitBankTransferPayment = async (req, res) => {
       receiptUrl: `/uploads/payment-receipts/${req.file.filename}`,
     });
 
+    if (type === 'program' || type === 'final') {
+      const { receiptUrl } = type === 'program'
+        ? await generateProgramPaymentReceiptPdf({
+            payment,
+            candidate: user,
+            profile,
+          })
+        : await generateFinalPaymentReceiptPdf({
+            payment,
+            candidate: user,
+            profile,
+          });
+      payment.receiptUrl = receiptUrl;
+      await payment.save();
+    }
+
     await sendStepUpdateEmail({
       to: req.user?.email,
       candidateName: req.user?.name || req.user?.email?.split('@')[0],
@@ -297,10 +348,93 @@ const stripeWebhook = async (req, res) => {
 const getMyPayments = async (req, res) => {
   try {
     const payments = await Payment.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    const paymentsToRefreshReceipt = payments.filter((payment) =>
+      ['initial', 'program', 'final'].includes(String(payment.type || '').toLowerCase())
+    );
+
+    if (paymentsToRefreshReceipt.length) {
+      const [candidate, profile] = await Promise.all([
+        User.findById(req.user._id).lean(),
+        Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+      ]);
+
+      await Promise.all(
+        paymentsToRefreshReceipt.map(async (payment) => {
+          const normalizedType = String(payment.type || '').toLowerCase();
+          const generator =
+            normalizedType === 'initial'
+              ? generateInitialPaymentReceiptPdf
+              : normalizedType === 'program'
+                ? generateProgramPaymentReceiptPdf
+                : generateFinalPaymentReceiptPdf;
+          const { receiptUrl } = await generator({ payment, candidate, profile });
+          payment.receiptUrl = receiptUrl;
+          await payment.save();
+        })
+      );
+    }
+
     res.json(payments);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = { createPaymentIntent, confirmPayment, submitBankTransferPayment, getMyPayments, stripeWebhook, uploadReceipt };
+const getStage1Invoice = async (req, res) => {
+  try {
+    const [candidate, profile, payments] = await Promise.all([
+      User.findById(req.user._id).lean(),
+      Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+      Payment.find({ userId: req.user._id }).lean(),
+    ]);
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+
+    const hasInitialPayment = payments.some((p) => p.type === 'initial' && p.status === 'completed');
+    if (!hasInitialPayment) {
+      return res.status(403).json({ message: 'Stage 1 invoice is available after initial payment completion.' });
+    }
+
+    const invoice = await generateStage1InvoicePdf({ candidate, profile });
+    return res.json({
+      ...invoice,
+      candidateId: String(candidate._id),
+      issueDate: new Date().toISOString(),
+      amountDue: 3100,
+      currency: 'USD',
+      paymentStatus: 'DUE',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const getStage2Invoice = async (req, res) => {
+  try {
+    const [candidate, profile, payments] = await Promise.all([
+      User.findById(req.user._id).lean(),
+      Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+      Payment.find({ userId: req.user._id }).lean(),
+    ]);
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+
+    const hasProgramPayment = payments.some((p) => p.type === 'program' && ['pending', 'completed'].includes(String(p.status || '').toLowerCase()));
+    if (!hasProgramPayment) {
+      return res.status(403).json({ message: 'Stage 2 invoice is available after first installment submission.' });
+    }
+
+    const invoice = await generateStage2InvoicePdf({ candidate, profile });
+    return res.json({
+      ...invoice,
+      candidateId: String(candidate._id),
+      issueDate: new Date().toISOString(),
+      amountReceived: 3100,
+      amountDue: 3100,
+      currency: 'USD',
+      paymentStatus: 'FINAL PAYMENT DUE',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { createPaymentIntent, confirmPayment, submitBankTransferPayment, getMyPayments, getStage1Invoice, getStage2Invoice, stripeWebhook, uploadReceipt };

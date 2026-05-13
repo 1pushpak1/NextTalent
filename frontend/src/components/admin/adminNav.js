@@ -11,6 +11,6 @@ export const adminMainNav = [
 export const adminPaymentNav = [
   { label: 'Overview', to: '/admin/payments', requiredPermission: 'payments:verify' },
   { label: 'Initial Payment ($500)', to: '/admin/payments/initial', requiredPermission: 'payments:verify' },
-  { label: 'Program Payment (USD 3,600 / 3,800)', to: '/admin/payments/program', requiredPermission: 'payments:verify' },
-  { label: 'Final Payment ($4000)', to: '/admin/payments/final', requiredPermission: 'payments:verify' },
+  { label: 'Program Payment (USD 3,100)', to: '/admin/payments/program', requiredPermission: 'payments:verify' },
+  { label: 'Final Payment (USD 3,100)', to: '/admin/payments/final', requiredPermission: 'payments:verify' },
 ];

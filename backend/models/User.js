@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema(
     stageStatuses: { type: Map, of: String, default: {} },
     assignedHiringPartner: { type: String, default: '' },
     adminNotes: { type: String, default: '' },
+    declarationConsent: { type: Object, default: null },
     phoneOtp: { type: String, default: '' },
     emailVerificationTokenHash: { type: String, default: '' },
     emailVerificationExpiresAt: { type: Date, default: null },

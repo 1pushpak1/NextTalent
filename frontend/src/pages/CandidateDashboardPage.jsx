@@ -23,7 +23,7 @@ const paymentRouteNotice = {
   '/payment/final-payment': {
     title: 'Final payment required',
     description: 'Please complete the final payment to proceed with post-selection steps.',
-    cta: 'Pay Final Program Fee',
+    cta: 'Pay Final Payment USD 3,100',
   },
 };
 const eligibilityBurstPieces = [
@@ -59,7 +59,6 @@ const selectionBannerConfig = {
 };
 
 const isLegacyInterviewStage = (name = '') => /interview/i.test(String(name).trim());
-const isIndiaResidence = (value = '') => String(value || '').trim().toLowerCase() === 'india';
 const formatUsd = (amount) => `USD ${Number(amount || 0).toLocaleString('en-US')}`;
 
 export default function CandidateDashboardPage() {
@@ -69,8 +68,7 @@ export default function CandidateDashboardPage() {
     data?.profile?.personalDetails?.firstName ||
     user?.name?.split?.(' ')?.[0] ||
     (user?.email?.split?.('@')?.[0] || 'Candidate');
-  const currentCountryOfResidence = data?.profile?.personalDetails?.currentCountryOfResidence || '';
-  const programTotal = isIndiaResidence(currentCountryOfResidence) ? 3800 : 3600;
+  const programTotal = 3100;
 
   useEffect(() => {
     api
@@ -338,7 +336,7 @@ export default function CandidateDashboardPage() {
               <div className="flex flex-wrap gap-3">
                 {!journeyLocked && internalEvaluationPassed && !hasInitial && <Link to="/initial-payment"><Button>Pay Initial USD 500</Button></Link>}
                 {!journeyLocked && hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Link to="/payment/program-fee"><Button>{programFailed ? 'Re-upload Program Fee Receipt' : 'Pay Program Fee'}</Button></Link>}
-                {!journeyLocked && selected && !finalPaid && !finalPending && <Link to="/payment/final-payment"><Button>{finalFailed ? 'Re-upload Final Payment Receipt' : 'Pay Final Program Fee'}</Button></Link>}
+                {!journeyLocked && selected && !finalPaid && !finalPending && <Link to="/payment/final-payment"><Button>{finalFailed ? 'Re-upload Final Payment Receipt' : 'Pay Final Payment USD 3,100'}</Button></Link>}
                 {!journeyLocked && selected && finalPending && <Button className="text-white" variant="secondary" disabled>Final Payment Under Verification</Button>}
                 {!journeyLocked && testimonialPending && <Link to="/testimonial"><Button className="text-white" variant="secondary">Share Testimonial</Button></Link>}
                 {!journeyLocked && finalPaid && testimonialSubmitted && <Button className="text-white" variant="secondary" disabled>Testimonial Shared</Button>}

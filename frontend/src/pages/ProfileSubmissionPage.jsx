@@ -1790,10 +1790,10 @@ By signing below, you accept full responsibility for the authenticity of the det
           <p className="font-semibold text-slate-900">Post Initial Evaluation</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>USD 500 non-refundable</li>
-            <li>Program fee payment is USD 3,500 + USD 100 background verification (total USD 3,600), with an additional USD 200 India residence compliance fee when the current country of residence is India (total USD 3,800)</li>
+            <li>First installment payment is USD 3,100 (includes bank fees), refundable minus USD 200 only if not selected post-interview or in valid visa rejection scenarios per agreement.</li>
             <li>USD 4,000 payable upon successful selection</li>
           </ul>
-          <p className="mt-3 rounded-md bg-amber-50 p-2 text-black">
+          <p className="mt-3 rounded-md bg-amber-50 p-2 text-white">
             This fee supports evaluation and process coordination services. It does not promise employment outcomes.
           </p>
         </div>

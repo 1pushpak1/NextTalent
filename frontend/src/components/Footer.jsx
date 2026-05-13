@@ -55,7 +55,8 @@ export default function Footer() {
             </h4>
             <div className={`space-y-3 text-sm ${isHome || !isAdminRoute ? 'text-[#bdbdc3]' : 'text-slate-500'}`}>
               <p><Link className="transition hover:text-[#c8a96b]" to="/privacy-policy">Privacy Policy</Link></p>
-              <p><Link className="transition hover:text-[#c8a96b]" to="/terms-of-service">Terms of Service</Link></p>
+              <p><Link className="transition hover:text-[#c8a96b]" to="/payment-refund-policy">Payment & Refund Policy</Link></p>
+              <p><Link className="transition hover:text-[#c8a96b]" to="/terms-of-service">Terms and Conditions</Link></p>
               <p><Link className="transition hover:text-[#c8a96b]" to="/cookie-policy">Cookie Policy</Link></p>
               <p><Link className="transition hover:text-[#c8a96b]" to="/support">Support</Link></p>
               <p><Link className="transition hover:text-[#c8a96b]" to="/contact">Contact</Link></p>

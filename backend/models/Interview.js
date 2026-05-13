@@ -8,6 +8,7 @@ const interviewSchema = new mongoose.Schema(
     role: { type: String, required: true },
     date: { type: String, required: true },
     time: { type: String, required: true },
+    durationMinutes: { type: Number, default: 15 },
     meetingLink: { type: String, default: '' },
     status: { type: String, default: 'Scheduled' },
   },

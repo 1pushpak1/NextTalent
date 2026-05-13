@@ -14,7 +14,7 @@ export default function SelectionSelectedPage() {
           <p className="mt-3 text-slate-600">
             Your result has been announced as selected. Please complete the final payment step to continue.
           </p>
-          <Link to="/payment/final-payment" className="mt-5 inline-block"><Button>Pay Final Program Fee</Button></Link>
+          <Link to="/payment/final-payment" className="mt-5 inline-block"><Button>Pay Final Payment USD 3,100</Button></Link>
         </Card>
       </div>
       <Footer />

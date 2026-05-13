@@ -23,64 +23,19 @@ const formatStatus = (value) => {
     .join(' ');
 };
 
-const printInvoice = (payment) => {
-  if (!payment) return;
+const getBackendBaseUrl = () => {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+  return apiUrl.replace(/\/api\/?$/, '');
+};
 
-  const html = `
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>${getPaymentTitle(payment.type)} Invoice</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 32px; color: #0f172a; }
-          h1 { margin: 0 0 8px; color: #002147; }
-          .subtitle { color: #475569; margin-bottom: 24px; }
-          .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-          .field { background: #f8fafc; border-radius: 12px; padding: 12px; }
-          .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }
-          .value { margin-top: 6px; font-size: 14px; font-weight: 700; color: #0f172a; }
-        </style>
-      </head>
-      <body>
-        <h1>${getPaymentTitle(payment.type)} Invoice</h1>
-        <div class="subtitle">NextStep Talent</div>
-        <div class="grid">
-          <div class="field"><div class="label">Status</div><div class="value">${payment.status || '—'}</div></div>
-          <div class="field"><div class="label">Amount</div><div class="value">${payment.currency || 'USD'} ${payment.amount || 0}</div></div>
-          <div class="field"><div class="label">Transaction ID</div><div class="value">${payment.transactionId || '—'}</div></div>
-          <div class="field"><div class="label">Method</div><div class="value">${payment.method || '—'}</div></div>
-          <div class="field"><div class="label">Date</div><div class="value">${formatDate(payment.createdAt)}</div></div>
-          <div class="field"><div class="label">Type</div><div class="value">${getPaymentTitle(payment.type)}</div></div>
-        </div>
-      </body>
-    </html>
-  `;
-
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  iframe.setAttribute('aria-hidden', 'true');
-  document.body.appendChild(iframe);
-
-  iframe.onload = () => {
-    const frameWindow = iframe.contentWindow;
-    if (!frameWindow) return;
-    frameWindow.focus();
-    frameWindow.print();
-    window.setTimeout(() => iframe.remove(), 1000);
-  };
-
-  const doc = iframe.contentDocument;
-  if (!doc) {
-    iframe.remove();
+const openReceipt = (payment) => {
+  const receiptPath = String(payment?.receiptUrl || '').trim();
+  if (!receiptPath) {
+    alert('Receipt file is not available for this payment yet.');
     return;
   }
-  doc.open();
-  doc.write(html);
-  doc.close();
+  const href = receiptPath.startsWith('http') ? receiptPath : `${getBackendBaseUrl()}${receiptPath}`;
+  window.open(href, '_blank', 'noopener,noreferrer');
 };
 
 export default function PaymentHistoryPage() {
@@ -117,7 +72,7 @@ export default function PaymentHistoryPage() {
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                 >
-                  <option value="completed">Received (Completed)</option>
+                  <option value="completed">Received</option>
                   <option value="pending">Pending</option>
                   <option value="failed">Not Received</option>
                   <option value="refunded">Refunded</option>
@@ -156,7 +111,7 @@ export default function PaymentHistoryPage() {
                   {String(payment.status || '').toLowerCase() === 'completed' && (
                     <div className="mt-4 flex flex-wrap gap-3">
                       <Button variant="secondary" className="text-white" onClick={() => setSelectedPayment(payment)}>View</Button>
-                      <Button variant="secondary" className="text-white" onClick={() => printInvoice(payment)}>Download Invoice</Button>
+                      <Button variant="secondary" className="text-white" onClick={() => openReceipt(payment)}>Download Invoice</Button>
                     </div>
                   )}
                 </article>

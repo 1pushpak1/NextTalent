@@ -14,7 +14,7 @@ const BANK_DETAILS = {
   iban: 'DE89370400440532013000',
 };
 
-const FINAL_ONBOARDING_AMOUNT = 'USD 4,000';
+const FINAL_ONBOARDING_AMOUNT = 'USD 3,100';
 
 export default function FinalPaymentPage() {
   const [loading, setLoading] = useState(false);

@@ -29,7 +29,7 @@ const getSmtpConfig = () => {
   };
 };
 
-const sendEmail = async ({ to, subject, text, html, attachments = [] }) => {
+const sendEmail = async ({ to, subject, text, html, attachments = [], fromEmail, fromName }) => {
   const {
     SMTP_HOST,
     SMTP_PORT,
@@ -67,8 +67,11 @@ const sendEmail = async ({ to, subject, text, html, attachments = [] }) => {
       },
     });
 
+    const finalFromEmail = String(fromEmail || SMTP_FROM_EMAIL || '').trim();
+    const finalFromName = String(fromName || SMTP_FROM_NAME || 'NextStep Talent').trim();
+
     const info = await transporter.sendMail({
-      from: `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL}>`,
+      from: `"${finalFromName}" <${finalFromEmail}>`,
       to,
       subject,
       text,
@@ -77,16 +80,23 @@ const sendEmail = async ({ to, subject, text, html, attachments = [] }) => {
     });
     return info;
   } catch (error) {
-    console.error('[Email Send Failed]', {
+    const errorPayload = {
       to,
       subject,
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: SMTP_USE_SSL,
       requireTLS: SMTP_USE_STARTTLS,
+      code: error.code,
+      command: error.command,
+      responseCode: error.responseCode,
+      response: error.response,
       error: error.message,
-    });
-    throw new Error(`Unable to send email: ${error.message}`);
+    };
+    console.error('[Email Send Failed]', errorPayload);
+    const smtpErrorCode = errorPayload.code || 'UNKNOWN';
+    const smtpResponseCode = errorPayload.responseCode ? ` (responseCode=${errorPayload.responseCode})` : '';
+    throw new Error(`Unable to send email [${smtpErrorCode}]${smtpResponseCode}: ${error.message}`);
   }
 };
 

@@ -57,30 +57,30 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row._id} className="border-t border-slate-100 transition hover:bg-slate-50/80">
-                <td className="px-4 py-3">
-                  <p className="font-semibold text-slate-900">{row.name || '—'}</p>
-                  <p className="text-xs text-slate-500">{row.email || '—'}</p>
+              <tr key={row._id} className="group border-t border-slate-100 transition hover:bg-slate-50/80">
+                <td className="px-4 py-3 group-hover:text-black">
+                  <p className="font-semibold text-slate-900 group-hover:text-black">{row.name || '—'}</p>
+                  <p className="text-xs text-slate-500 group-hover:text-black">{row.email || '—'}</p>
                 </td>
-                <td className="px-4 py-3 text-slate-700">{row.currentStage || '—'}</td>
-                <td className="px-4 py-3 text-slate-700">{row.status || '—'}</td>
-                <td className="px-4 py-3 text-slate-700">{formatDate(row.date)}</td>
+                <td className="px-4 py-3 text-slate-700 group-hover:text-black">{row.currentStage || '—'}</td>
+                <td className="px-4 py-3 text-slate-700 group-hover:text-black">{row.status || '—'}</td>
+                <td className="px-4 py-3 text-slate-700 group-hover:text-black">{formatDate(row.date)}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      className="rounded-xl border border-[rgba(200,169,107,0.36)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)]"
+                      className="rounded-xl border border-[rgba(200,169,107,0.36)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)] group-hover:text-black"
                       onClick={() => navigate(`/admin/candidates/${row._id}?tab=${stageReviewMap[stageKey] || 'overview'}${canReviewStage ? `&review=${stageKey}` : ''}`)}
                     >
                       {canReviewStage ? (String(row.stepStatus || '').toLowerCase() === 'accepted' ? 'Edit Response' : 'Review & Decide') : 'Open Candidate'}
                     </button>
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 rounded-xl border border-[rgba(200,169,107,0.28)] px-3 py-2 text-xs font-semibold text-[#d7c08a] transition hover:bg-[rgba(200,169,107,0.1)]"
+                      className="inline-flex items-center gap-1 rounded-xl border border-[rgba(200,169,107,0.28)] px-3 py-2 text-xs font-semibold text-[#d7c08a] transition hover:bg-[rgba(200,169,107,0.1)] group-hover:text-black"
                       onClick={() => navigate(`/admin/candidates/${row._id}`)}
                     >
                       View Profile
-                      <span className="material-symbols-outlined text-sm leading-none">arrow_forward</span>
+                      <span className="material-symbols-outlined text-sm leading-none group-hover:text-black">arrow_forward</span>
                     </button>
                   </div>
                 </td>

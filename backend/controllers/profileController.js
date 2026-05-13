@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Eligibility = require('../models/Eligibility');
 const generatePdf = require('../utils/generatePdf');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
+const { getWorkflowConfig, sendAdminNotification } = require('../utils/workflowEmailer');
 
 const clampSavedStep = (value, fallback = 1) => {
   const numeric = Number(value);
@@ -85,9 +86,10 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
   }
 
   const recipientEmail = body.personalDetails?.email || req.user?.email;
+  const candidateDisplayName = body.personalDetails?.firstName || req.user?.name || req.user?.email?.split('@')[0];
   await sendStepUpdateEmail({
     to: recipientEmail,
-    candidateName: body.personalDetails?.firstName || req.user?.name || req.user?.email?.split('@')[0],
+    candidateName: candidateDisplayName,
     stepKey: 'profile',
     heading: 'Profile submitted successfully',
     message: 'Your profile has been submitted successfully and is now pending admin approval in internal evaluation.',
@@ -98,6 +100,23 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
     ],
     cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
   });
+
+  const workflow = getWorkflowConfig();
+  try {
+    await sendAdminNotification({
+      to: workflow.admin12List,
+      subject: `NextStep Talent Candidate Submission Received / ${candidateDisplayName}`,
+      lines: [
+        'A new candidate application has been submitted.',
+        `Candidate: ${candidateDisplayName}`,
+        `Email: ${recipientEmail || req.user?.email || 'N/A'}`,
+        `Candidate ID: ${String(userId)}`,
+      ],
+      fromType: 'noreply',
+    });
+  } catch (error) {
+    console.error('Admin submission notification failed:', error.message);
+  }
 
   return { profile, statusCode: isNewProfile ? 201 : 200 };
 };

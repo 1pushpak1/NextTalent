@@ -14,6 +14,7 @@ const {
   filterAuditEntriesForAdmin,
 } = require('../utils/approvalAudit');
 const { getProgramFeeBreakdown } = require('../utils/programFee');
+const { getWorkflowConfig, sendAdminNotification, normalizeEmail } = require('../utils/workflowEmailer');
 
 const validProfileStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 const validDocumentStatuses = ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'];
@@ -24,6 +25,7 @@ const validStageKeys = [
   'evaluation',
   'declaration',
   'documents',
+  'background-verification',
   'document-verification',
   'hiring',
   'selection',
@@ -50,6 +52,7 @@ const stagePageLabelMap = {
   evaluation: 'Internal Evaluation',
   declaration: 'Declaration & Contract',
   documents: 'Document Uploads',
+  'background-verification': 'Background Verification',
   'document-verification': 'Document Verification',
   hiring: 'Hiring Partner Stage',
   selection: 'Selection Results',
@@ -578,7 +581,7 @@ const paymentStageMatcher = (type, snapshot) => {
 const paymentExpectedAmount = {
   initial: 500,
   program: getProgramFeeBreakdown(null).total,
-  final: 4000,
+  final: 3100,
 };
 
 const paymentStatusLabel = (rawStatus = '') => {
@@ -1057,10 +1060,50 @@ const updateCandidateStageDecision = async (req, res) => {
 
     await candidate.save();
 
+    const workflow = getWorkflowConfig();
+    const actorEmail = normalizeEmail(req.user?.email || '');
+    if (stageKey === 'evaluation' && status === 'accepted' && actorEmail === workflow.admin2) {
+      try {
+        await sendAdminNotification({
+          to: workflow.admin3,
+          subject: `NextStep Talent Candidate For Approval / ${candidate.name || candidate.email?.split('@')[0] || 'Candidate'}`,
+          lines: [
+            'Admin 2 approved the candidate and requires Admin 3 review.',
+            `Candidate: ${candidate.name || candidate.email?.split('@')[0] || 'N/A'}`,
+            `Email: ${candidate.email || 'N/A'}`,
+            `Candidate ID: ${String(candidate._id)}`,
+          ],
+          fromType: 'noreply',
+        });
+      } catch (error) {
+        console.error('Admin 3 approval notification failed:', error.message);
+      }
+    }
+
+    if (stageKey === 'selection' && actorEmail === workflow.admin3) {
+      try {
+        await sendAdminNotification({
+          to: workflow.admin12List,
+          subject: `NextStep Talent Admin 3 Process Completed / ${candidate.name || candidate.email?.split('@')[0] || 'Candidate'}`,
+          lines: [
+            'Admin 3 has completed the selection-stage action for this candidate.',
+            `Decision: ${status}`,
+            `Candidate: ${candidate.name || candidate.email?.split('@')[0] || 'N/A'}`,
+            `Email: ${candidate.email || 'N/A'}`,
+            `Interview Required: ${req.body?.interviewRequired === false ? 'No' : 'Yes / To Be Scheduled'}`,
+          ],
+          fromType: 'noreply',
+        });
+      } catch (error) {
+        console.error('Admin 1/2 completion notification failed:', error.message);
+      }
+    }
+
     const stageToEmailStep = {
       evaluation: 'evaluation',
       declaration: 'declaration',
       documents: 'documents',
+      'background-verification': 'documents',
       'document-verification': 'document_verification',
       hiring: 'hiring',
       selection: 'selection',

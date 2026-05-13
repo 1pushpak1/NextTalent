@@ -1,6 +1,6 @@
-const PROGRAM_FEE_BASE_USD = 3500;
-const BACKGROUND_VERIFICATION_USD = 100;
-const INDIA_COMPLIANCE_SURCHARGE_USD = 200;
+const PROGRAM_FEE_BASE_USD = 3100;
+const BACKGROUND_VERIFICATION_USD = 0;
+const INDIA_COMPLIANCE_SURCHARGE_USD = 0;
 
 const normalizeCountry = (value = '') => String(value || '').trim().toLowerCase();
 

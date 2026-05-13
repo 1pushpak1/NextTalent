@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const Eligibility = require('../models/Eligibility');
 const Profile = require('../models/Profile');
 const Payment = require('../models/Payment');
@@ -7,6 +8,9 @@ const Testimonial = require('../models/Testimonial');
 const User = require('../models/User');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const { deriveCandidateProgress } = require('../utils/candidateProgress');
+const sendEmail = require('../utils/sendEmail');
+const { generateDeclarationPdf } = require('../utils/declarationPdf');
+const { getWorkflowConfig } = require('../utils/workflowEmailer');
 
 const hasPassedInitialEligibility = ({ eligibility, user, profile, payments, docs, interviews }) =>
   Boolean(eligibility) ||
@@ -304,6 +308,141 @@ const updateMyStatus = async (req, res) => {
   }
 };
 
+const completeDeclarationConsent = async (req, res) => {
+  try {
+    const {
+      agreeChecked,
+      readCompleted,
+      viewedDocs,
+      declarationSignature,
+      contractSignature,
+      typedLegalName,
+      consentTransactionId,
+      declarationVersion = 'NST-DEC-2026',
+      contractVersion = 'NST-CON-2026',
+      pdfReferenceNumber,
+    } = req.body || {};
+
+    if (agreeChecked !== true) {
+      return res.status(400).json({ message: 'Active "I Agree" confirmation is required.' });
+    }
+    if (readCompleted !== true || !viewedDocs?.declaration || !viewedDocs?.contract) {
+      return res.status(400).json({ message: 'Mandatory read/scroll completion is required before signing.' });
+    }
+    if (!typedLegalName || String(typedLegalName).trim().length < 3) {
+      return res.status(400).json({ message: 'Typed full legal name is required.' });
+    }
+    if (!declarationSignature?.value || !contractSignature?.value) {
+      return res.status(400).json({ message: 'Both declaration and contract signatures are required.' });
+    }
+
+    const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ipAddress = forwardedFor || req.ip || req.socket?.remoteAddress || '';
+    const signedAt = new Date();
+    const consentId = `NST-CONSENT-${crypto.randomUUID()}`;
+    const transactionId = String(consentTransactionId || `NST-TXN-${Date.now()}`).trim();
+    const pdfReference = String(pdfReferenceNumber || `NST-PDF-${Date.now()}`).trim();
+    const retentionYears = Number(process.env.AUDIT_RETENTION_YEARS || 7);
+    const retentionUntil = new Date(signedAt);
+    retentionUntil.setFullYear(retentionUntil.getFullYear() + Math.max(1, retentionYears));
+
+    const candidate = await User.findById(req.user._id);
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+
+    const declarationAudit = {
+      consentId,
+      transactionId,
+      pdfReference,
+      signedAt: signedAt.toISOString(),
+      ipAddress,
+      userAgent: String(req.headers['user-agent'] || ''),
+      declarationVersion,
+      contractVersion,
+      agreeChecked: true,
+      readCompleted: true,
+      viewedDocs: {
+        declaration: true,
+        contract: true,
+      },
+      typedLegalName: String(typedLegalName).trim(),
+      signatureMethod: declarationSignature?.type || 'typed',
+      declarationSignature,
+      contractSignature,
+      retentionUntil: retentionUntil.toISOString(),
+      auditRetentionPolicy: `Retain until ${retentionUntil.toISOString()}`,
+    };
+
+    candidate.declarationConsent = declarationAudit;
+    candidate.status = 'declaration_signed';
+    await candidate.save();
+
+    const { filePath, fileName, fileUrl } = await generateDeclarationPdf({ candidate, declarationAudit });
+    candidate.declarationConsent = {
+      ...candidate.declarationConsent,
+      pdfFileName: fileName,
+      pdfUrl: fileUrl,
+    };
+    await candidate.save();
+
+    const workflow = getWorkflowConfig();
+    await sendEmail({
+      to: candidate.email,
+      subject: 'NextStep Talent Declaration Copy and Consent Receipt',
+      text: [
+        'Your declaration and undertaking has been recorded successfully.',
+        `Consent ID: ${consentId}`,
+        `Transaction ID: ${transactionId}`,
+        `PDF Reference: ${pdfReference}`,
+        `Signed At: ${signedAt.toISOString()}`,
+        `IP Address: ${ipAddress || 'N/A'}`,
+      ].join('\n'),
+      html: `<p>Your declaration and undertaking has been recorded successfully.</p>
+<p><b>Consent ID:</b> ${consentId}<br/>
+<b>Transaction ID:</b> ${transactionId}<br/>
+<b>PDF Reference:</b> ${pdfReference}<br/>
+<b>Signed At:</b> ${signedAt.toISOString()}<br/>
+<b>IP Address:</b> ${ipAddress || 'N/A'}</p>`,
+      fromEmail: workflow.noreplyFromEmail,
+      fromName: 'NextStep Talent',
+      attachments: [
+        {
+          filename: fileName,
+          path: filePath,
+        },
+      ],
+    });
+
+    await sendStepUpdateEmail({
+      to: candidate?.email,
+      candidateName: candidate?.name || candidate?.email?.split('@')[0],
+      stepKey: 'declaration',
+      heading: 'Declaration completed',
+      message: 'Your declaration step has been completed successfully.',
+      status: 'completed',
+      details: [
+        { label: 'Consent ID', value: consentId },
+        { label: 'Transaction ID', value: transactionId },
+        { label: 'PDF Reference', value: pdfReference },
+      ],
+      cta: { label: 'Open Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+    });
+
+    return res.json({
+      message: 'Declaration consent recorded',
+      status: candidate.status,
+      consentId,
+      transactionId,
+      pdfReference,
+      pdfUrl: fileUrl,
+      signedAt: signedAt.toISOString(),
+      ipAddress,
+      retentionUntil: retentionUntil.toISOString(),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 const listCandidates = async (req, res) => {
   try {
     const candidates = await User.find({ role: 'candidate' }).sort({ createdAt: -1 }).lean();
@@ -364,4 +503,4 @@ const updateCandidateStatus = async (req, res) => {
   }
 };
 
-module.exports = { getDashboard, updateMyStatus, listCandidates, updateCandidateStatus };
+module.exports = { getDashboard, updateMyStatus, completeDeclarationConsent, listCandidates, updateCandidateStatus };

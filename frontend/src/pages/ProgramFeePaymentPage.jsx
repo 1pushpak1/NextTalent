@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import Button from '../components/Button';
@@ -15,12 +15,9 @@ const BANK_DETAILS = {
   iban: 'DE89370400440532013000',
 };
 
-const PROGRAM_FEE_BASE_USD = 3500;
-const BACKGROUND_VERIFICATION_USD = 100;
-const INDIA_COMPLIANCE_SURCHARGE_USD = 200;
+const PROGRAM_DEPOSIT_USD = 3100;
 
 const formatUsd = (amount) => `USD ${Number(amount || 0).toLocaleString('en-US')}`;
-const isIndiaResidence = (value = '') => String(value || '').trim().toLowerCase() === 'india';
 
 function InfoTooltip({ text }) {
   return (
@@ -37,13 +34,10 @@ export default function ProgramFeePaymentPage() {
   const [loading, setLoading] = useState(false);
   const [bankReference, setBankReference] = useState('');
   const [receipt, setReceipt] = useState(null);
-  const [countryOfResidence, setCountryOfResidence] = useState('');
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
-  const indiaResident = useMemo(() => isIndiaResidence(countryOfResidence), [countryOfResidence]);
-  const indiaSurcharge = indiaResident ? INDIA_COMPLIANCE_SURCHARGE_USD : 0;
-  const totalProgramFee = PROGRAM_FEE_BASE_USD + BACKGROUND_VERIFICATION_USD + indiaSurcharge;
+  const totalProgramFee = useMemo(() => PROGRAM_DEPOSIT_USD, []);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -53,8 +47,6 @@ export default function ProgramFeePaymentPage() {
     const guard = async () => {
       try {
         const { data } = await api.get('/dashboard/me');
-        const country = data?.profile?.personalDetails?.currentCountryOfResidence || '';
-        setCountryOfResidence(country);
         const required = getCandidateNextRoute(data);
         if (required !== '/payment/program-fee') {
           navigate(required, { replace: true });
@@ -113,24 +105,8 @@ export default function ProgramFeePaymentPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#002147]">Fee Breakdown</p>
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                  <span className="font-medium text-slate-700">Program Fee</span>
-                  <span className="font-semibold text-slate-900">{formatUsd(PROGRAM_FEE_BASE_USD)}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                  <span className="flex items-center gap-2 font-medium text-slate-700">
-                    Background Verification
-                    <InfoTooltip text="This covers candidate background verification processing before onward program actions." />
-                  </span>
-                  <span className="font-semibold text-slate-900">{formatUsd(BACKGROUND_VERIFICATION_USD)}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                  <span className="flex items-center gap-2 font-medium text-slate-700">
-                    India Residence Compliance Fee
-                    <InfoTooltip text="Applied only when your current country of residence is India, for additional local compliance handling." />
-                  </span>
-                  <span className="font-semibold text-slate-900">
-                    {indiaResident ? formatUsd(INDIA_COMPLIANCE_SURCHARGE_USD) : `${formatUsd(0)} (Not Applicable)`}
-                  </span>
+                  <span className="font-medium text-slate-700">First Placement Deposit</span>
+                  <span className="font-semibold text-slate-900">{formatUsd(PROGRAM_DEPOSIT_USD)}</span>
                 </div>
               </div>
               <div className="mt-3 border-t border-slate-200 pt-3">
@@ -138,11 +114,12 @@ export default function ProgramFeePaymentPage() {
                   <span className="text-sm font-semibold uppercase tracking-[0.12em] text-[#002147]">Total Payable</span>
                   <span className="text-xl font-extrabold text-[#002147]">{formatUsd(totalProgramFee)}</span>
                 </div>
-                {!!countryOfResidence && (
-                  <p className="mt-2 text-xs text-slate-600">
-                    Current Country of Residence: <span className="font-semibold text-slate-800">{countryOfResidence}</span>
-                  </p>
-                )}
+                <p className="mt-2 text-xs text-slate-600">
+                  Refund note: if not selected post interviews, USD 200 administrative deduction applies as per{' '}
+                  <Link className="font-semibold text-[#002147] underline" to="/payment-refund-policy" target="_blank" rel="noopener noreferrer">
+                    policy
+                  </Link>.
+                </p>
               </div>
             </div>
 
