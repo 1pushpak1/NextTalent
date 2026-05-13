@@ -15,7 +15,7 @@ const {
 } = require('../utils/approvalAudit');
 const { getProgramFeeBreakdown } = require('../utils/programFee');
 const { getWorkflowConfig, sendAdminNotification, normalizeEmail } = require('../utils/workflowEmailer');
-const { getEvaluationAdminEmails } = require('../utils/adminRoleEmails');
+const { getEvaluationAdminEmails, getOperationsAdminEmails, getSuperAdminEmails } = require('../utils/adminRoleEmails');
 
 const validProfileStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 const validDocumentStatuses = ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'];
@@ -859,9 +859,54 @@ const updateCandidateDocumentStatus = async (req, res) => {
 
 const addCandidateInterview = async (req, res) => {
   try {
-    return res.status(400).json({
-      message: 'Interview scheduling is no longer part of the workflow. After hiring partner assignment, announce selection result directly.',
+    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+
+    const hiringPartner = String(req.body?.hiringPartner || '').trim();
+    const role = String(req.body?.role || '').trim();
+    const date = String(req.body?.date || '').trim();
+    const time = String(req.body?.time || '').trim();
+    const meetingLink = String(req.body?.meetingLink || '').trim();
+
+    if (!hiringPartner || !role || !date || !time) {
+      return res.status(400).json({ message: 'hiringPartner, role, date and time are required' });
+    }
+
+    const interview = await Interview.create({
+      userId: candidate._id,
+      hiringPartner,
+      role,
+      country: String(req.body?.country || 'N/A').trim() || 'N/A',
+      date,
+      time,
+      meetingLink,
+      durationMinutes: 15,
+      status: 'Scheduled',
     });
+
+    candidate.status = 'interview_scheduled';
+    await candidate.save();
+
+    await sendStepUpdateEmail({
+      to: candidate.email,
+      candidateName: candidate.name || candidate.email?.split('@')[0],
+      stepKey: 'interviews',
+      heading: 'Interview scheduled',
+      message: 'Your interview has been scheduled. Please review your dashboard for details.',
+      status: 'under_review',
+      details: [
+        { label: 'Hiring Partner', value: hiringPartner },
+        { label: 'Role', value: role },
+        { label: 'Date', value: date },
+        { label: 'Time', value: time },
+        { label: 'Duration', value: '15 minutes' },
+        ...(meetingLink ? [{ label: 'Meeting Link', value: meetingLink }] : []),
+      ],
+      cta: { label: 'Open Interviews', url: `${getFrontendBaseUrl()}/interviews` },
+      eventType: 'interview',
+    });
+
+    return res.status(201).json({ message: 'Interview scheduled', interview });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -1109,10 +1154,35 @@ const updateCandidateStageDecision = async (req, res) => {
       }
     }
 
+    if (stageKey === 'document-verification' && status === 'accepted') {
+      const actorRole = String(req.user?.adminRole || '').trim().toLowerCase();
+      const isEvaluationActor = actorRole === 'evaluation_admin' || actorEmail === workflow.admin2;
+      if (isEvaluationActor) {
+        try {
+          const operationsAdmins = getOperationsAdminEmails();
+          await sendAdminNotification({
+            to: operationsAdmins.length ? operationsAdmins : workflow.operationsAdmins,
+            subject: `NextStep Talent Candidate Ready For Hiring Partner Transfer / ${candidate.name || candidate.email?.split('@')[0] || 'Candidate'}`,
+            lines: [
+              'Evaluation admin has completed document verification and approved this candidate.',
+              'Next Action: Transfer the candidate to hiring partner.',
+              `Candidate: ${candidate.name || candidate.email?.split('@')[0] || 'N/A'}`,
+              `Email: ${candidate.email || 'N/A'}`,
+              `Candidate ID: ${String(candidate._id)}`,
+            ],
+            fromType: 'noreply',
+          });
+        } catch (error) {
+          console.error('Operations admin transfer notification failed:', error.message);
+        }
+      }
+    }
+
     if (stageKey === 'selection' && actorEmail === workflow.admin3) {
       try {
+        const completionRecipients = [...new Set([...getSuperAdminEmails(), ...getEvaluationAdminEmails()])];
         await sendAdminNotification({
-          to: workflow.admin12List,
+          to: completionRecipients,
           subject: `NextStep Talent Admin 3 Process Completed / ${candidate.name || candidate.email?.split('@')[0] || 'Candidate'}`,
           lines: [
             'Admin 3 has completed the selection-stage action for this candidate.',

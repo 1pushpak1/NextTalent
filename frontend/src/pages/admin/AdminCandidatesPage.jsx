@@ -8,10 +8,15 @@ const profileStatusOptions = ['', 'submitted', 'under_review', 'accepted', 'reje
 const paymentStatusOptions = ['', 'not_started', 'pending_verification', 'verified', 'partially_verified'];
 const documentStatusOptions = ['', 'not_uploaded', 'uploaded', 'under_review', 'needs_revision', 'verified'];
 const selectionStatusOptions = ['', 'pending', 'under_review', 'selected', 'rejected'];
+const DEFAULT_FORCED_FILTERS = Object.freeze({});
 
 const humanize = (value) => String(value || '—').replaceAll('_', ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 
-export default function AdminCandidatesPage() {
+export default function AdminCandidatesPage({
+  pageTitle = 'Candidates',
+  pageSubtitle = 'Track all candidates and pending actions in one place.',
+  forcedFilters = DEFAULT_FORCED_FILTERS,
+}) {
   const { can, role } = usePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -19,16 +24,19 @@ export default function AdminCandidatesPage() {
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
 
-  const filters = useMemo(() => ({
-    q: searchParams.get('q') || '',
-    stage: searchParams.get('stage') || '',
-    profileStatus: searchParams.get('profileStatus') || '',
-    paymentStatus: searchParams.get('paymentStatus') || '',
-    documentStatus: searchParams.get('documentStatus') || '',
-    selectionStatus: searchParams.get('selectionStatus') || '',
-    pendingFrom: searchParams.get('pendingFrom') || '',
-    page: Number(searchParams.get('page') || 1),
-  }), [searchParams]);
+  const filters = useMemo(() => {
+    const base = {
+      q: searchParams.get('q') || '',
+      stage: searchParams.get('stage') || '',
+      profileStatus: searchParams.get('profileStatus') || '',
+      paymentStatus: searchParams.get('paymentStatus') || '',
+      documentStatus: searchParams.get('documentStatus') || '',
+      selectionStatus: searchParams.get('selectionStatus') || '',
+      pendingFrom: searchParams.get('pendingFrom') || '',
+      page: Number(searchParams.get('page') || 1),
+    };
+    return { ...base, ...forcedFilters };
+  }, [searchParams, forcedFilters]);
   const [draftFilters, setDraftFilters] = useState(filters);
   const showPaymentAccess = can('payments:verify');
   const showDocumentAccess = can('documents:verify');
@@ -92,6 +100,11 @@ export default function AdminCandidatesPage() {
     if (showDocumentAccess && draftFilters.documentStatus) next.set('documentStatus', draftFilters.documentStatus);
     if (showSelectionAccess && draftFilters.selectionStatus) next.set('selectionStatus', draftFilters.selectionStatus);
     if (draftFilters.pendingFrom) next.set('pendingFrom', draftFilters.pendingFrom);
+    Object.entries(forcedFilters || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') {
+        next.set(key, String(value));
+      }
+    });
     next.set('page', '1');
     setSearchParams(next);
   };
@@ -107,7 +120,13 @@ export default function AdminCandidatesPage() {
       pendingFrom: '',
       page: 1,
     });
-    setSearchParams(new URLSearchParams({ page: '1' }));
+    const next = new URLSearchParams({ page: '1' });
+    Object.entries(forcedFilters || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== '') {
+        next.set(key, String(value));
+      }
+    });
+    setSearchParams(next);
   };
 
   const setPage = (page) => {
@@ -119,13 +138,15 @@ export default function AdminCandidatesPage() {
   return (
     <section className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Candidates</h1>
-        <p className="text-sm text-slate-600">Track all candidates and pending actions in one place.</p>
+        <h1 className="text-2xl font-bold text-slate-900">{pageTitle}</h1>
+        <p className="text-sm text-slate-600">{pageSubtitle}</p>
       </div>
 
       <div className="grid gap-2 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-4">
         <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Search name/email/phone" value={draftFilters.q} onChange={(e) => setDraftFilter('q', e.target.value)} />
-        <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.stage} onChange={(e) => setDraftFilter('stage', e.target.value)}>{availableStageOptions.map((item) => <option key={item} value={item}>{item ? humanize(item) : 'All Stages'}</option>)}</select>
+        {forcedFilters?.stage ? null : (
+          <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.stage} onChange={(e) => setDraftFilter('stage', e.target.value)}>{availableStageOptions.map((item) => <option key={item} value={item}>{item ? humanize(item) : 'All Stages'}</option>)}</select>
+        )}
         <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.profileStatus} onChange={(e) => setDraftFilter('profileStatus', e.target.value)}>
           {profileStatusOptions.map((item) => <option key={item || 'all-profile'} value={item}>{item ? humanize(item) : 'All Profile Statuses'}</option>)}
         </select>
@@ -144,9 +165,11 @@ export default function AdminCandidatesPage() {
             {selectionStatusOptions.map((item) => <option key={item || 'all-selection'} value={item}>{item ? humanize(item) : 'All Selection Statuses'}</option>)}
           </select>
         )}
-        <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.pendingFrom} onChange={(e) => setDraftFilter('pendingFrom', e.target.value)}>
-          <option value="">All Pending Types</option><option value="admin">Pending From Admin</option><option value="candidate">Pending From Candidate</option>
-        </select>
+        {forcedFilters?.pendingFrom ? null : (
+          <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.pendingFrom} onChange={(e) => setDraftFilter('pendingFrom', e.target.value)}>
+            <option value="">All Pending Types</option><option value="admin">Pending From Admin</option><option value="candidate">Pending From Candidate</option>
+          </select>
+        )}
         <button type="button" className="rounded border border-[#c8a96b] bg-[#c8a96b] px-3 py-2 text-sm font-semibold text-black hover:bg-[#d4b87e]" onClick={applyFilters}>
           Apply Filters
         </button>

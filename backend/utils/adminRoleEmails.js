@@ -31,8 +31,11 @@ const getOperationsAdminEmails = () => {
   return unique([...operationsAdmins, ...superAdmins]);
 };
 
+const getSuperAdminEmails = () => emailsByRole(ADMIN_ROLES.SUPER_ADMIN, ['SUPER_ADMIN_EMAIL', 'ADMIN_EMAIL']);
+
 module.exports = {
   getPaymentsAdminEmails,
   getEvaluationAdminEmails,
   getOperationsAdminEmails,
+  getSuperAdminEmails,
 };

@@ -35,6 +35,8 @@ import AdminPaymentsOverviewPage from './pages/admin/AdminPaymentsOverviewPage';
 import AdminPaymentTypePage from './pages/admin/AdminPaymentTypePage';
 import AdminCandidatesPage from './pages/admin/AdminCandidatesPage';
 import AdminCandidateProfilePage from './pages/admin/AdminCandidateProfilePage';
+import AdminOperationsApprovalsPage from './pages/admin/AdminOperationsApprovalsPage';
+import AdminOperationsInterviewsPage from './pages/admin/AdminOperationsInterviewsPage';
 import AdminCandidatePage from './pages/AdminCandidatePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
@@ -98,17 +100,20 @@ export default function App() {
         <Route path="/status/accepted" element={<StatusAcceptedPage />} />
         <Route path="/email-sent" element={<ProtectedRoute><EmailSentPage /></ProtectedRoute>} />
 
-        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/login" element={<AdminPage />} />
         <Route
-          path="/admin/*"
+          path="/admin"
           element={(
             <ProtectedRoute requireAdmin>
               <AdminLayout />
             </ProtectedRoute>
           )}
         >
+          <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboardPage />} />
           <Route path="candidates" element={<AdminCandidatesPage />} />
+          <Route path="operations/approvals" element={<AdminOperationsApprovalsPage />} />
+          <Route path="operations/interviews" element={<AdminOperationsInterviewsPage />} />
           <Route path="candidates/:id" element={<AdminCandidateProfilePage />} />
           <Route path="evaluation" element={<AdminStageCandidatesPage title="Internal Evaluation" stageKey="evaluation" />} />
           <Route path="document-verification" element={<AdminStageCandidatesPage title="Document Verification" stageKey="document-verification" />} />
@@ -123,7 +128,7 @@ export default function App() {
           <Route path="payments/final" element={<AdminPaymentTypePage title="Final Payment (USD 3,100)" type="final" />} />
           <Route path="candidate/:id" element={<AdminCandidateProfilePage />} />
           <Route path="candidate/:id/edit" element={<AdminCandidatePage />} />
-          <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Route>
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/payment-refund-policy" element={<PaymentRefundPolicyPage />} />

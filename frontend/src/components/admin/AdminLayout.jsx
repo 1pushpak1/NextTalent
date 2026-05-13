@@ -20,6 +20,7 @@ export default function AdminLayout() {
     if (path.startsWith('/admin/document-verification')) return can('documents:verify');
     if (path.startsWith('/admin/selection')) return ['super_admin', 'payments_admin'].includes(String(role || ''));
     if (path.startsWith('/admin/hiring')) return can('candidates:update');
+    if (path.startsWith('/admin/operations/')) return can('candidates:update');
     if (path.startsWith('/admin/candidates') || path.startsWith('/admin/candidate')) return can('candidates:read');
     if (path.startsWith('/admin/dashboard') || path.startsWith('/admin/testimonials')) return can('candidates:read');
     return true;

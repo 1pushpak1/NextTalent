@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import ApprovalReviewModal from '../../components/admin/ApprovalReviewModal';
 import AuditHistoryPanel from '../../components/admin/AuditHistoryPanel';
 import Button from '../../components/Button';
 import {
+  applyOperationsDecision,
   fetchAdminCandidateProfile,
   reviewCandidateDocument,
   reviewCandidateProfile,
   reviewCandidateStage,
   reviewPayment,
+  scheduleCandidateInterview,
   updateCandidateNotes,
 } from '../../api/adminApi';
 import usePermissions from '../../hooks/usePermissions';
@@ -100,7 +102,6 @@ const readStageDecision = (candidate, stageKey) => {
 export default function AdminCandidateProfilePage() {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
   const contentRef = useRef(null);
   const { can, role } = usePermissions();
   const [data, setData] = useState(null);
@@ -115,8 +116,15 @@ export default function AdminCandidateProfilePage() {
   const [allowReviewedProfileEditor, setAllowReviewedProfileEditor] = useState(false);
   const [hiringPartnerDraft, setHiringPartnerDraft] = useState('');
   const [stageSaving, setStageSaving] = useState('');
+  const [operationsSaving, setOperationsSaving] = useState('');
+  const [interviewDraft, setInterviewDraft] = useState({
+    country: '',
+    role: '',
+    date: '',
+    time: '',
+    meetingLink: '',
+  });
 
-  const currentParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const canViewAuditHistory = String(role || '') === 'super_admin';
   const visibleTabs = useMemo(() => {
     const hiddenTabs = new Set();
@@ -126,27 +134,32 @@ export default function AdminCandidateProfilePage() {
       hiddenTabs.add('hiring');
       hiddenTabs.add('selection');
     }
+    if (String(role || '') === 'operations_admin') {
+      hiddenTabs.add('selection');
+    }
     return tabs.filter((tab) => !hiddenTabs.has(tab));
   }, [canViewAuditHistory, role]);
   const activeTabParam = searchParams.get('tab');
-  const activeTab = visibleTabs.includes(activeTabParam) ? activeTabParam : 'overview';
+  const activeTab = visibleTabs.includes(activeTabParam) ? activeTabParam : 'profile';
   const reviewParam = searchParams.get('review');
   const canReviewSelection = ['super_admin', 'payments_admin'].includes(String(role || ''));
 
   useEffect(() => {
     if (activeTabParam && visibleTabs.includes(activeTabParam)) return;
-    const next = new URLSearchParams(currentParams);
-    next.set('tab', 'overview');
-    next.delete('review');
-    setSearchParams(next, { replace: true });
-  }, [activeTabParam, currentParams, setSearchParams, visibleTabs]);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', 'profile');
+      next.delete('review');
+      return next;
+    }, { replace: true });
+  }, [activeTabParam, setSearchParams, visibleTabs]);
 
   // Auto-scroll to top when tab changes
   useEffect(() => {
     if (contentRef.current) {
       contentRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [activeTab, location.pathname, location.search]);
+  }, [activeTab]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -240,7 +253,7 @@ export default function AdminCandidateProfilePage() {
 
   useEffect(() => {
     if (!data) return;
-    const review = currentParams.get('review');
+    const review = searchParams.get('review');
     if (!review) return;
     const canOpenDocumentReviewFromUrl =
       can('documents:verify') &&
@@ -256,7 +269,7 @@ export default function AdminCandidateProfilePage() {
       return;
     }
     setActiveReview(null);
-  }, [data, currentParams, documents, can, canReviewSelection, evaluationAdminDocumentReviewUnlocked]);
+  }, [data, searchParams, documents, can, canReviewSelection, evaluationAdminDocumentReviewUnlocked]);
 
   useEffect(() => {
     if (!isInlineProfileReview) {
@@ -267,26 +280,32 @@ export default function AdminCandidateProfilePage() {
   }, [isInlineProfileReview]);
 
   const setTab = (tab) => {
-    const next = new URLSearchParams(currentParams);
-    next.set('tab', tab);
-    next.delete('review');
-    setSearchParams(next);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      next.delete('review');
+      return next;
+    });
   };
 
   const openProfileReview = () => {
     setAllowReviewedProfileEditor(true);
-    const next = new URLSearchParams(currentParams);
-    next.set('tab', 'profile');
-    next.set('review', 'evaluation');
-    setSearchParams(next);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', 'profile');
+      next.set('review', 'evaluation');
+      return next;
+    });
   };
 
   const closeReview = () => {
     setAllowReviewedProfileEditor(false);
     setActiveReview(null);
-    const next = new URLSearchParams(currentParams);
-    next.delete('review');
-    setSearchParams(next);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('review');
+      return next;
+    });
   };
 
   const stageIndex = stageSequence.indexOf(progress?.currentStageKey);
@@ -440,6 +459,49 @@ export default function AdminCandidateProfilePage() {
       setError(err.response?.data?.message || 'Failed to update hiring stage');
     } finally {
       setStageSaving('');
+    }
+  };
+
+  const submitOperationsDecision = async (decision) => {
+    setOperationsSaving(decision);
+    setError('');
+    try {
+      await applyOperationsDecision(id, {
+        decision,
+        reasonNote: `Operations admin decision: ${decision}`,
+      });
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to apply operations decision');
+    } finally {
+      setOperationsSaving('');
+    }
+  };
+
+  const submitInterviewSchedule = async () => {
+    if (!candidate?._id) return;
+    const payload = {
+      hiringPartner: hiringPartnerDraft.trim() || candidate?.assignedHiringPartner || 'Hiring Partner',
+      country: interviewDraft.country.trim() || 'N/A',
+      role: interviewDraft.role.trim(),
+      date: interviewDraft.date.trim(),
+      time: interviewDraft.time.trim(),
+      meetingLink: interviewDraft.meetingLink.trim(),
+    };
+    if (!payload.role || !payload.date || !payload.time) {
+      setError('Interview role, date, and time are required.');
+      return;
+    }
+
+    setOperationsSaving('schedule_interview');
+    setError('');
+    try {
+      await scheduleCandidateInterview(id, payload);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to schedule interview');
+    } finally {
+      setOperationsSaving('');
     }
   };
 
@@ -1182,6 +1244,62 @@ export default function AdminCandidateProfilePage() {
                   </Button>
                 ) : null}
               </div>
+
+              {String(role || '') === 'operations_admin' && hiringAccepted ? (
+                <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-800">Operations Admin Actions</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="adminPrimary" onClick={() => submitOperationsDecision('interview_not_required')} disabled={Boolean(operationsSaving)}>
+                      {operationsSaving === 'interview_not_required' ? 'Saving...' : 'Approve Profile (Admin 3)'}
+                    </Button>
+                    <Button variant="adminSecondary" className="text-white" onClick={() => submitOperationsDecision('rejected')} disabled={Boolean(operationsSaving)}>
+                      {operationsSaving === 'rejected' ? 'Saving...' : 'Reject Profile (Admin 3)'}
+                    </Button>
+                    <Button variant="adminSecondary" className="text-white" onClick={() => submitOperationsDecision('cancelled')} disabled={Boolean(operationsSaving)}>
+                      {operationsSaving === 'cancelled' ? 'Saving...' : 'Cancel Application'}
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <input
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[rgba(200,169,107,0.5)]"
+                      placeholder="Interview Role"
+                      value={interviewDraft.role}
+                      onChange={(event) => setInterviewDraft((prev) => ({ ...prev, role: event.target.value }))}
+                    />
+                    <input
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[rgba(200,169,107,0.5)]"
+                      placeholder="Country"
+                      value={interviewDraft.country}
+                      onChange={(event) => setInterviewDraft((prev) => ({ ...prev, country: event.target.value }))}
+                    />
+                    <input
+                      type="date"
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[rgba(200,169,107,0.5)]"
+                      value={interviewDraft.date}
+                      onChange={(event) => setInterviewDraft((prev) => ({ ...prev, date: event.target.value }))}
+                    />
+                    <input
+                      type="time"
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[rgba(200,169,107,0.5)]"
+                      value={interviewDraft.time}
+                      onChange={(event) => setInterviewDraft((prev) => ({ ...prev, time: event.target.value }))}
+                    />
+                    <input
+                      className="md:col-span-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[rgba(200,169,107,0.5)]"
+                      placeholder="Meeting Link (optional)"
+                      value={interviewDraft.meetingLink}
+                      onChange={(event) => setInterviewDraft((prev) => ({ ...prev, meetingLink: event.target.value }))}
+                    />
+                  </div>
+
+                  <div>
+                    <Button variant="adminPrimary" onClick={submitInterviewSchedule} disabled={operationsSaving === 'schedule_interview'}>
+                      {operationsSaving === 'schedule_interview' ? 'Scheduling...' : 'Schedule Interview'}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </Card>

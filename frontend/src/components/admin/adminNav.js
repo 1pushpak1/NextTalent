@@ -4,6 +4,8 @@ export const adminMainNav = [
   { label: 'Internal Evaluation', to: '/admin/evaluation', requiredPermission: 'evaluation:approve' },
   { label: 'Document Verification', to: '/admin/document-verification', requiredPermission: 'documents:verify' },
   { label: 'Hiring Partner Stage', to: '/admin/hiring', requiredPermission: 'candidates:update' },
+  { label: 'Approve / Reject Profile', to: '/admin/operations/approvals', requiredRoles: ['operations_admin'] },
+  { label: 'Interview Scheduling', to: '/admin/operations/interviews', requiredRoles: ['operations_admin'] },
   { label: 'Selection Results', to: '/admin/selection', requiredRoles: ['super_admin', 'payments_admin'] },
   { label: 'Testimonials', to: '/admin/testimonials', requiredPermission: 'candidates:read' },
 ];

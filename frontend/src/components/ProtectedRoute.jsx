@@ -12,7 +12,7 @@ export default function ProtectedRoute({
   const next = encodeURIComponent(location.pathname + location.search);
 
   if (!isAuthenticated) {
-    if (requireAdmin) return <Navigate to="/admin" replace />;
+    if (requireAdmin) return <Navigate to="/admin/login" replace />;
     return <Navigate to={`/login?next=${next}`} replace />;
   }
   if (requireAdmin && user?.role !== 'admin') return <Navigate to="/candidate-dashboard" replace />;

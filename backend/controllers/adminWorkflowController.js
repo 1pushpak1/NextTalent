@@ -8,7 +8,7 @@ const InterviewSlot = require('../models/InterviewSlot');
 const InterviewBooking = require('../models/InterviewBooking');
 const { ADMIN_ROLES, PAYMENT_STAGES, EMAIL_TEMPLATE_KEYS, LEGACY_PAYMENT_TYPE_TO_STAGE } = require('../constants/workflow');
 const { normalizeAdminRole } = require('../constants/workflow');
-const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
+const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails, getSuperAdminEmails } = require('../utils/adminRoleEmails');
 const { sendTransactionalEmailSafe } = require('../services/emailService');
 const { createAuditLog } = require('../services/auditService');
 const { generateInvoiceForStage, generateReceiptForPayment } = require('../services/billingPdfService');
@@ -163,9 +163,10 @@ const operationsDecision = async (req, res) => {
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
     const decision = String(req.body?.decision || '').trim().toLowerCase();
-    if (!['interview_required', 'interview_not_required', 'rejected'].includes(decision)) {
+    if (!['interview_required', 'interview_not_required', 'rejected', 'cancelled', 'canceled'].includes(decision)) {
       return res.status(400).json({ message: 'Invalid operations decision' });
     }
+    const normalizedDecision = decision === 'canceled' ? 'cancelled' : decision;
 
     const previous = {
       operationsStatus: candidate.operationsStatus,
@@ -174,69 +175,69 @@ const operationsDecision = async (req, res) => {
     };
 
     candidate.operationsStatus = 'completed';
-    candidate.operationsDecision = decision;
+    candidate.operationsDecision = normalizedDecision;
     candidate.operationsApprovedBy = req.user.email;
     candidate.operationsCompletedAt = new Date();
 
     if (!candidate.stageStatuses) candidate.stageStatuses = new Map();
-    candidate.stageStatuses.set('selection', decision === 'rejected' ? 'rejected' : 'accepted');
+    candidate.stageStatuses.set('selection', normalizedDecision === 'cancelled' ? 'rejected' : 'under_review');
 
-    if (decision === 'rejected') {
+    if (normalizedDecision === 'cancelled') {
       candidate.status = 'not_selected';
       candidate.selectedStatus = 'not_selected';
+    } else if (normalizedDecision === 'rejected') {
+      candidate.status = 'operations_rejected';
+      candidate.selectedStatus = 'pending';
     } else {
-      candidate.status = decision === 'interview_required' ? 'interview_required_pending_sterling' : 'operations_approved';
+      candidate.status = normalizedDecision === 'interview_required' ? 'interview_required_pending_sterling' : 'operations_approved';
+      candidate.selectedStatus = 'pending';
     }
 
     await candidate.save();
 
-    if (decision === 'rejected') {
-      const rejectMail = applicationStatusUpdate({ candidateName: candidate.name, selected: false });
+    if (normalizedDecision === 'cancelled') {
+      const admin1Recipients = getPaymentsAdminEmails();
+      const admin2Recipients = getEvaluationAdminEmails();
+      const adminRecipients = [...new Set([...admin1Recipients, ...admin2Recipients])];
+      const recipientList = [...new Set([candidate.email, ...adminRecipients])];
+      const cancellationLines = [
+        'Application has been cancelled by Operations Admin.',
+        `Candidate Name: ${candidate.name || 'N/A'}`,
+        `Candidate Email: ${candidate.email}`,
+        `Candidate ID: ${candidate.candidateId || String(candidate._id)}`,
+        `Cancelled By: ${req.user.name || req.user.email}`,
+        `Cancelled At: ${candidate.operationsCompletedAt.toISOString()}`,
+      ];
       await sendTransactionalEmailSafe({
-        to: candidate.email,
-        ...rejectMail,
-        templateKey: EMAIL_TEMPLATE_KEYS.CANDIDATE_REJECTION,
-        relatedCandidateId: candidate._id,
-      });
-    }
-
-    if (decision === 'interview_required' && candidate.backgroundCheckStatus === 'completed') {
-      await sendTransactionalEmailSafe({
-        to: candidate.email,
-        subject: 'NextStep Talent Interview Scheduling Invitation',
-        text: [
-          'Your profile is ready for interview scheduling.',
-          'Interview Duration: 15 minutes',
-          `Booking Link: ${FRONTEND_BASE}/interviews`,
-          'Background verification requirement: Completed',
-          'Contact: contact@NextStepTalent.net',
-        ].join('\n'),
+        to: recipientList,
+        subject: `NextStep Talent Application Cancelled / ${candidate.name || candidate.email.split('@')[0]}`,
+        text: cancellationLines.join('\n'),
         html: wrapHtml({
-          title: 'Interview Scheduling Invitation',
-          bodyHtml: `<p>Your profile is ready for interview scheduling.</p><p><b>Duration:</b> 15 minutes<br/><b>Booking Link:</b> <a href="${FRONTEND_BASE}/interviews">${FRONTEND_BASE}/interviews</a><br/><b>Background Verification:</b> Completed</p>`,
+          title: 'Application Cancelled',
+          bodyHtml: `<p>Application has been cancelled by Operations Admin.</p><p><b>Candidate:</b> ${candidate.name || 'N/A'}<br/><b>Email:</b> ${candidate.email}<br/><b>Candidate ID:</b> ${candidate.candidateId || String(candidate._id)}<br/><b>Cancelled By:</b> ${req.user.name || req.user.email}<br/><b>Cancelled At:</b> ${candidate.operationsCompletedAt.toISOString()}</p>`,
         }),
-        templateKey: EMAIL_TEMPLATE_KEYS.INTERVIEW_INVITATION,
+        templateKey: EMAIL_TEMPLATE_KEYS.CANDIDATE_NOT_SELECTED,
         relatedCandidateId: candidate._id,
       });
     }
 
-    const recipients = [...new Set([...getPaymentsAdminEmails(), ...getEvaluationAdminEmails()])];
+    const recipients = [...new Set([...getSuperAdminEmails(), ...getEvaluationAdminEmails()])];
     await sendTransactionalEmailSafe({
       to: recipients,
       subject: `NextStep Talent Admin 3 Process Completed / ${candidate.name || candidate.email.split('@')[0]}`,
       text: [
         `Candidate Name: ${candidate.name || 'N/A'}`,
         `Candidate ID: ${candidate.candidateId || String(candidate._id)}`,
-        `Decision: ${decision}`,
-        `Interview Status: ${decision === 'interview_required' ? 'required' : decision === 'interview_not_required' ? 'not_required' : 'not_applicable'}`,
+        `Decision: ${normalizedDecision}`,
+        `Interview Status: ${normalizedDecision === 'interview_required' ? 'required' : normalizedDecision === 'interview_not_required' ? 'not_required' : 'not_applicable'}`,
         `Sterling Verification Status: ${candidate.backgroundCheckStatus || 'not_started'}`,
         `Completed At: ${candidate.operationsCompletedAt.toISOString()}`,
         `Candidate Link: ${adminCandidateLink(candidate._id)}`,
-        'Next Action (Admin 1): initiate selected/payment-process email or initiate not-selected email.',
+        'Admin 3 has completed the operations task for this candidate.',
       ].join('\n'),
       html: wrapHtml({
         title: 'Admin 3 Process Completed',
-        bodyHtml: `<p>Operations decision completed for candidate.</p><p><b>Candidate:</b> ${candidate.name || 'N/A'}<br/><b>Candidate ID:</b> ${candidate.candidateId || String(candidate._id)}<br/><b>Decision:</b> ${decision}<br/><b>Interview Status:</b> ${decision === 'interview_required' ? 'required' : decision === 'interview_not_required' ? 'not_required' : 'not_applicable'}<br/><b>Sterling Verification:</b> ${candidate.backgroundCheckStatus || 'not_started'}<br/><b>Completed At:</b> ${candidate.operationsCompletedAt.toISOString()}<br/><b>Candidate Link:</b> <a href="${adminCandidateLink(candidate._id)}">Open Candidate</a></p>`,
+        bodyHtml: `<p>Operations decision completed for candidate.</p><p><b>Candidate:</b> ${candidate.name || 'N/A'}<br/><b>Candidate ID:</b> ${candidate.candidateId || String(candidate._id)}<br/><b>Decision:</b> ${normalizedDecision}<br/><b>Interview Status:</b> ${normalizedDecision === 'interview_required' ? 'required' : normalizedDecision === 'interview_not_required' ? 'not_required' : 'not_applicable'}<br/><b>Sterling Verification:</b> ${candidate.backgroundCheckStatus || 'not_started'}<br/><b>Completed At:</b> ${candidate.operationsCompletedAt.toISOString()}<br/><b>Candidate Link:</b> <a href="${adminCandidateLink(candidate._id)}">Open Candidate</a></p>`,
       }),
       templateKey: EMAIL_TEMPLATE_KEYS.OPERATIONS_DECISION_COMPLETED,
       relatedCandidateId: candidate._id,
