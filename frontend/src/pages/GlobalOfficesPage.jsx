@@ -9,7 +9,7 @@ export default function GlobalOfficesPage() {
       </p>
       <p><b>Europe Desk:</b> Berlin, Germany (Temporary listing)</p>
       <p><b>Global Support Hub:</b> London, United Kingdom (Temporary listing)</p>
-      <p><b>Coordination Contact:</b> <a className="font-semibold text-[#3a5f94] underline" href="mailto:support@nextsteptalent.example">support@nextsteptalent.example</a></p>
+      <p><b>Coordination Contact:</b> <a className="font-semibold text-[#3a5f94] underline" href="mailto:support@nextsteptalent.net">support@nextsteptalent.net</a></p>
     </InfoPageLayout>
   );
 }

@@ -16,7 +16,21 @@ const {
   getAdminCandidateProfile,
   getApprovalAuditHistory,
 } = require('../controllers/adminController');
-const { protect, adminOnly, requireAdminPermission } = require('../middleware/authMiddleware');
+const {
+  evaluationApprove,
+  evaluationReject,
+  operationsDecision,
+  initiateSterlingForCandidate,
+  selectedCandidate,
+  sendNotSelectedEmailFromAdmin,
+  generateInvoiceForCandidate,
+  verifyCandidatePayment,
+  createInterviewSlot,
+  listInterviewBookings,
+  sendTestEmail,
+} = require('../controllers/adminWorkflowController');
+const { ADMIN_ROLES } = require('../constants/workflow');
+const { protect, adminOnly, requireAdminPermission, requireAdminRoles } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
@@ -37,5 +51,17 @@ router.get('/dashboard/summary', protect, adminOnly, requireAdminPermission('can
 router.get('/payments/overview', protect, adminOnly, getPaymentsOverview);
 router.get('/payments/:type', protect, adminOnly, listPaymentsByType);
 router.put('/payments/:paymentId/status', protect, adminOnly, requireAdminPermission('payments:verify'), updatePaymentStatus);
+
+router.post('/candidates/:id/evaluation/approve', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.EVALUATION_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), evaluationApprove);
+router.post('/candidates/:id/evaluation/reject', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.EVALUATION_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), evaluationReject);
+router.post('/candidates/:id/operations/decision', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.OPERATIONS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), operationsDecision);
+router.post('/candidates/:id/sterling/initiate', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.OPERATIONS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), initiateSterlingForCandidate);
+router.post('/candidates/:id/selected', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), selectedCandidate);
+router.post('/candidates/:id/not-selected', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), sendNotSelectedEmailFromAdmin);
+router.post('/candidates/:id/invoices/generate', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), generateInvoiceForCandidate);
+router.post('/candidates/:id/payments/:paymentId/verify', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), verifyCandidatePayment);
+router.post('/interview-slots', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.OPERATIONS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), createInterviewSlot);
+router.get('/interview-bookings', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.OPERATIONS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), listInterviewBookings);
+router.post('/test-email', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.EVALUATION_ADMIN, ADMIN_ROLES.OPERATIONS_ADMIN]), sendTestEmail);
 
 module.exports = router;

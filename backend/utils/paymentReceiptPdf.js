@@ -19,7 +19,7 @@ const generateInitialPaymentReceiptPdf = async ({ payment, candidate, profile })
   const receiptNo = buildReceiptReference(payment);
   const fileName = `initial-payment-receipt-${receiptNo}.pdf`;
   const filePath = path.join(receiptDir, fileName);
-  const website = process.env.WEBSITE_ADDRESS || getFrontendBaseUrl();
+  const website = process.env.WEBSITE_URL || getFrontendBaseUrl();
   const officeAddress =
     process.env.COMPANY_OFFICE_ADDRESS ||
     '8735 Dunwoody Place, STE N, Atlanta, GA 30350, United States';
@@ -172,7 +172,7 @@ module.exports = {
     const receiptNo = buildProgramReceiptReference(payment);
     const fileName = `program-payment-receipt-${receiptNo}.pdf`;
     const filePath = path.join(receiptDir, fileName);
-    const website = process.env.WEBSITE_ADDRESS || getFrontendBaseUrl();
+    const website = process.env.WEBSITE_URL || getFrontendBaseUrl();
     const officeAddress =
       process.env.COMPANY_OFFICE_ADDRESS ||
       '8735 Dunwoody Place, STE N, Atlanta, GA 30350, United States';
@@ -326,7 +326,7 @@ module.exports = {
     const receiptNo = buildFinalReceiptReference(payment);
     const fileName = `final-payment-receipt-${receiptNo}.pdf`;
     const filePath = path.join(receiptDir, fileName);
-    const website = process.env.WEBSITE_ADDRESS || getFrontendBaseUrl();
+    const website = process.env.WEBSITE_URL || getFrontendBaseUrl();
     const officeAddress =
       process.env.COMPANY_OFFICE_ADDRESS ||
       '8735 Dunwoody Place, STE N, Atlanta, GA 30350, United States';

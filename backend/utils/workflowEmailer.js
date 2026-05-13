@@ -1,21 +1,27 @@
 const sendEmail = require('./sendEmail');
+const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('./adminRoleEmails');
 
 const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
 
 const getWorkflowConfig = () => {
-  const admin1 = normalizeEmail(process.env.SUPER_ADMIN_EMAIL || process.env.NEXTSTEP_ADMIN_1_EMAIL || 'globetrotts@gmail.com');
-  const admin2 = normalizeEmail(process.env.PAYMENT_ADMIN_EMAIL || process.env.NEXTSTEP_ADMIN_2_EMAIL || 'dtyagi1978@gmail.com');
-  const admin3 = normalizeEmail(process.env.EVALUATION_ADMIN_EMAIL || process.env.NEXTSTEP_ADMIN_3_EMAIL || 'arnabose212@gmail.com');
   const defaultSmtpFromEmail = String(process.env.SMTP_FROM_EMAIL || process.env.SMTP_USERNAME || '').trim();
   const noreplyFromEmail = String(process.env.NOREPLY_FROM_EMAIL || defaultSmtpFromEmail).trim();
   const teamFromEmail = String(process.env.TEAM_FROM_EMAIL || defaultSmtpFromEmail).trim();
-  const admin12List = [...new Set([admin1, admin2].filter(Boolean))];
+
+  const paymentsAdmins = getPaymentsAdminEmails();
+  const evaluationAdmins = getEvaluationAdminEmails();
+  const operationsAdmins = getOperationsAdminEmails();
+
+  const admin12List = [...new Set([...paymentsAdmins, ...evaluationAdmins])];
 
   return {
-    admin1,
-    admin2,
-    admin3,
+    paymentsAdmins,
+    evaluationAdmins,
+    operationsAdmins,
     admin12List,
+    admin1: paymentsAdmins[0] || '',
+    admin2: evaluationAdmins[0] || '',
+    admin3: operationsAdmins[0] || '',
     noreplyFromEmail,
     teamFromEmail,
   };
@@ -27,6 +33,9 @@ const sendWorkflowEmail = async ({
   text,
   html,
   fromType = 'noreply',
+  templateKey = 'workflow_generic',
+  relatedCandidateId = null,
+  relatedAdminActionId = '',
 }) => {
   const config = getWorkflowConfig();
   const fromEmail = fromType === 'team' ? config.teamFromEmail : config.noreplyFromEmail;
@@ -47,6 +56,9 @@ const sendWorkflowEmail = async ({
         html: html || `<p>${String(text || '').replaceAll('\n', '<br/>')}</p>`,
         fromEmail,
         fromName: 'NextStep Talent',
+        templateKey,
+        relatedCandidateId,
+        relatedAdminActionId,
       })
     )
   );
@@ -61,12 +73,16 @@ const sendWorkflowEmail = async ({
 
   if (failed.length) {
     const sentCount = recipients.length - failed.length;
-    throw new Error(
-      `Workflow email delivery partial failure. sent=${sentCount}/${recipients.length}; failures=${failed
+    return {
+      sent: sentCount,
+      total: recipients.length,
+      failures: failed,
+      error: `Workflow email delivery partial failure. sent=${sentCount}/${recipients.length}; failures=${failed
         .map((entry) => `${entry.recipient}: ${entry.error}`)
-        .join(' | ')}`
-    );
+        .join(' | ')}`,
+    };
   }
+  return { sent: recipients.length, total: recipients.length, failures: [] };
 };
 
 const sendAdminNotification = async ({
@@ -74,9 +90,11 @@ const sendAdminNotification = async ({
   subject,
   lines = [],
   fromType = 'noreply',
+  templateKey = 'admin_notification',
+  relatedCandidateId = null,
 }) => {
   const text = lines.join('\n');
-  await sendWorkflowEmail({ to, subject, text, fromType });
+  await sendWorkflowEmail({ to, subject, text, fromType, templateKey, relatedCandidateId });
 };
 
 module.exports = {

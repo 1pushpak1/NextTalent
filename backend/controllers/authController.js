@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Eligibility = require('../models/Eligibility');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const { getConfiguredAdminUsers, getPermissionsForRole } = require('../utils/adminPermissions');
+const { normalizeAdminRole } = require('../constants/workflow');
 const sendEmail = require('../utils/sendEmail');
 
 const findConfiguredAdminByEmail = (email) =>
@@ -137,18 +138,19 @@ const login = async (req, res) => {
       if (password !== configuredAdmin.password) {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
-      const permissions = getPermissionsForRole(configuredAdmin.role);
+      const adminRole = normalizeAdminRole(configuredAdmin.role);
+      const permissions = getPermissionsForRole(adminRole);
 
       return res.json({
         token: tokenFor({
           id: 'env-admin',
           role: 'admin',
           email: configuredAdmin.email,
-          adminRole: configuredAdmin.role,
+          adminRole,
           permissions,
           isEnvAdmin: true,
         }),
-        role: configuredAdmin.role,
+        role: adminRole,
         permissions,
         name: configuredAdmin.name,
         email: configuredAdmin.email,
@@ -160,7 +162,7 @@ const login = async (req, res) => {
           emailVerified: true,
           phoneVerified: true,
           role: 'admin',
-          adminRole: configuredAdmin.role,
+          adminRole,
           permissions,
           status: 'admin_active',
         },

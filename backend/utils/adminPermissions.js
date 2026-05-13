@@ -1,44 +1,61 @@
+const { ADMIN_ROLES, normalizeAdminRole } = require('../constants/workflow');
+
 const ALL_PERMISSIONS = [
   'candidates:read',
   'candidates:update',
   'evaluation:approve',
+  'evaluation:reject',
   'documents:verify',
   'payments:verify',
+  'payments:manage',
+  'operations:decide',
+  'operations:sterling',
   'interviews:manage',
   'notes:manage',
   'admin:manage',
   'approval:read_audit_full',
   'approval:read_audit_limited',
   'approval:create',
+  'invoices:generate',
+  'receipts:generate',
+  'notifications:send',
 ];
 
 const ROLE_PERMISSIONS = {
-  super_admin: ALL_PERMISSIONS,
-  payment_admin: ALL_PERMISSIONS,
-  evaluation_admin: [
+  [ADMIN_ROLES.SUPER_ADMIN]: ALL_PERMISSIONS,
+  [ADMIN_ROLES.PAYMENTS_ADMIN]: [
     'candidates:read',
-    'candidates:update',
+    'payments:verify',
+    'payments:manage',
+    'invoices:generate',
+    'receipts:generate',
+    'notifications:send',
+    'approval:read_audit_limited',
+    'approval:create',
+  ],
+  [ADMIN_ROLES.EVALUATION_ADMIN]: [
+    'candidates:read',
     'evaluation:approve',
+    'evaluation:reject',
     'documents:verify',
+    'candidates:update',
     'notes:manage',
     'approval:read_audit_limited',
     'approval:create',
   ],
-  operations_admin: [
+  [ADMIN_ROLES.OPERATIONS_ADMIN]: [
     'candidates:read',
     'candidates:update',
+    'operations:decide',
+    'operations:sterling',
     'interviews:manage',
     'notes:manage',
     'approval:read_audit_limited',
+    'approval:create',
   ],
 };
 
-const normalizeRole = (role) => String(role || '').trim().toLowerCase();
-
-const getPermissionsForRole = (role) => {
-  const normalizedRole = normalizeRole(role);
-  return ROLE_PERMISSIONS[normalizedRole] || [];
-};
+const getPermissionsForRole = (role) => ROLE_PERMISSIONS[normalizeAdminRole(role)] || [];
 
 const parseAdminUsersFromEnv = () => {
   const raw = process.env.ADMIN_USERS;
@@ -52,7 +69,7 @@ const parseAdminUsersFromEnv = () => {
         email: String(entry?.email || '').toLowerCase().trim(),
         password: String(entry?.password || ''),
         name: String(entry?.name || entry?.email?.split('@')?.[0] || 'Admin User').trim(),
-        role: normalizeRole(entry?.role) || 'operations_admin',
+        role: normalizeAdminRole(entry?.role) || ADMIN_ROLES.OPERATIONS_ADMIN,
       }))
       .filter((entry) => entry.email && entry.password && ROLE_PERMISSIONS[entry.role]);
   } catch {
@@ -63,28 +80,28 @@ const parseAdminUsersFromEnv = () => {
 const parseSeparateRoleAdmins = () => {
   const roleEnvConfig = [
     {
-      role: 'super_admin',
+      role: ADMIN_ROLES.SUPER_ADMIN,
       emailKey: 'SUPER_ADMIN_EMAIL',
       passwordKey: 'SUPER_ADMIN_PASSWORD',
       nameKey: 'SUPER_ADMIN_NAME',
       defaultName: 'Super Admin',
     },
     {
-      role: 'payment_admin',
+      role: ADMIN_ROLES.PAYMENTS_ADMIN,
       emailKey: 'PAYMENT_ADMIN_EMAIL',
       passwordKey: 'PAYMENT_ADMIN_PASSWORD',
       nameKey: 'PAYMENT_ADMIN_NAME',
       defaultName: 'Payments Admin',
     },
     {
-      role: 'evaluation_admin',
+      role: ADMIN_ROLES.EVALUATION_ADMIN,
       emailKey: 'EVALUATION_ADMIN_EMAIL',
       passwordKey: 'EVALUATION_ADMIN_PASSWORD',
       nameKey: 'EVALUATION_ADMIN_NAME',
       defaultName: 'Evaluation Admin',
     },
     {
-      role: 'operations_admin',
+      role: ADMIN_ROLES.OPERATIONS_ADMIN,
       emailKey: 'OPERATIONS_ADMIN_EMAIL',
       passwordKey: 'OPERATIONS_ADMIN_PASSWORD',
       nameKey: 'OPERATIONS_ADMIN_NAME',
@@ -117,7 +134,7 @@ const getConfiguredAdminUsers = () => {
     email: legacyEmail,
     password: legacyPassword,
     name: String(process.env.ADMIN_NAME || 'Platform Admin'),
-    role: 'super_admin',
+    role: ADMIN_ROLES.SUPER_ADMIN,
   }];
 };
 

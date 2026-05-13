@@ -7,15 +7,20 @@ const getFrontendBaseUrl = () =>
 
 const getLogoPath = () =>
   process.env.BRAND_LOGO_PATH || path.resolve(__dirname, '../../frontend/public/logo.png');
+const uniqueInvoiceNo = () => {
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const suffix = String(Date.now()).slice(-6);
+  return `NST-INV-${stamp}-${suffix}`;
+};
 
 const generateStage1InvoicePdf = async ({ candidate, profile }) => {
   const invoiceDir = path.join(__dirname, '..', 'uploads', 'invoices');
   fs.mkdirSync(invoiceDir, { recursive: true });
 
-  const invoiceNumber = process.env.STAGE1_INVOICE_NUMBER || 'NST-INV-0001';
+  const invoiceNumber = process.env.STAGE1_INVOICE_NUMBER || uniqueInvoiceNo();
   const fileName = `stage1-invoice-${String(candidate?._id || 'candidate')}.pdf`;
   const filePath = path.join(invoiceDir, fileName);
-  const website = process.env.WEBSITE_ADDRESS || getFrontendBaseUrl();
+  const website = process.env.WEBSITE_URL || getFrontendBaseUrl();
   const officeAddress =
     process.env.COMPANY_OFFICE_ADDRESS ||
     '8735 Dunwoody Place, STE N, Atlanta, GA 30350, United States';
@@ -115,10 +120,10 @@ module.exports = {
     const invoiceDir = path.join(__dirname, '..', 'uploads', 'invoices');
     fs.mkdirSync(invoiceDir, { recursive: true });
 
-    const invoiceNumber = process.env.STAGE2_INVOICE_NUMBER || 'NST-INV-0001';
+    const invoiceNumber = process.env.STAGE2_INVOICE_NUMBER || uniqueInvoiceNo();
     const fileName = `stage2-invoice-${String(candidate?._id || 'candidate')}.pdf`;
     const filePath = path.join(invoiceDir, fileName);
-    const website = process.env.WEBSITE_ADDRESS || getFrontendBaseUrl();
+    const website = process.env.WEBSITE_URL || getFrontendBaseUrl();
     const officeAddress =
       process.env.COMPANY_OFFICE_ADDRESS ||
       '8735 Dunwoody Place, STE N, Atlanta, GA 30350, United States';

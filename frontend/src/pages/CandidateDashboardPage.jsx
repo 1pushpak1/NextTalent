@@ -313,6 +313,14 @@ export default function CandidateDashboardPage() {
               <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Selection Status</p>
               <h3 className="text-2xl font-semibold text-[#002147]">{selectionStageStatus || 'Pending'}</h3>
             </div>
+            <div className="nst-card rounded-xl p-6 md:col-span-2 xl:col-span-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Background Verification</p>
+              <h3 className="text-xl font-semibold text-[#002147]">
+                {String(data?.candidate?.backgroundCheckStatus || 'not_started')
+                  .replaceAll('_', ' ')
+                  .replace(/\\b\\w/g, (char) => char.toUpperCase())}
+              </h3>
+            </div>
           </section>
 
           <section className="nst-card mb-8 overflow-hidden rounded-xl p-6">

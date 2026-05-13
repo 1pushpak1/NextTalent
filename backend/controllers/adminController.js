@@ -15,6 +15,7 @@ const {
 } = require('../utils/approvalAudit');
 const { getProgramFeeBreakdown } = require('../utils/programFee');
 const { getWorkflowConfig, sendAdminNotification, normalizeEmail } = require('../utils/workflowEmailer');
+const { getEvaluationAdminEmails } = require('../utils/adminRoleEmails');
 
 const validProfileStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 const validDocumentStatuses = ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'];
@@ -127,14 +128,17 @@ const readStageDecision = (candidate, stageKey) => {
   return String(rawValue || 'pending').toLowerCase();
 };
 
+const isPaymentConfirmed = (payment) =>
+  ['completed', 'verified', 'paid'].includes(String(payment?.status || '').toLowerCase());
+
 const buildCandidateSnapshot = ({ candidate, profile, eligibility, documents, interviews, payments }) => {
   const hasSubmittedProfile = Boolean(profile) && profile.status !== 'draft';
   const paymentByType = {
-    initial: payments.find((p) => p.type === 'initial' && p.status === 'completed'),
+    initial: payments.find((p) => p.type === 'initial' && isPaymentConfirmed(p)),
     program:
-      payments.find((p) => p.type === 'program' && p.status === 'completed') ||
+      payments.find((p) => p.type === 'program' && isPaymentConfirmed(p)) ||
       (candidate.status === 'program_payment_complete' ? { type: 'program', status: 'completed' } : null),
-    final: payments.find((p) => p.type === 'final' && p.status === 'completed'),
+    final: payments.find((p) => p.type === 'final' && isPaymentConfirmed(p)),
   };
 
   const hasInitial = Boolean(paymentByType.initial);
@@ -219,8 +223,12 @@ const deriveAdminStageKey = (snapshot) => {
   }
 
   if (docsUploaded && !hasProgram) return null;
-  if (hasProgram && documentVerificationDecision !== 'accepted') return 'document-verification';
-  if (docsUploaded && hasProgram && documentVerificationDecision === 'accepted' && hiringDecision !== 'accepted') return 'hiring';
+  const documentVerificationAccepted =
+    documentVerificationDecision === 'accepted' ||
+    status === 'documents_received' ||
+    snapshot.docsVerified === true;
+  if (hasProgram && !documentVerificationAccepted) return 'document-verification';
+  if (docsUploaded && hasProgram && documentVerificationAccepted && hiringDecision !== 'accepted') return 'hiring';
 
   return null;
 };
@@ -911,6 +919,27 @@ const updatePaymentStatus = async (req, res) => {
       },
     });
 
+    if (status === 'completed' && String(payment.type || '').toLowerCase() === 'program') {
+      const evaluationAdmins = getEvaluationAdminEmails();
+      const candidateName = candidate?.name || candidate?.email?.split('@')[0] || 'Candidate';
+      await sendAdminNotification({
+        to: evaluationAdmins,
+        subject: `NextStep Talent Document Verification Pending / ${candidateName}`,
+        lines: [
+          'Program fee payment receipt has been approved and document verification is now pending.',
+          `Candidate: ${candidateName}`,
+          `Candidate Email: ${candidate?.email || 'N/A'}`,
+          `Candidate ID: ${String(candidate?._id || '')}`,
+          `Payment Type: Program Fee (First Installment)`,
+          `Approved By: ${req.user?.name || req.user?.email || 'Admin 1'}`,
+          `Approved At: ${new Date().toISOString()}`,
+          `Review Link: ${getFrontendBaseUrl()}/admin/candidates/${String(candidate?._id || '')}?tab=documents&review=document-verification`,
+          'Next Action: Review candidate documents and approve/reject verification from admin panel.',
+        ],
+        fromType: 'noreply',
+      });
+    }
+
     const [profile, eligibility, documents, interviews, payments, testimonial, refreshedCandidate] = await Promise.all([
       Profile.findOne({ userId: candidate?._id }).sort({ createdAt: -1 }).lean(),
       Eligibility.findOne({ userId: candidate?._id }).sort({ createdAt: -1 }).lean(),
@@ -993,7 +1022,7 @@ const updateCandidateStageDecision = async (req, res) => {
     if (requiredPermission && !permissions.includes(requiredPermission)) {
       return res.status(403).json({ message: `Missing permission: ${requiredPermission}` });
     }
-    if (stageKey === 'selection' && !['super_admin', 'payment_admin'].includes(String(req.user?.adminRole || ''))) {
+    if (stageKey === 'selection' && !['super_admin', 'payment_admin', 'payments_admin'].includes(String(req.user?.adminRole || ''))) {
       return res.status(403).json({ message: 'Only super admin or payment admin can publish final selection decisions.' });
     }
 

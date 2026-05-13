@@ -16,6 +16,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const interviewRoutes = require('./routes/interviewRoutes');
 const testimonialRoutes = require('./routes/testimonialRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const candidateRoutes = require('./routes/candidateRoutes');
 const { stripeWebhook } = require('./controllers/paymentController');
 
 dotenv.config();
@@ -48,6 +49,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/interviews', interviewRoutes);
 app.use('/api/testimonials', testimonialRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/candidate', candidateRoutes);
 
 app.get('/', (req, res) => {
   res.json({

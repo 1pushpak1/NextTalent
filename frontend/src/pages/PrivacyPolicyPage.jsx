@@ -2,7 +2,7 @@ import InfoPageLayout from '../components/InfoPageLayout';
 
 export default function PrivacyPolicyPage() {
   return (
-    <InfoPageLayout title="Privacy Policy" subtitle="Effective Date: May 12th, 2026">
+    <InfoPageLayout title="Privacy Policy" subtitle="Effective Date: May 12th, 2026" leftAligned>
       <p>
         This Privacy Policy describes how NG Global Advisory and Consulting LLC., operating under the DBA NextStep
         Talent (“Company,” “we,” “our,” or “us”), collects, uses, stores, and protects personal information submitted

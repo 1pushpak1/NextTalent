@@ -10,3 +10,14 @@ export const reviewPayment = (paymentId, payload) => api.put(`/admin/payments/${
 export const reviewCandidateStage = (candidateId, stageKey, payload) => api.put(`/admin/candidates/${candidateId}/stage/${stageKey}/decision`, payload);
 export const updateCandidateNotes = (candidateId, payload) => api.put(`/admin/candidates/${candidateId}/notes`, payload);
 export const scheduleCandidateInterview = (candidateId, payload) => api.post(`/admin/candidates/${candidateId}/interviews`, payload);
+export const approveCandidateEvaluation = (candidateId, payload = {}) => api.post(`/admin/candidates/${candidateId}/evaluation/approve`, payload);
+export const rejectCandidateEvaluation = (candidateId, payload = {}) => api.post(`/admin/candidates/${candidateId}/evaluation/reject`, payload);
+export const applyOperationsDecision = (candidateId, payload) => api.post(`/admin/candidates/${candidateId}/operations/decision`, payload);
+export const initiateSterlingCheck = (candidateId, payload = {}) => api.post(`/admin/candidates/${candidateId}/sterling/initiate`, payload);
+export const markCandidateSelected = (candidateId, payload = {}) => api.post(`/admin/candidates/${candidateId}/selected`, payload);
+export const markCandidateNotSelected = (candidateId, payload = {}) => api.post(`/admin/candidates/${candidateId}/not-selected`, payload);
+export const generateCandidateInvoice = (candidateId, payload) => api.post(`/admin/candidates/${candidateId}/invoices/generate`, payload);
+export const verifyCandidatePayment = (candidateId, paymentId, payload = {}) => api.post(`/admin/candidates/${candidateId}/payments/${paymentId}/verify`, payload);
+export const createInterviewSlot = (payload) => api.post('/admin/interview-slots', payload);
+export const fetchInterviewBookings = () => api.get('/admin/interview-bookings');
+export const sendAdminTestEmail = (payload) => api.post('/admin/test-email', payload);

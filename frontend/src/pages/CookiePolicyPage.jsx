@@ -11,7 +11,7 @@ export default function CookiePolicyPage() {
         Analytics and preference cookies may be introduced later with explicit controls and user notice.
       </p>
       <p>
-        For cookie-related concerns, contact <a className="font-semibold text-[#3a5f94] underline" href="mailto:support@nextsteptalent.example">support@nextsteptalent.example</a>.
+        For cookie-related concerns, contact <a className="font-semibold text-[#3a5f94] underline" href="mailto:support@nextsteptalent.net">support@nextsteptalent.net</a>.
       </p>
     </InfoPageLayout>
   );

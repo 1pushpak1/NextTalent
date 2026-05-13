@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { getConfiguredAdminUsers, getPermissionsForRole } = require('../utils/adminPermissions');
+const { normalizeAdminRole } = require('../constants/workflow');
 
 const getTokenFromHeader = (req) => {
   const authHeader = req.headers.authorization || '';
@@ -23,14 +24,15 @@ const protect = async (req, res, next) => {
       ? findConfiguredAdminByEmail(decoded?.email)
       : null;
     if (configuredAdmin) {
+      const adminRole = normalizeAdminRole(configuredAdmin.role);
       req.user = {
         _id: 'env-admin',
         id: 'env-admin',
         name: configuredAdmin.name,
         email: configuredAdmin.email,
         role: 'admin',
-        adminRole: configuredAdmin.role,
-        permissions: getPermissionsForRole(configuredAdmin.role),
+        adminRole,
+        permissions: getPermissionsForRole(adminRole),
         emailVerified: true,
         phoneVerified: true,
         status: 'admin_active',
@@ -61,14 +63,15 @@ const optionalAuth = async (req, res, next) => {
       ? findConfiguredAdminByEmail(decoded?.email)
       : null;
     if (configuredAdmin) {
+      const adminRole = normalizeAdminRole(configuredAdmin.role);
       req.user = {
         _id: 'env-admin',
         id: 'env-admin',
         name: configuredAdmin.name,
         email: configuredAdmin.email,
         role: 'admin',
-        adminRole: configuredAdmin.role,
-        permissions: getPermissionsForRole(configuredAdmin.role),
+        adminRole,
+        permissions: getPermissionsForRole(adminRole),
         emailVerified: true,
         phoneVerified: true,
         status: 'admin_active',
@@ -102,4 +105,18 @@ const requireAdminPermission = (permission) => (req, res, next) => {
   return next();
 };
 
-module.exports = { protect, optionalAuth, adminOnly, requireAdminPermission };
+const requireAdminRoles = (roles = []) => {
+  const normalizedRoles = roles.map((role) => normalizeAdminRole(role));
+  return (req, res, next) => {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    const currentRole = normalizeAdminRole(req.user.adminRole);
+    if (!normalizedRoles.includes(currentRole)) {
+      return res.status(403).json({ message: `Admin role ${currentRole || 'unknown'} cannot perform this action` });
+    }
+    return next();
+  };
+};
+
+module.exports = { protect, optionalAuth, adminOnly, requireAdminPermission, requireAdminRoles };

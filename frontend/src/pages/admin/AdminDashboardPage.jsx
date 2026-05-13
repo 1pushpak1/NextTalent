@@ -9,9 +9,9 @@ const cardConfig = [
   { key: 'profilesPendingReview', label: 'Profiles Pending Review', to: '/admin/candidates?stage=profile_review&pendingFrom=admin', requiredPermission: 'evaluation:approve' },
   { key: 'paymentsPendingVerification', label: 'Payments Pending Verification', to: '/admin/candidates?paymentStatus=pending_verification', requiredPermission: 'payments:verify' },
   { key: 'documentsPendingVerification', label: 'Documents Pending Verification', to: '/admin/candidates?documentStatus=under_review&pendingFrom=admin', requiredPermission: 'documents:verify' },
-  { key: 'interviewsPendingScheduled', label: 'Results Pending Announcement', to: '/admin/candidates?stage=selection', requiredRoles: ['super_admin', 'payment_admin'] },
-  { key: 'selectedCandidates', label: 'Selected Candidates', to: '/admin/candidates?selectionStatus=selected', requiredRoles: ['super_admin', 'payment_admin'] },
-  { key: 'rejectedCandidates', label: 'Rejected Candidates', to: '/admin/candidates?selectionStatus=rejected', requiredRoles: ['super_admin', 'payment_admin'] },
+  { key: 'interviewsPendingScheduled', label: 'Results Pending Announcement', to: '/admin/candidates?stage=selection', requiredRoles: ['super_admin', 'payments_admin'] },
+  { key: 'selectedCandidates', label: 'Selected Candidates', to: '/admin/candidates?selectionStatus=selected', requiredRoles: ['super_admin', 'payments_admin'] },
+  { key: 'rejectedCandidates', label: 'Rejected Candidates', to: '/admin/candidates?selectionStatus=rejected', requiredRoles: ['super_admin', 'payments_admin'] },
   { key: 'totalRevenue', label: 'Total Revenue', requiredPermission: 'payments:verify' },
 ];
 

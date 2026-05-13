@@ -131,7 +131,7 @@ export default function AdminCandidateProfilePage() {
   const activeTabParam = searchParams.get('tab');
   const activeTab = visibleTabs.includes(activeTabParam) ? activeTabParam : 'overview';
   const reviewParam = searchParams.get('review');
-  const canReviewSelection = ['super_admin', 'payment_admin'].includes(String(role || ''));
+  const canReviewSelection = ['super_admin', 'payments_admin'].includes(String(role || ''));
 
   useEffect(() => {
     if (activeTabParam && visibleTabs.includes(activeTabParam)) return;
@@ -206,20 +206,46 @@ export default function AdminCandidateProfilePage() {
     }
   }, [candidate, hiringPartnerDraft]);
 
-  useEffect(() => {
-    if (!data) return;
-    const review = currentParams.get('review');
-    if (!review) return;
+  const evaluationAdminDocumentReviewUnlocked = useMemo(() => {
+    const normalizedRole = String(role || '').toLowerCase();
+    if (normalizedRole !== 'evaluation_admin') return true;
 
     const programPaymentApprovedForEvaluationAdmin = payments.some((payment) => {
       const type = String(payment?.type || '').toLowerCase();
       const status = String(payment?.status || '').toLowerCase();
-      return type === 'program' && status === 'completed';
+      return type === 'program' && ['completed', 'verified', 'paid'].includes(status);
     });
+
+    if (programPaymentApprovedForEvaluationAdmin) return true;
+
+    const candidateStatus = String(candidate?.status || '').toLowerCase();
+    const stagesUnlockedByStatus = new Set([
+      'program_payment_complete',
+      'documents_received',
+      'sent_to_partners',
+      'interview_completed',
+      'selected',
+      'not_selected',
+      'rejected',
+      'process_complete',
+    ]);
+    if (stagesUnlockedByStatus.has(candidateStatus)) return true;
+
+    const programPaymentProgress = String(progress?.paymentStatus?.program || '').toLowerCase();
+    if (programPaymentProgress === 'verified') return true;
+
+    const currentStageKey = String(progress?.currentStageKey || '').toLowerCase();
+    return ['document_verification', 'hiring', 'selection', 'final_payment', 'testimonial', 'completed'].includes(currentStageKey);
+  }, [candidate?.status, payments, progress?.currentStageKey, progress?.paymentStatus?.program, role]);
+
+  useEffect(() => {
+    if (!data) return;
+    const review = currentParams.get('review');
+    if (!review) return;
     const canOpenDocumentReviewFromUrl =
       can('documents:verify') &&
       documents[0] &&
-      (String(role || '') !== 'evaluation_admin' || programPaymentApprovedForEvaluationAdmin);
+      evaluationAdminDocumentReviewUnlocked;
 
     if (review === 'document-verification' && canOpenDocumentReviewFromUrl) {
       setActiveReview({ type: 'document', item: documents[0] });
@@ -230,7 +256,7 @@ export default function AdminCandidateProfilePage() {
       return;
     }
     setActiveReview(null);
-  }, [data, currentParams, documents, payments, can, canReviewSelection, role]);
+  }, [data, currentParams, documents, can, canReviewSelection, evaluationAdminDocumentReviewUnlocked]);
 
   useEffect(() => {
     if (!isInlineProfileReview) {
@@ -672,19 +698,13 @@ export default function AdminCandidateProfilePage() {
     const status = String(payment?.status || '').toLowerCase();
     return canReviewPayment(payment) && status === 'pending';
   }) || latestReviewablePayment;
-  const programPaymentApproved = payments.some((payment) => {
-    const type = String(payment?.type || '').toLowerCase();
-    const status = String(payment?.status || '').toLowerCase();
-    return type === 'program' && status === 'completed';
-  });
   const canReviewDocument = (document) => {
     if (!can('documents:verify') || !document) return false;
-    if (String(role || '') === 'evaluation_admin' && !programPaymentApproved) return false;
-    const status = String(document.status || '').toLowerCase();
-    return status !== 'accepted';
+    if (!evaluationAdminDocumentReviewUnlocked) return false;
+    return true;
   };
   const latestReviewableDocument = documents.find((document) => canReviewDocument(document)) || null;
-  const showProgramPaymentPendingMessage = String(role || '') === 'evaluation_admin' && !programPaymentApproved;
+  const showProgramPaymentPendingMessage = String(role || '') === 'evaluation_admin' && !evaluationAdminDocumentReviewUnlocked;
 
   const latestActionCard = useMemo(() => {
     const currentStageKey = String(progress?.currentStageKey || '').toLowerCase();
@@ -771,7 +791,7 @@ export default function AdminCandidateProfilePage() {
     if (stageKey === 'profile_review' && can('evaluation:approve')) counts.profile = 1;
     if (stageKey === 'document_verification' && can('documents:verify')) counts.documents = 1;
     if (stageKey === 'hiring' && can('candidates:update')) counts.hiring = 1;
-    if (stageKey === 'selection' && ['super_admin', 'payment_admin'].includes(normalizedRole)) counts.selection = 1;
+    if (stageKey === 'selection' && ['super_admin', 'payments_admin'].includes(normalizedRole)) counts.selection = 1;
     if (['initial_payment', 'program_payment', 'final_payment'].includes(stageKey) && can('payments:verify')) counts.payments = 1;
 
     return counts;

@@ -8,11 +8,11 @@ export default function SupportPage() {
         channels below.
       </p>
       <p>
-        Email: <a className="font-semibold text-[#3a5f94] underline" href="mailto:support@nextsteptalent.example">support@nextsteptalent.example</a>
+        Email: <a className="font-semibold text-[#3a5f94] underline" href="mailto:support@nextsteptalent.net">support@nextsteptalent.net</a>
       </p>
-      <p>
+      {/* <p>
         Phone: <a className="font-semibold text-[#3a5f94] underline" href="tel:+10000000000">+1 (000) 000-0000</a>
-      </p>
+      </p> */}
     </InfoPageLayout>
   );
 }

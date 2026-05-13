@@ -20,6 +20,7 @@ import CandidateDashboardPage from './pages/CandidateDashboardPage';
 import ProgramFeePaymentPage from './pages/ProgramFeePaymentPage';
 import FinalPaymentPage from './pages/FinalPaymentPage';
 import PaymentHistoryPage from './pages/PaymentHistoryPage';
+import InterviewsPage from './pages/InterviewsPage';
 import SelectionSelectedPage from './pages/SelectionSelectedPage';
 import SelectionNotSelectedPage from './pages/SelectionNotSelectedPage';
 import TestimonialPage from './pages/TestimonialPage';
@@ -88,6 +89,7 @@ export default function App() {
         <Route path="/payment/program-fee" element={<ProtectedRoute><ProgramFeePaymentPage /></ProtectedRoute>} />
         <Route path="/payment/final-payment" element={<ProtectedRoute><FinalPaymentPage /></ProtectedRoute>} />
         <Route path="/payment-history" element={<ProtectedRoute><PaymentHistoryPage /></ProtectedRoute>} />
+        <Route path="/interviews" element={<ProtectedRoute><InterviewsPage /></ProtectedRoute>} />
         <Route path="/testimonial" element={<ProtectedRoute><TestimonialPage /></ProtectedRoute>} />
         <Route path="/selection/selected" element={<ProtectedRoute><SelectionSelectedPage /></ProtectedRoute>} />
         <Route path="/selection/not-selected" element={<ProtectedRoute><SelectionNotSelectedPage /></ProtectedRoute>} />

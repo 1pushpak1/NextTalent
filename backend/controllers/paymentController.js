@@ -1,8 +1,12 @@
 const Payment = require('../models/Payment');
+const Invoice = require('../models/Invoice');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Document = require('../models/Document');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
+const { sendTransactionalEmailSafe } = require('../services/emailService');
+const { wrapHtml } = require('../services/emailTemplateService');
+const { getPaymentsAdminEmails, getEvaluationAdminEmails } = require('../utils/adminRoleEmails');
 const { getProgramFeeBreakdown } = require('../utils/programFee');
 const {
   generateInitialPaymentReceiptPdf,
@@ -10,6 +14,7 @@ const {
   generateFinalPaymentReceiptPdf,
 } = require('../utils/paymentReceiptPdf');
 const { generateStage1InvoicePdf, generateStage2InvoicePdf } = require('../utils/invoicePdf');
+const { PAYMENT_STAGES, LEGACY_PAYMENT_TYPE_TO_STAGE } = require('../constants/workflow');
 const Stripe = require('stripe');
 const fs = require('fs');
 const path = require('path');
@@ -92,7 +97,9 @@ const saveCompletedPayment = async (session, fallback = {}) => {
 
   const payment = await Payment.create({
     userId,
+    candidateId: userId,
     type,
+    stage: LEGACY_PAYMENT_TYPE_TO_STAGE[type],
     amount,
     currency: (session.currency || 'usd').toUpperCase(),
     method,
@@ -249,24 +256,12 @@ const submitBankTransferPayment = async (req, res) => {
       status: 'pending',
       transactionId: `BANK-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
       bankReference: String(bankReference || '').trim(),
+      bankTransactionReference: String(bankReference || '').trim(),
+      stage: LEGACY_PAYMENT_TYPE_TO_STAGE[type],
       receiptUrl: `/uploads/payment-receipts/${req.file.filename}`,
     });
 
-    if (type === 'program' || type === 'final') {
-      const { receiptUrl } = type === 'program'
-        ? await generateProgramPaymentReceiptPdf({
-            payment,
-            candidate: user,
-            profile,
-          })
-        : await generateFinalPaymentReceiptPdf({
-            payment,
-            candidate: user,
-            profile,
-          });
-      payment.receiptUrl = receiptUrl;
-      await payment.save();
-    }
+    // Bank-transfer receipts are generated only after admin verification.
 
     await sendStepUpdateEmail({
       to: req.user?.email,
@@ -291,6 +286,44 @@ const submitBankTransferPayment = async (req, res) => {
       ],
       cta: { label: 'View Payment History', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/payment-history` },
     });
+
+    if (type === 'program') {
+      const adminRecipients = [...new Set([...getPaymentsAdminEmails(), ...getEvaluationAdminEmails()])];
+      const candidateName = user?.name || user?.email?.split('@')?.[0] || 'Candidate';
+      const frontendBaseUrl = String(process.env.FRONTEND_URL || process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+      const adminCandidateUrl = `${frontendBaseUrl}/admin/candidates/${String(user?._id || '')}`;
+
+      await sendTransactionalEmailSafe({
+        to: adminRecipients,
+        subject: `NextStep Talent Program Fee Receipt Submitted / ${candidateName}`,
+        text: [
+          'A candidate submitted Program Fee receipt for admin review.',
+          `Candidate Name: ${candidateName}`,
+          `Candidate Email: ${user?.email || 'N/A'}`,
+          `Candidate ID: ${user?.candidateId || String(user?._id || '')}`,
+          `Amount: USD ${paymentAmount}`,
+          `Payment Type: Program Fee (First Installment)`,
+          `Bank Reference: ${String(bankReference || 'N/A')}`,
+          `Submitted At: ${new Date(payment.createdAt || Date.now()).toISOString()}`,
+          `Review Link: ${adminCandidateUrl}`,
+        ].join('\n'),
+        html: wrapHtml({
+          title: 'Program Fee Receipt Submitted',
+          bodyHtml: `<p>A candidate submitted Program Fee receipt for admin review.</p>
+<p><b>Candidate Name:</b> ${candidateName}<br/>
+<b>Candidate Email:</b> ${user?.email || 'N/A'}<br/>
+<b>Candidate ID:</b> ${user?.candidateId || String(user?._id || '')}<br/>
+<b>Amount:</b> USD ${paymentAmount}<br/>
+<b>Payment Type:</b> Program Fee (First Installment)<br/>
+<b>Bank Reference:</b> ${String(bankReference || 'N/A')}<br/>
+<b>Submitted At:</b> ${new Date(payment.createdAt || Date.now()).toISOString()}<br/>
+<b>Review Link:</b> <a href="${adminCandidateUrl}">${adminCandidateUrl}</a></p>`,
+        }),
+        templateKey: 'program_fee_receipt_submitted_admin_review',
+        relatedCandidateId: user?._id || null,
+        relatedAdminActionId: String(payment._id || ''),
+      });
+    }
 
     res.status(201).json({ message: 'Receipt uploaded. Awaiting admin verification.', payment });
   } catch (error) {
@@ -349,7 +382,8 @@ const getMyPayments = async (req, res) => {
   try {
     const payments = await Payment.find({ userId: req.user._id }).sort({ createdAt: -1 });
     const paymentsToRefreshReceipt = payments.filter((payment) =>
-      ['initial', 'program', 'final'].includes(String(payment.type || '').toLowerCase())
+      ['initial', 'program', 'final'].includes(String(payment.type || '').toLowerCase()) &&
+      ['completed', 'verified', 'paid'].includes(String(payment.status || '').toLowerCase())
     );
 
     if (paymentsToRefreshReceipt.length) {
@@ -367,6 +401,9 @@ const getMyPayments = async (req, res) => {
               : normalizedType === 'program'
                 ? generateProgramPaymentReceiptPdf
                 : generateFinalPaymentReceiptPdf;
+          if (!payment.receiptId && normalizedType !== 'initial') {
+            return;
+          }
           const { receiptUrl } = await generator({ payment, candidate, profile });
           payment.receiptUrl = receiptUrl;
           await payment.save();
@@ -394,9 +431,20 @@ const getStage1Invoice = async (req, res) => {
       return res.status(403).json({ message: 'Stage 1 invoice is available after initial payment completion.' });
     }
 
-    const invoice = await generateStage1InvoicePdf({ candidate, profile });
+    let persistedInvoice = await Invoice.findOne({ candidateId: candidate._id, paymentStage: PAYMENT_STAGES.FIRST_INSTALLMENT })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const invoice = persistedInvoice || await generateStage1InvoicePdf({ candidate, profile });
     return res.json({
-      ...invoice,
+      ...(persistedInvoice
+        ? {
+            invoiceNumber: persistedInvoice.invoiceNumber,
+            invoiceUrl: persistedInvoice.pdfUrl,
+            invoiceId: persistedInvoice._id,
+            pdfReferenceNumber: persistedInvoice.pdfReferenceNumber,
+          }
+        : invoice),
       candidateId: String(candidate._id),
       issueDate: new Date().toISOString(),
       amountDue: 3100,
@@ -422,9 +470,19 @@ const getStage2Invoice = async (req, res) => {
       return res.status(403).json({ message: 'Stage 2 invoice is available after first installment submission.' });
     }
 
-    const invoice = await generateStage2InvoicePdf({ candidate, profile });
+    let persistedInvoice = await Invoice.findOne({ candidateId: candidate._id, paymentStage: PAYMENT_STAGES.FINAL_PAYMENT })
+      .sort({ createdAt: -1 })
+      .lean();
+    const invoice = persistedInvoice || await generateStage2InvoicePdf({ candidate, profile });
     return res.json({
-      ...invoice,
+      ...(persistedInvoice
+        ? {
+            invoiceNumber: persistedInvoice.invoiceNumber,
+            invoiceUrl: persistedInvoice.pdfUrl,
+            invoiceId: persistedInvoice._id,
+            pdfReferenceNumber: persistedInvoice.pdfReferenceNumber,
+          }
+        : invoice),
       candidateId: String(candidate._id),
       issueDate: new Date().toISOString(),
       amountReceived: 3100,

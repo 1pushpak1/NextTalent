@@ -73,7 +73,12 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
   profile.generatedPdfUrl = pdfUrl;
   await profile.save();
 
-  await User.findByIdAndUpdate(userId, { status: 'profile_submitted' });
+  const applicationSubmittedAt = new Date();
+  await User.findByIdAndUpdate(userId, {
+    status: 'profile_submitted',
+    applicationSubmittedAt,
+    evaluationStatus: 'submitted',
+  });
 
   if (body.signature?.value) {
     profile.signature = {
@@ -92,7 +97,7 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
     candidateName: candidateDisplayName,
     stepKey: 'profile',
     heading: 'Profile submitted successfully',
-    message: 'Your profile has been submitted successfully and is now pending admin approval in internal evaluation.',
+    message: 'Your profile has been submitted successfully and is now under internal eligibility and evaluation review. Submission does not guarantee selection or employment.',
     status: 'submitted',
     details: [
       { label: 'Profile Status', value: 'Pending Approval' },
@@ -110,7 +115,12 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
         'A new candidate application has been submitted.',
         `Candidate: ${candidateDisplayName}`,
         `Email: ${recipientEmail || req.user?.email || 'N/A'}`,
+        `Phone: ${req.user?.phone || 'N/A'}`,
+        `Country: ${body?.personalDetails?.currentCountryOfResidence || 'N/A'}`,
         `Candidate ID: ${String(userId)}`,
+        `Submission Timestamp: ${applicationSubmittedAt.toISOString()}`,
+        `Current Status: profile_submitted`,
+        `Admin Review Link: ${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')}/admin/candidates/${String(userId)}`,
       ],
       fromType: 'noreply',
     });

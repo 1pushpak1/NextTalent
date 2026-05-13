@@ -2,7 +2,7 @@ import InfoPageLayout from '../components/InfoPageLayout';
 
 export default function PaymentRefundPolicyPage() {
   return (
-    <InfoPageLayout title="Payment and Refund Policy" subtitle="Effective Date: May 12th, 2026">
+    <InfoPageLayout title="Payment and Refund Policy" subtitle="Effective Date: May 12th, 2026" leftAligned>
       <p>
         This Payment and Refund Policy applies to all candidates engaging with services provided by NG Global Advisory and
         Consulting LLC., DBA NextStep Talent.

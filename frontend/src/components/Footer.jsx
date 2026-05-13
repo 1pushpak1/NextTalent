@@ -21,6 +21,11 @@ export default function Footer() {
     '/payment/final-payment',
   ];
   const isCandidatePortalRoute = candidatePortalRoutes.some((route) => location.pathname.startsWith(route));
+  const headerNavLinks = [
+    { to: '/', label: 'Home' },
+    { to: '/evaluation-program', label: 'Evaluation Program' },
+    { to: '/eligibility-check', label: 'Eligibility Check' },
+  ];
 
   return (
     <footer className={`mt-auto w-full border-t ${isCompactFooter ? 'py-7' : 'py-12'} ${isHome || !isAdminRoute ? 'border-[rgba(200,169,107,0.14)] bg-[#050505] text-white' : 'border-slate-100 bg-white text-[#101218]'}`}>
@@ -41,10 +46,11 @@ export default function Footer() {
                 <p><Link className="transition hover:text-[#c8a96b]" to="/candidate-dashboard">Candidate Portal</Link></p>
               ) : (
                 <>
-                  <p><Link className="transition hover:text-[#c8a96b]" to="/">Home</Link></p>
-                  <p><Link className="transition hover:text-[#c8a96b]" to="/#who-we-are">Who We Are</Link></p>
-                  <p><Link className="transition hover:text-[#c8a96b]" to="/#process">Process</Link></p>
-                  <p><Link className="transition hover:text-[#c8a96b]" to="/#regions">Regions</Link></p>
+                  {headerNavLinks.map((item) => (
+                    <p key={item.to}>
+                      <Link className="transition hover:text-[#c8a96b]" to={item.to}>{item.label}</Link>
+                    </p>
+                  ))}
                 </>
               )}
             </div>
@@ -66,6 +72,17 @@ export default function Footer() {
 
         <p className={`mt-12 text-center text-xs uppercase tracking-[0.22em] ${isHome || !isAdminRoute ? 'text-[#85858e]' : 'text-slate-400'}`}>
           © 2026 NextStep Talent. All rights reserved.
+          <br />
+          Developed by{' '}
+          <a
+            href="http://ravviolabs.com/"
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold underline-offset-2 hover:underline"
+          >
+            Ravviolabs Technologies
+          </a>
+          .
         </p>
       </div>
     </footer>

@@ -476,14 +476,17 @@ const sendStepUpdateEmail = async ({
       attachments,
     });
   } catch (error) {
-    console.error('Step update email failed:', {
-      to,
-      stepKey,
-      status,
-      subject,
-      error: error.message,
-    });
-    throw error;
+    const shouldLog = String(process.env.EMAIL_LOG_ERRORS || 'false').toLowerCase() === 'true';
+    if (shouldLog) {
+      console.error('Step update email failed:', {
+        to,
+        stepKey,
+        status,
+        subject,
+        error: error.message,
+      });
+    }
+    return { sent: false, error: error.message };
   }
 };
 

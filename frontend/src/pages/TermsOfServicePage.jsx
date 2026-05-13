@@ -2,7 +2,7 @@ import InfoPageLayout from '../components/InfoPageLayout';
 
 export default function TermsOfServicePage() {
   return (
-    <InfoPageLayout title="Terms and Conditions" subtitle="Effective Date: May 12th, 2026">
+    <InfoPageLayout title="Terms and Conditions" subtitle="Effective Date: May 12th, 2026" leftAligned>
       <p>
         These Terms and Conditions govern the use of services provided by NG Global Advisory and Consulting LLC., DBA
         NextStep Talent.

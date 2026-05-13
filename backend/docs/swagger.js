@@ -805,6 +805,219 @@ const buildSwaggerSpec = (port = 5001) => {
             },
           },
         },
+        '/api/candidate/application/submit': {
+          post: {
+            tags: ['Dashboard'],
+            summary: 'Submit candidate application and trigger admin notifications',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              201: { description: 'Application submission recorded' },
+            },
+          },
+        },
+        '/api/candidate/payments': {
+          get: {
+            tags: ['Payments'],
+            summary: 'Get candidate payment stages, invoices, and receipts',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              200: { description: 'Candidate payment summary' },
+            },
+          },
+        },
+        '/api/candidate/invoices/{invoiceId}/download': {
+          get: {
+            tags: ['Payments'],
+            summary: 'Download candidate invoice PDF',
+            security: [{ bearerAuth: [] }],
+            parameters: [{ in: 'path', name: 'invoiceId', required: true, schema: { type: 'string' } }],
+            responses: {
+              200: { description: 'Invoice file stream' },
+            },
+          },
+        },
+        '/api/candidate/receipts/{receiptId}/download': {
+          get: {
+            tags: ['Payments'],
+            summary: 'Download candidate receipt PDF',
+            security: [{ bearerAuth: [] }],
+            parameters: [{ in: 'path', name: 'receiptId', required: true, schema: { type: 'string' } }],
+            responses: {
+              200: { description: 'Receipt file stream' },
+            },
+          },
+        },
+        '/api/candidate/consents/sign': {
+          post: {
+            tags: ['Documents'],
+            summary: 'Sign legal consents and generate audit/PDF records',
+            security: [{ bearerAuth: [] }],
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      documents: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          required: ['documentType', 'documentVersion', 'candidateTypedName', 'signature', 'checkboxAcknowledged', 'scrolledToEnd'],
+                          properties: {
+                            documentType: { type: 'string' },
+                            documentVersion: { type: 'string' },
+                            candidateTypedName: { type: 'string' },
+                            signature: { type: 'object', additionalProperties: true },
+                            checkboxAcknowledged: { type: 'boolean' },
+                            scrolledToEnd: { type: 'boolean' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            responses: {
+              201: { description: 'Consent records created' },
+            },
+          },
+        },
+        '/api/candidate/interview/slots': {
+          get: {
+            tags: ['Interviews'],
+            summary: 'Get candidate interview slots if eligible',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              200: { description: 'Interview slot list' },
+              403: { description: 'Not eligible' },
+            },
+          },
+        },
+        '/api/candidate/interview/book': {
+          post: {
+            tags: ['Interviews'],
+            summary: 'Book a candidate interview slot',
+            security: [{ bearerAuth: [] }],
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    required: ['slotId'],
+                    properties: {
+                      slotId: { type: 'string' },
+                    },
+                  },
+                },
+              },
+            },
+            responses: {
+              201: { description: 'Interview booked' },
+            },
+          },
+        },
+        '/api/admin/candidates/{id}/evaluation/approve': {
+          post: {
+            tags: ['Admin'],
+            summary: 'Approve candidate evaluation (Admin 2)',
+            security: [{ bearerAuth: [] }],
+            parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+            responses: { 200: { description: 'Evaluation approved' } },
+          },
+        },
+        '/api/admin/candidates/{id}/evaluation/reject': {
+          post: {
+            tags: ['Admin'],
+            summary: 'Reject candidate evaluation (Admin 2)',
+            security: [{ bearerAuth: [] }],
+            parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+            responses: { 200: { description: 'Evaluation rejected' } },
+          },
+        },
+        '/api/admin/candidates/{id}/operations/decision': {
+          post: {
+            tags: ['Admin'],
+            summary: 'Set operations decision (Admin 3)',
+            security: [{ bearerAuth: [] }],
+            parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+            responses: { 200: { description: 'Operations decision applied' } },
+          },
+        },
+        '/api/admin/candidates/{id}/sterling/initiate': {
+          post: {
+            tags: ['Admin'],
+            summary: 'Initiate Sterling background verification',
+            security: [{ bearerAuth: [] }],
+            parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+            responses: { 200: { description: 'Sterling check initiated' } },
+          },
+        },
+        '/api/admin/candidates/{id}/selected': {
+          post: {
+            tags: ['Admin'],
+            summary: 'Mark candidate selected and send payment instructions',
+            security: [{ bearerAuth: [] }],
+            parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+            responses: { 200: { description: 'Selected email sent' } },
+          },
+        },
+        '/api/admin/candidates/{id}/not-selected': {
+          post: {
+            tags: ['Admin'],
+            summary: 'Mark candidate not selected and notify candidate',
+            security: [{ bearerAuth: [] }],
+            parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+            responses: { 200: { description: 'Not-selected email sent' } },
+          },
+        },
+        '/api/admin/candidates/{id}/invoices/generate': {
+          post: {
+            tags: ['Admin'],
+            summary: 'Generate invoice for candidate stage',
+            security: [{ bearerAuth: [] }],
+            parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+            responses: { 201: { description: 'Invoice generated' } },
+          },
+        },
+        '/api/admin/candidates/{id}/payments/{paymentId}/verify': {
+          post: {
+            tags: ['Admin'],
+            summary: 'Verify candidate payment and generate receipt',
+            security: [{ bearerAuth: [] }],
+            parameters: [
+              { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+              { in: 'path', name: 'paymentId', required: true, schema: { type: 'string' } },
+            ],
+            responses: { 200: { description: 'Payment verified' } },
+          },
+        },
+        '/api/admin/interview-slots': {
+          post: {
+            tags: ['Admin'],
+            summary: 'Create interview slot (Admin 3)',
+            security: [{ bearerAuth: [] }],
+            responses: { 201: { description: 'Interview slot created' } },
+          },
+        },
+        '/api/admin/interview-bookings': {
+          get: {
+            tags: ['Admin'],
+            summary: 'List interview bookings (Admin 3)',
+            security: [{ bearerAuth: [] }],
+            responses: { 200: { description: 'Interview booking list' } },
+          },
+        },
+        '/api/admin/test-email': {
+          post: {
+            tags: ['Admin'],
+            summary: 'Send SMTP test email',
+            security: [{ bearerAuth: [] }],
+            responses: { 200: { description: 'Test email sent' } },
+          },
+        },
       },
     },
     apis: [],

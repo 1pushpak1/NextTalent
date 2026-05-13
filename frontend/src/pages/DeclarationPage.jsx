@@ -414,27 +414,39 @@ export default function DeclarationPage() {
         return;
       }
 
-      await api.post('/dashboard/me/declaration-consent', {
-        agreeChecked: true,
-        readCompleted: true,
-        viewedDocs: {
-          declaration: Boolean(scrolledToEnd.declaration),
-          contract: Boolean(scrolledToEnd.contract),
-        },
-        declarationSignature,
-        contractSignature,
-        typedLegalName:
-          declarationSignature?.type === 'typed'
-            ? declarationSignature?.value
-            : contractSignature?.type === 'typed'
-              ? contractSignature?.value
-              : (candidateDetails?.fullName && candidateDetails.fullName !== 'N/A'
-                  ? candidateDetails.fullName
-                  : candidateDetails?.emailAddress?.split('@')?.[0] || ''),
-        consentTransactionId: `NST-TXN-${Date.now()}`,
-        pdfReferenceNumber: `NST-PDF-${Date.now()}`,
-        declarationVersion: DOCUMENTS.declaration.ref,
-        contractVersion: DOCUMENTS.contract.ref,
+      const typedLegalName =
+        declarationSignature?.type === 'typed'
+          ? declarationSignature?.value
+          : contractSignature?.type === 'typed'
+            ? contractSignature?.value
+            : (candidateDetails?.fullName && candidateDetails.fullName !== 'N/A'
+                ? candidateDetails.fullName
+                : candidateDetails?.emailAddress?.split('@')?.[0] || '');
+
+      if (!typedLegalName || String(typedLegalName).trim().length < 3) {
+        alert('A typed full legal name is required to complete legal consent.');
+        return;
+      }
+
+      await api.post('/candidate/consents/sign', {
+        documents: [
+          {
+            documentType: 'document_authenticity_declaration',
+            documentVersion: DOCUMENTS.declaration.ref,
+            candidateTypedName: typedLegalName,
+            signature: declarationSignature,
+            checkboxAcknowledged: true,
+            scrolledToEnd: Boolean(scrolledToEnd.declaration),
+          },
+          {
+            documentType: 'candidate_services_agreement',
+            documentVersion: DOCUMENTS.contract.ref,
+            candidateTypedName: typedLegalName,
+            signature: contractSignature,
+            checkboxAcknowledged: true,
+            scrolledToEnd: Boolean(scrolledToEnd.contract),
+          },
+        ],
       });
       navigate('/onboarding');
     } catch (error) {
