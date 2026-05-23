@@ -233,10 +233,26 @@ const generateProfilePdf = async (req, res) => {
     profile.generatedPdfUrl = pdfUrl;
     await profile.save();
 
-    res.json({ pdfUrl });
+    res.json({ pdfUrl, fileName: generatePdf.getProfilePdfFileName(profile) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = { createProfile, getMyProfile, updateMyProfile, generateProfilePdf };
+const downloadProfilePdf = async (req, res) => {
+  try {
+    const profile = await Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 });
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+
+    const { buffer, fileName } = await generatePdf.generateProfilePdfBuffer(profile);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(buffer);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { createProfile, getMyProfile, updateMyProfile, generateProfilePdf, downloadProfilePdf };

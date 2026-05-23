@@ -471,16 +471,35 @@ const buildSwaggerSpec = (port = 5001) => {
         '/api/profile/generate-pdf': {
           post: {
             tags: ['Profile'],
-            summary: 'Generate profile PDF placeholder',
+            summary: 'Prepare current profile PDF download URL',
             security: [{ bearerAuth: [] }],
             responses: {
               200: {
                 description: 'Generated PDF URL',
                 content: {
                   'application/json': {
-                    schema: { type: 'object', properties: { pdfUrl: { type: 'string' } } },
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        pdfUrl: { type: 'string' },
+                        fileName: { type: 'string' },
+                      },
+                    },
                   },
                 },
+              },
+            },
+          },
+        },
+        '/api/profile/generated-pdf': {
+          get: {
+            tags: ['Profile'],
+            summary: 'Stream current profile PDF',
+            security: [{ bearerAuth: [] }],
+            responses: {
+              200: {
+                description: 'Profile PDF',
+                content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } },
               },
             },
           },
