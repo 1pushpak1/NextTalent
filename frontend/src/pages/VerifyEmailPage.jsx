@@ -9,19 +9,26 @@ const RESEND_COOLDOWN_SECONDS = 60;
 export default function VerifyEmailPage() {
   const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_SECONDS);
+  const [code, setCode] = useState('');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { user, setAuth, token } = useAuth();
   const next = params.get('next') || '/profile-submission';
-  const verificationToken = params.get('token') || '';
 
   const email = user?.email || localStorage.getItem('nst_signup_email') || '';
 
-  const verifyUsingToken = async () => {
-    if (!verificationToken) return;
+  const verifyUsingCode = async () => {
+    if (!email) {
+      alert('Unable to find your email. Please login again.');
+      return;
+    }
+    if (!/^\d{6}$/.test(code.trim())) {
+      alert('Enter a valid 6-digit verification code.');
+      return;
+    }
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/verify-email', { token: verificationToken });
+      const { data } = await api.post('/auth/verify-email', { email, code: code.trim() });
       const persistedToken = localStorage.getItem('nst_token') || '';
       const nextToken = data?.token || token || persistedToken;
       if (nextToken) {
@@ -49,13 +56,8 @@ export default function VerifyEmailPage() {
       } else {
         navigate(`/verify-phone?next=${encodeURIComponent(next)}`, { replace: true });
       }
-      return;
     }
-
-    if (verificationToken) {
-      verifyUsingToken();
-    }
-  }, [verificationToken, user?.emailVerified, user?.phoneVerified, next, navigate]);
+  }, [user?.emailVerified, user?.phoneVerified, next, navigate]);
 
   useEffect(() => {
     if (cooldown <= 0) return undefined;
@@ -92,8 +94,26 @@ export default function VerifyEmailPage() {
   };
 
   return (
-    <AuthSplitLayout title="Email Verification" subtitle="We have sent a verification link to your registered email address. Open it to continue.">
+    <AuthSplitLayout title="Email Verification" subtitle="We have sent a verification code to your registered email address. Enter it to continue.">
       <div className="space-y-4">
+        <input
+          type="text"
+          inputMode="numeric"
+          maxLength={6}
+          value={code}
+          onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+          className="w-full rounded-xl border border-[rgba(200,169,107,0.35)] bg-[rgba(255,255,255,0.05)] px-4 py-2.5 text-sm text-white placeholder:text-white/60 outline-none transition focus:border-[rgba(200,169,107,0.8)]"
+          placeholder="Enter 6-digit code"
+          disabled={loading}
+        />
+        <button
+          type="button"
+          className="w-full rounded-xl bg-[#c8a96b] px-4 py-2.5 text-sm font-semibold text-[#1a1a1a] transition hover:bg-[#d8b87a] disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={verifyUsingCode}
+          disabled={loading}
+        >
+          Verify Email
+        </button>
         <div className="rounded-xl border border-[rgba(200,169,107,0.2)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[#d9d9de]">
           If you do not receive the email in your inbox, please check your spam or junk folder.
         </div>

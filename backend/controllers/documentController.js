@@ -44,6 +44,12 @@ const uploadDocument = async (req, res) => {
       User.findById(req.user._id).lean(),
       Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
     ]);
+    if (!user?.admin1ProgressionApproved) {
+      return res.status(403).json({ message: 'Document access will unlock only after Admin 1 progression approval.' });
+    }
+    if (!user?.documentationStageInitiated) {
+      return res.status(403).json({ message: 'Document upload is not available until Admin 1 initiates the documentation stage.' });
+    }
     if (profile?.status === 'rejected' || ['rejected', 'not_selected'].includes(String(user?.status || '').toLowerCase())) {
       return res.status(403).json({ message: 'This application is not active for further document submissions.' });
     }
@@ -51,6 +57,18 @@ const uploadDocument = async (req, res) => {
     if (!isPdfFile(req.file)) return res.status(400).json({ message: 'Only PDF files are supported.' });
     const { documentType } = req.body;
     if (!documentType) return res.status(400).json({ message: 'documentType is required' });
+    const allowedDocumentTypes = new Set([
+      'Passport copy',
+      'Educational qualifications',
+      'Employment documents',
+      'Certifications',
+      'Resume/CV',
+      'Language certifications (if applicable)',
+      'Supporting identification records',
+    ]);
+    if (!allowedDocumentTypes.has(String(documentType).trim())) {
+      return res.status(400).json({ message: 'Invalid documentType' });
+    }
 
     const record = await Document.create({
       userId: req.user._id,

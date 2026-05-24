@@ -99,6 +99,7 @@ export default function CandidateDashboardPage() {
   const finalFailed = latestFinalPayment?.status === 'failed';
   const finalPaid = latestFinalPayment?.status === 'completed';
   const internalEvaluationPassed = data?.profileStatus === 'accepted';
+  const progressionApproved = Boolean(data?.progressionApproved);
   const profileRejected = data?.profileStatus === 'rejected';
   const showEligibilityForCandidate = data?.profileStatus === 'accepted';
   const testimonialSubmitted = Boolean(data?.testimonialSubmitted);
@@ -207,23 +208,30 @@ export default function CandidateDashboardPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              {!journeyLocked && internalEvaluationPassed && !hasInitial && (
+              {!journeyLocked && internalEvaluationPassed && progressionApproved && !hasInitial && (
                 <Link to="/initial-payment">
                   <Button>Pay USD 500</Button>
                 </Link>
               )}
-              {!journeyLocked && hasInitial && docsIncomplete && (
+              {!journeyLocked && progressionApproved && hasInitial && docsIncomplete && (
                 <Link to="/documents">
                   <Button variant="secondary">Upload Documents</Button>
                 </Link>
               )}
-              {!journeyLocked && data?.candidate?.status === 'documents_received' && !programPaid && (
+              {!journeyLocked && progressionApproved && data?.candidate?.status === 'documents_received' && !programPaid && (
                 <Link to="/payment/program-fee">
                   <Button>Pay {formatUsd(programTotal)}</Button>
                 </Link>
               )}
             </div>
           </section>
+
+          {internalEvaluationPassed && !progressionApproved && !journeyLocked && (
+            <section className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+              <p className="text-sm font-semibold text-amber-900">Your profile passed internal assessment and is pending Admin 1 progression approval.</p>
+              <p className="mt-1 text-sm text-amber-800">Payment, documentation, and next-stage actions will unlock after Admin 1 manually approves progression.</p>
+            </section>
+          )}
 
           {profileRejected && (
             <section className="mb-8 overflow-hidden rounded-[28px] border border-rose-300 bg-[radial-gradient(circle_at_top_left,_rgba(251,113,133,0.18),_rgba(255,241,242,0.96)_40%,_rgba(255,255,255,1)_100%)] p-6 shadow-sm">

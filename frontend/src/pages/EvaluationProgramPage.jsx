@@ -139,9 +139,6 @@ export default function EvaluationProgramPage() {
             <p className="mb-10 max-w-2xl text-base leading-8 text-[#d1d2d7]">
               This helps determine if you qualify to enter the evaluation stage.
             </p>
-            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-[#d7bf92]">
-              CTA: Check Your Eligibility
-            </p>
             <Link
               to="/eligibility-check"
               className="inline-flex items-center gap-2 rounded-lg border border-[#c8a96b] bg-[#c8a96b] px-8 py-4 text-sm font-semibold text-black transition hover:bg-[#d4b87e]"

@@ -20,6 +20,9 @@ const hasPassedInitialEligibility = ({ eligibility, user, profile, payments, doc
   docs.length > 0 ||
   interviews.length > 0;
 
+const hasAdmin1ProgressionApproval = (user) => Boolean(user?.admin1ProgressionApproved);
+const hasDocumentationStageInitiated = (user) => Boolean(user?.documentationStageInitiated);
+
 const buildStages = ({ eligibility, profile, user, docs, interviews, payments, testimonial }) => {
   const hasSubmittedProfile = Boolean(profile) && profile.status !== 'draft';
   const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
@@ -34,6 +37,8 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
   const docsAccepted = docs.length > 0 && docs.every((d) => d.status === 'Accepted');
   const selectionDecision = String(user?.stageStatuses?.get ? user.stageStatuses.get('selection') : user?.stageStatuses?.selection || '').toLowerCase();
   const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews });
+  const progressionApproved = hasAdmin1ProgressionApproval(user);
+  const documentationStageInitiated = hasDocumentationStageInitiated(user);
 
   const selected = user.status === 'selected';
   const rejected = user.status === 'rejected' || profile?.status === 'rejected';
@@ -84,14 +89,16 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
               : 'In Progress'
         : 'Pending',
     },
-    { name: 'Initial Payment', status: profileRejected ? 'Inactive' : hasInitial ? 'Completed' : profile?.status === 'accepted' ? 'Pending' : 'Pending' },
-    { name: 'Declaration Signed', status: profileRejected ? 'Inactive' : declarationDone ? 'Completed' : 'Pending' },
-    { name: 'Team Contact / Onboarding', status: profileRejected ? 'Inactive' : onboardingDone ? 'Completed' : hasInitial ? 'In Progress' : 'Pending' },
-    { name: 'Documents Uploaded', status: profileRejected ? 'Inactive' : docsUploaded ? 'Completed' : 'Pending' },
+    { name: 'Initial Payment', status: profileRejected ? 'Inactive' : hasInitial ? 'Completed' : profile?.status === 'accepted' ? (progressionApproved ? 'Pending' : 'Locked') : 'Pending' },
+    { name: 'Declaration Signed', status: profileRejected ? 'Inactive' : !progressionApproved ? 'Locked' : declarationDone ? 'Completed' : 'Pending' },
+    { name: 'Team Contact / Onboarding', status: profileRejected ? 'Inactive' : !progressionApproved ? 'Locked' : onboardingDone ? 'Completed' : hasInitial ? 'In Progress' : 'Pending' },
+    { name: 'Documents Uploaded', status: profileRejected ? 'Inactive' : !progressionApproved ? 'Locked' : !documentationStageInitiated ? 'Locked' : docsUploaded ? 'Completed' : 'Pending' },
     {
       name: 'Program Fee Payment',
       status: profileRejected
         ? 'Inactive'
+        : !progressionApproved
+          ? 'Locked'
         : hasProgram
         ? 'Completed'
         : hasProgramFailed
@@ -106,21 +113,21 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
     },
     {
       name: 'Document Verification',
-      status: profileRejected ? 'Inactive' : hasProgram ? (docsReceived ? 'Accepted' : docsUnderReview ? 'Under Review' : docsAccepted ? 'In Progress' : 'Pending') : 'Pending',
+      status: profileRejected ? 'Inactive' : !progressionApproved ? 'Locked' : hasProgram ? (docsReceived ? 'Accepted' : docsUnderReview ? 'Under Review' : docsAccepted ? 'In Progress' : 'Pending') : 'Pending',
     },
     {
       name: 'Sent to Hiring Partners',
-      status: profileRejected ? 'Inactive' : user.status === 'sent_to_partners' || selected ? 'Completed' : 'Pending',
+      status: profileRejected ? 'Inactive' : !progressionApproved ? 'Locked' : user.status === 'sent_to_partners' || selected ? 'Completed' : 'Pending',
     },
     {
       name: 'Selection Result',
-      status: profileRejected ? 'Inactive' : selectionAccepted ? 'Accepted' : selectionRejected ? 'Rejected' : selectionUnderReview ? 'Under Review' : 'Pending',
+      status: profileRejected ? 'Inactive' : !progressionApproved ? 'Locked' : selectionAccepted ? 'Accepted' : selectionRejected ? 'Rejected' : selectionUnderReview ? 'Under Review' : 'Pending',
     },
     {
       name: 'Final Payment',
-      status: selectionRejected ? 'Inactive' : hasFinal ? 'Completed' : hasFinalFailed ? 'Rejected' : hasFinalPending ? 'Under Review' : selectionAccepted ? 'Pending' : 'Pending',
+      status: selectionRejected ? 'Inactive' : !progressionApproved ? 'Locked' : hasFinal ? 'Completed' : hasFinalFailed ? 'Rejected' : hasFinalPending ? 'Under Review' : selectionAccepted ? 'Pending' : 'Pending',
     },
-    { name: 'Testimonial', status: selectionRejected ? 'Inactive' : testimonial ? 'Completed' : 'Pending' },
+    { name: 'Testimonial', status: selectionRejected ? 'Inactive' : !progressionApproved ? 'Locked' : testimonial ? 'Completed' : 'Pending' },
   ];
 };
 
@@ -134,6 +141,8 @@ const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
   const hasFinalFailed = payments.some((p) => p.type === 'final' && p.status === 'failed');
   const docsUploaded = docs.length > 0;
   const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews: [] });
+  const progressionApproved = hasAdmin1ProgressionApproval(user);
+  const documentationStageInitiated = hasDocumentationStageInitiated(user);
   const docsReceived =
     user.status === 'documents_received' ||
     hasFinal ||
@@ -153,9 +162,11 @@ const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
   if (!profile || profile.status === 'draft') return '/profile-submission';
   if (profile.status === 'submitted' || profile.status === 'under_review') return '/internal-evaluation';
   if (profile.status === 'rejected') return '/candidate-dashboard';
+  if (profile.status === 'accepted' && !progressionApproved) return '/candidate-dashboard';
   if (profile.status === 'accepted' && !hasInitial) return '/initial-payment';
   if (hasInitial && !declarationDone) return '/declaration';
   if (hasInitial && declarationDone && !onboardingDone) return '/onboarding';
+  if (hasInitial && onboardingDone && !documentationStageInitiated) return '/candidate-dashboard';
   if (hasInitial && onboardingDone && !docsUploaded) return '/documents';
   if (hasInitial && onboardingDone && docsUploaded && !hasProgram && !hasProgramPending) return '/payment/program-fee';
   if (hasInitial && onboardingDone && docsUploaded && hasProgramFailed) return '/payment/program-fee';
@@ -222,6 +233,7 @@ const getDashboard = async (req, res) => {
 
     const progress = deriveCandidateProgress({ candidate: user, profile, eligibility, documents: docs, interviews, payments, testimonial });
     const nextAction = progress.nextAction || 'No immediate action required';
+    const progressionApproved = hasAdmin1ProgressionApproval(user);
 
     res.json({
       candidate: user,
@@ -253,6 +265,7 @@ const getDashboard = async (req, res) => {
       testimonialSubmitted: Boolean(testimonial),
       stages,
       profileStatus: profile?.status || 'not_submitted',
+      progressionApproved,
       progress,
     });
   } catch (error) {
@@ -265,6 +278,10 @@ const updateMyStatus = async (req, res) => {
     const { status } = req.body;
     const profile = await Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean();
     const userRecord = await User.findById(req.user._id).lean();
+    const progressionApproved = hasAdmin1ProgressionApproval(userRecord);
+    if (!progressionApproved && ['declaration_signed', 'onboarding_complete', 'documents_submitted'].includes(String(status || '').toLowerCase())) {
+      return res.status(403).json({ message: 'Next-stage updates are locked until Admin 1 progression approval.' });
+    }
     if (profile?.status === 'rejected' || ['rejected', 'not_selected'].includes(String(userRecord?.status || '').toLowerCase())) {
       return res.status(403).json({ message: 'This application is not active for further candidate actions.' });
     }
@@ -348,6 +365,9 @@ const completeDeclarationConsent = async (req, res) => {
 
     const candidate = await User.findById(req.user._id);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+    if (!hasAdmin1ProgressionApproval(candidate)) {
+      return res.status(403).json({ message: 'Declaration access is locked until Admin 1 progression approval.' });
+    }
 
     const declarationAudit = {
       consentId,

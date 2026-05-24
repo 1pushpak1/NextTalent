@@ -27,6 +27,12 @@ const userSchema = new mongoose.Schema(
     selectedStatus: { type: String, default: 'pending' },
     selectedBy: { type: String, default: '' },
     selectedAt: { type: Date, default: null },
+    admin1ProgressionApproved: { type: Boolean, default: false },
+    admin1ProgressionApprovedAt: { type: Date, default: null },
+    admin1ProgressionApprovedBy: { type: String, default: '' },
+    documentationStageInitiated: { type: Boolean, default: false },
+    documentationStageInitiatedAt: { type: Date, default: null },
+    documentationStageInitiatedBy: { type: String, default: '' },
 
     backgroundCheckStatus: {
       type: String,

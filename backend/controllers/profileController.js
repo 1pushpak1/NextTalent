@@ -4,6 +4,7 @@ const Eligibility = require('../models/Eligibility');
 const generatePdf = require('../utils/generatePdf');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const { getWorkflowConfig, sendAdminNotification } = require('../utils/workflowEmailer');
+const sendEmail = require('../utils/sendEmail');
 
 const clampSavedStep = (value, fallback = 1) => {
   const numeric = Number(value);
@@ -92,37 +93,58 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
 
   const recipientEmail = body.personalDetails?.email || req.user?.email;
   const candidateDisplayName = body.personalDetails?.firstName || req.user?.name || req.user?.email?.split('@')[0];
-  await sendStepUpdateEmail({
+  const applicationConfirmationText = `Dear Candidate,
+
+Your application has been successfully submitted to NextStep Talent for initial review.
+
+Our internal evaluation team will assess your submitted profile, qualifications, experience, certifications, language skills, and related information.
+
+Please note:
+- Submission of an application does not guarantee approval or progression to the next stage.
+- Only shortlisted candidates will proceed further in the process.
+
+You will receive further communication if your profile is approved for the next stage.
+
+Regards,  
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
+  await sendEmail({
     to: recipientEmail,
-    candidateName: candidateDisplayName,
-    stepKey: 'profile',
-    heading: 'Profile submitted successfully',
-    message: 'Your profile has been submitted successfully and is now under internal eligibility and evaluation review. Submission does not guarantee selection or employment.',
-    status: 'submitted',
-    details: [
-      { label: 'Profile Status', value: 'Pending Approval' },
-      { label: 'Review Stage', value: 'Internal Evaluation' },
-    ],
-    cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+    subject: 'NextStep Talent – Application Successfully Submitted',
+    text: applicationConfirmationText,
+    html: applicationConfirmationText.replaceAll('\n', '<br/>'),
+    fromEmail: 'noreply@nextsteptalent.net',
+    fromName: 'NextStep Talent Team',
+    templateKey: 'application_submission_confirmation',
+    relatedCandidateId: userId,
   });
 
   const workflow = getWorkflowConfig();
   try {
+    const positionOrCategory =
+      String(
+        body?.personalDetails?.position ||
+          body?.personalDetails?.desiredPosition ||
+          body?.personalDetails?.category ||
+          body?.skills?.primarySkill ||
+          ''
+      ).trim() || 'N/A';
     await sendAdminNotification({
-      to: workflow.admin12List,
+      to: ['admin@example.com', 'evaluation@example.com'],
       subject: `NextStep Talent Candidate Submission Received / ${candidateDisplayName}`,
       lines: [
-        'A new candidate application has been submitted.',
-        `Candidate: ${candidateDisplayName}`,
-        `Email: ${recipientEmail || req.user?.email || 'N/A'}`,
-        `Phone: ${req.user?.phone || 'N/A'}`,
+        `Candidate Name: ${candidateDisplayName}`,
         `Country: ${body?.personalDetails?.currentCountryOfResidence || 'N/A'}`,
+        `Position/Category: ${positionOrCategory}`,
         `Candidate ID: ${String(userId)}`,
         `Submission Timestamp: ${applicationSubmittedAt.toISOString()}`,
-        `Current Status: profile_submitted`,
-        `Admin Review Link: ${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')}/admin/candidates/${String(userId)}`,
+        `Backend Review Link: ${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')}/admin/candidates/${String(userId)}`,
+        `Candidate Email: ${recipientEmail || req.user?.email || 'N/A'}`,
+        `Candidate Phone: ${req.user?.phone || 'N/A'}`,
       ],
       fromType: 'noreply',
+      templateKey: 'internal_candidate_submission_admin12',
     });
   } catch (error) {
     console.error('Admin submission notification failed:', error.message);

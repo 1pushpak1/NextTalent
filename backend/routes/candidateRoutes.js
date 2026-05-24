@@ -2,6 +2,7 @@ const express = require('express');
 const { protect } = require('../middleware/authMiddleware');
 const {
   submitCandidateApplication,
+  initiateSterlingVerification,
   getCandidatePayments,
   downloadCandidateInvoice,
   downloadCandidateReceipt,
@@ -13,6 +14,7 @@ const {
 const router = express.Router();
 
 router.post('/application/submit', protect, submitCandidateApplication);
+router.post('/sterling/initiate', protect, initiateSterlingVerification);
 router.get('/payments', protect, getCandidatePayments);
 router.get('/invoices/:invoiceId/download', protect, downloadCandidateInvoice);
 router.get('/receipts/:receiptId/download', protect, downloadCandidateReceipt);

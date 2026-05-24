@@ -12,6 +12,7 @@ const InterviewBooking = require('../models/InterviewBooking');
 const { PAYMENT_STAGES, LEGACY_PAYMENT_TYPE_TO_STAGE, EMAIL_TEMPLATE_KEYS } = require('../constants/workflow');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
 const { sendTransactionalEmailSafe } = require('../services/emailService');
+const { initiateBackgroundCheck } = require('../services/sterlingService');
 const { createAuditLog, getRequestIp } = require('../services/auditService');
 const { nextConsentId, nextPdfReference } = require('../services/documentNumberService');
 const { candidateSubmissionConfirmation, wrapHtml, applicationStatusUpdate, websiteUrl } = require('../services/emailTemplateService');
@@ -30,6 +31,63 @@ const assertCandidate = (req, res) => {
 const candidateAdminLink = (candidateId) => `${FRONTEND_BASE}/admin/candidates/${candidateId}`;
 
 const getStageFromPayment = (payment) => payment.stage || LEGACY_PAYMENT_TYPE_TO_STAGE[payment.type] || PAYMENT_STAGES.INITIAL_ONBOARDING_FEE;
+
+const initiateSterlingVerification = async (req, res) => {
+  try {
+    if (!assertCandidate(req, res)) return;
+    const candidate = await User.findById(req.user._id);
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+
+    if (!candidate.admin1ProgressionApproved) {
+      return res.status(403).json({ message: 'Verification initiation is available only after Admin 1 progression approval.' });
+    }
+
+    const payments = await Payment.find({ userId: candidate._id }).lean();
+    const hasProgramPayment = payments.some(
+      (p) => String(p.type || '').toLowerCase() === 'program' && ['pending', 'completed', 'verified', 'paid'].includes(String(p.status || '').toLowerCase())
+    );
+    if (!hasProgramPayment) {
+      return res.status(403).json({ message: 'Verification initiation is available only after first installment payment is recorded.' });
+    }
+
+    const result = await initiateBackgroundCheck(candidate._id, { requestedBy: candidate.email });
+
+    const paymentsAdmins = getPaymentsAdminEmails();
+    const evaluationAdmins = getEvaluationAdminEmails();
+    const recipients = [...new Set([...paymentsAdmins, ...evaluationAdmins])];
+    const candidateName = candidate.name || candidate.email.split('@')[0];
+
+    await sendTransactionalEmailSafe({
+      to: recipients,
+      subject: `NextStep Talent – Verification Process Initiated / ${candidateName}`,
+      text: ['Verification initiated', `Candidate name: ${candidateName}`].join('\n'),
+      html: wrapHtml({
+        title: 'Verification Process Initiated',
+        bodyHtml: `<p>Verification initiated</p><p><b>Candidate name:</b> ${candidateName}</p>`,
+      }),
+      fromEmail: 'noreply@nextsteptalent.net',
+      fromName: 'NextStep Talent Team',
+      templateKey: 'sterling_verification_initiated_admin_notice',
+      relatedCandidateId: candidate._id,
+    });
+
+    await createAuditLog({
+      req,
+      actorType: 'candidate',
+      actorId: String(candidate._id),
+      actorRole: 'candidate',
+      candidateId: candidate._id,
+      action: 'candidate_sterling_initiated',
+      previousValue: null,
+      newValue: result,
+      metadata: { requestedBy: candidate.email },
+    });
+
+    return res.status(201).json({ message: 'Verification initiated', result });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
 
 const submitCandidateApplication = async (req, res) => {
   try {
@@ -535,21 +593,24 @@ const bookInterviewSlot = async (req, res) => {
     });
 
     const operationsAdmins = getOperationsAdminEmails();
+    const paymentsAdmins = getPaymentsAdminEmails();
+    const evaluationAdmins = getEvaluationAdminEmails();
+    const interviewBookedRecipients = [...new Set([...operationsAdmins, ...paymentsAdmins, ...evaluationAdmins])];
     await sendTransactionalEmailSafe({
-      to: operationsAdmins,
-      subject: `NextStep Talent Interview Booked / ${candidate.name || candidate.email.split('@')[0]}`,
+      to: interviewBookedRecipients,
+      subject: `Interview Scheduled / ${candidate.name || candidate.email.split('@')[0]}`,
       text: [
         `Candidate Name: ${candidate.name || 'N/A'}`,
-        `Candidate ID: ${candidate.candidateId || String(candidate._id)}`,
+        `Selected Slot: ${start.toISOString()} to ${end.toISOString()}`,
+        `Timezone: ${booking.timezone}`,
+        `Meeting Link: ${booking.meetingLink || 'N/A'}`,
         `Candidate Email: ${candidate.email}`,
-        `Interview Date/Time: ${start.toISOString()} to ${end.toISOString()}`,
-        `Time Zone: ${booking.timezone}`,
       ].join('\n'),
       html: wrapHtml({
-        title: 'Interview Booked',
-        bodyHtml: `<p>A candidate booked an interview slot.</p><p><b>Candidate:</b> ${candidate.name || 'N/A'}<br/><b>Candidate ID:</b> ${candidate.candidateId || String(candidate._id)}<br/><b>Email:</b> ${candidate.email}<br/><b>Interview:</b> ${start.toISOString()} to ${end.toISOString()} (${booking.timezone})</p>`,
+        title: 'Interview Scheduled',
+        bodyHtml: `<p><b>Candidate Name:</b> ${candidate.name || 'N/A'}<br/><b>Selected Slot:</b> ${start.toISOString()} to ${end.toISOString()}<br/><b>Timezone:</b> ${booking.timezone}<br/><b>Meeting Link:</b> ${booking.meetingLink || 'N/A'}<br/><b>Candidate Email:</b> ${candidate.email}</p>`,
       }),
-      templateKey: EMAIL_TEMPLATE_KEYS.INTERVIEW_BOOKING_ADMIN_NOTICE,
+      templateKey: 'internal_interview_booked_admin_loop',
       relatedCandidateId: candidate._id,
     });
 
@@ -581,6 +642,7 @@ const bookInterviewSlot = async (req, res) => {
 
 module.exports = {
   submitCandidateApplication,
+  initiateSterlingVerification,
   getCandidatePayments,
   downloadCandidateInvoice,
   downloadCandidateReceipt,

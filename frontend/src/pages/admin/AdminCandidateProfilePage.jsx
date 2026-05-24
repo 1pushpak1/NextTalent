@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf';
 import ApprovalReviewModal from '../../components/admin/ApprovalReviewModal';
 import AuditHistoryPanel from '../../components/admin/AuditHistoryPanel';
 import Button from '../../components/Button';
+import Modal from '../../components/Modal';
 import {
   applyOperationsDecision,
   fetchAdminCandidateProfile,
@@ -13,6 +14,7 @@ import {
   reviewPayment,
   scheduleCandidateInterview,
   updateCandidateNotes,
+  initiateCandidateRefund,
 } from '../../api/adminApi';
 import usePermissions from '../../hooks/usePermissions';
 
@@ -117,6 +119,10 @@ export default function AdminCandidateProfilePage() {
   const [hiringPartnerDraft, setHiringPartnerDraft] = useState('');
   const [stageSaving, setStageSaving] = useState('');
   const [operationsSaving, setOperationsSaving] = useState('');
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundSaving, setRefundSaving] = useState(false);
+  const [refundSelection, setRefundSelection] = useState({});
+  const [refundDeduction, setRefundDeduction] = useState('300');
   const [interviewDraft, setInterviewDraft] = useState({
     country: '',
     role: '',
@@ -502,6 +508,45 @@ export default function AdminCandidateProfilePage() {
       setError(err.response?.data?.message || 'Failed to schedule interview');
     } finally {
       setOperationsSaving('');
+    }
+  };
+
+  const openRefundModal = () => {
+    const initialSelection = {};
+    (payments || []).forEach((p) => {
+      const status = String(p.status || '').toLowerCase();
+      const canPick = ['completed', 'verified', 'paid'].includes(status) && status !== 'refunded';
+      if (canPick) initialSelection[p._id] = false;
+    });
+    setRefundSelection(initialSelection);
+    setRefundDeduction('300');
+    setRefundOpen(true);
+  };
+
+  const submitRefund = async () => {
+    const paymentIds = Object.entries(refundSelection)
+      .filter(([, selected]) => selected)
+      .map(([paymentId]) => paymentId);
+    if (!paymentIds.length) {
+      alert('Select at least one payment to refund.');
+      return;
+    }
+    const adminDeduction = Number(refundDeduction);
+    if (!Number.isFinite(adminDeduction) || adminDeduction < 0) {
+      alert('Enter a valid administrative deduction amount.');
+      return;
+    }
+
+    setRefundSaving(true);
+    setError('');
+    try {
+      await initiateCandidateRefund(id, { paymentIds, adminDeduction });
+      setRefundOpen(false);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to initiate refund');
+    } finally {
+      setRefundSaving(false);
     }
   };
 
@@ -1130,7 +1175,12 @@ export default function AdminCandidateProfilePage() {
         <Card
           title="Payments"
           subtitle="Review receipts and bank references before verifying."
-          actions={latestReviewablePayment ? <Button variant="adminPrimary" onClick={() => setActiveReview({ type: 'payment', item: latestReviewablePayment })}>Review Latest Payment</Button> : null}
+          actions={(
+            <div className="flex flex-wrap gap-2">
+              {latestReviewablePayment ? <Button variant="adminPrimary" onClick={() => setActiveReview({ type: 'payment', item: latestReviewablePayment })}>Review Latest Payment</Button> : null}
+              {can('payments:verify') ? <Button variant="adminSecondary" className="text-white" onClick={openRefundModal}>Initiate Refund</Button> : null}
+            </div>
+          )}
         >
           {!payments.length ? <p className="text-sm text-slate-500">No payment records yet.</p> : (
             <div className="space-y-3">
@@ -1160,6 +1210,54 @@ export default function AdminCandidateProfilePage() {
           )}
         </Card>
       )}
+
+      <Modal isOpen={refundOpen} onClose={() => setRefundOpen(false)} title="Initiate Refund">
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+            Select which payments to mark as refunded. Email 14 will be sent to the candidate only after you confirm.
+          </div>
+
+          <div className="space-y-2">
+            {(payments || []).map((p) => {
+              const status = String(p.status || '').toLowerCase();
+              const canPick = ['completed', 'verified', 'paid'].includes(status) && status !== 'refunded';
+              if (!refundSelection || refundSelection[p._id] === undefined) return null;
+              return (
+                <label key={p._id} className={`flex items-center justify-between gap-3 rounded-xl border p-3 ${canPick ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50 opacity-60'}`}>
+                  <span className="text-sm font-semibold text-slate-900">{humanize(p.type)} — {p.currency} {p.amount} ({humanize(p.status)})</span>
+                  <input
+                    type="checkbox"
+                    disabled={!canPick || refundSaving}
+                    checked={Boolean(refundSelection[p._id])}
+                    onChange={(e) => setRefundSelection((prev) => ({ ...prev, [p._id]: e.target.checked }))}
+                  />
+                </label>
+              );
+            })}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="refund-deduction">Administrative Deduction (USD)</label>
+            <input
+              id="refund-deduction"
+              inputMode="numeric"
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[rgba(200,169,107,0.5)]"
+              value={refundDeduction}
+              onChange={(e) => setRefundDeduction(e.target.value.replace(/[^\d.]/g, ''))}
+              disabled={refundSaving}
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="adminPrimary" onClick={submitRefund} disabled={refundSaving}>
+              {refundSaving ? 'Sending...' : 'Confirm Refund Sent'}
+            </Button>
+            <Button variant="adminSecondary" className="text-white" onClick={() => setRefundOpen(false)} disabled={refundSaving}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {!loading && !error && candidate && activeTab === 'documents' && (
         <Card

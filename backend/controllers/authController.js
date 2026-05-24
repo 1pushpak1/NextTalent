@@ -19,10 +19,10 @@ const tokenFor = (payload) =>
 const getFrontendBaseUrl = () =>
   String(process.env.FRONTEND_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
-const createEmailVerificationToken = () => {
-  const token = crypto.randomBytes(32).toString('hex');
-  const hash = crypto.createHash('sha256').update(token).digest('hex');
-  return { token, hash };
+const createEmailVerificationCode = () => {
+  const code = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+  const hash = crypto.createHash('sha256').update(code).digest('hex');
+  return { code, hash };
 };
 
 const createPasswordResetToken = () => {
@@ -39,26 +39,50 @@ const isStrongPassword = (value = '') =>
   /[^A-Za-z0-9]/.test(value);
 
 const sendVerificationEmail = async (user) => {
-  const verifyEmailSubject = 'Verify your email to activate your NextStep Talent account and continue your application';
-  const { token, hash } = createEmailVerificationToken();
+  const verifyEmailSubject = 'NextStep Talent – Verify Your Email Address';
+  const { code, hash } = createEmailVerificationCode();
   user.emailVerificationTokenHash = hash;
   user.emailVerificationExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
   await user.save();
 
-  const verifyUrl = `${getFrontendBaseUrl()}/verify-email?token=${encodeURIComponent(token)}`;
-  await sendStepUpdateEmail({
+  const verificationLine = `Verification Code: ${code}`;
+  const text = `Dear Candidate,
+
+Thank you for registering with NextStep Talent.
+
+To continue with your application process, please verify your email address using the verification code below.
+
+${verificationLine}
+
+This code is valid for a limited period of time.
+
+If you did not initiate this request, please ignore this email.
+
+Regards,  
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
+  const html = `Dear Candidate,<br/><br/>
+Thank you for registering with NextStep Talent.<br/><br/>
+To continue with your application process, please verify your email address using the verification code below.<br/><br/>
+${verificationLine}<br/><br/>
+This code is valid for a limited period of time.<br/><br/>
+If you did not initiate this request, please ignore this email.<br/><br/>
+Regards,  <br/>
+NextStep Talent Team<br/><br/>
+This is an automated email. Please do not reply to this message.`;
+
+  await sendEmail({
     to: user.email,
-    candidateName: user.name || user.email.split('@')[0],
-    stepKey: 'account',
-    subjectOverride: verifyEmailSubject,
-    heading: 'Verify your email address',
-    message: 'Please verify your email to continue your application. This link will expire in 30 minutes.',
-    status: 'pending',
-    details: [{ label: 'Verification Link Expiry', value: '30 minutes' }],
-    cta: { label: 'Verify Email', url: verifyUrl },
+    subject: verifyEmailSubject,
+    text,
+    html,
+    fromEmail: 'noreply@nextsteptalent.net',
+    fromName: 'NextStep Talent Team',
+    templateKey: 'email_verification_code',
   });
 
-  return verifyUrl;
+  return true;
 };
 
 const signup = async (req, res) => {
@@ -97,19 +121,7 @@ const signup = async (req, res) => {
       status: 'account_created',
     });
 
-    const verifyUrl = await sendVerificationEmail(user);
-
-    await sendStepUpdateEmail({
-      to: user.email,
-      candidateName: user.name || user.email.split('@')[0],
-      stepKey: 'account',
-      subjectOverride: 'Verify your email for your NextStep Talent application',
-      heading: 'Account created successfully',
-      message: 'Your account has been created. Please verify your email to continue.',
-      status: 'completed',
-      details: [{ label: 'Email', value: user.email }],
-      cta: { label: 'Verify Email', url: verifyUrl },
-    });
+    await sendVerificationEmail(user);
 
     res.status(201).json({
       message: 'Signup successful',
@@ -203,15 +215,16 @@ const login = async (req, res) => {
 
 const verifyEmail = async (req, res) => {
   try {
-    const { token } = req.body;
-    if (!token) return res.status(400).json({ message: 'Verification token is required' });
+    const { email, code } = req.body;
+    if (!email || !code) return res.status(400).json({ message: 'Email and verification code are required' });
 
-    const tokenHash = crypto.createHash('sha256').update(String(token)).digest('hex');
+    const tokenHash = crypto.createHash('sha256').update(String(code).trim()).digest('hex');
     const user = await User.findOne({
+      email: String(email || '').toLowerCase().trim(),
       emailVerificationTokenHash: tokenHash,
       emailVerificationExpiresAt: { $gt: new Date() },
     });
-    if (!user) return res.status(400).json({ message: 'Invalid or expired verification token' });
+    if (!user) return res.status(400).json({ message: 'Invalid or expired verification code' });
 
     user.emailVerified = true;
     user.emailVerificationTokenHash = '';

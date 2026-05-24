@@ -15,6 +15,8 @@ const {
   listAllCandidates,
   getAdminCandidateProfile,
   getApprovalAuditHistory,
+  initiateDocumentationStage,
+  initiateCandidateRefund,
 } = require('../controllers/adminController');
 const {
   evaluationApprove,
@@ -60,6 +62,8 @@ router.post('/candidates/:id/selected', protect, adminOnly, requireAdminRoles([A
 router.post('/candidates/:id/not-selected', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), sendNotSelectedEmailFromAdmin);
 router.post('/candidates/:id/invoices/generate', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), generateInvoiceForCandidate);
 router.post('/candidates/:id/payments/:paymentId/verify', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), verifyCandidatePayment);
+router.post('/candidates/:id/documents/initiate', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), initiateDocumentationStage);
+router.post('/candidates/:id/refunds/initiate', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), initiateCandidateRefund);
 router.post('/interview-slots', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.OPERATIONS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), createInterviewSlot);
 router.get('/interview-bookings', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.OPERATIONS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), listInterviewBookings);
 router.post('/test-email', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.PAYMENTS_ADMIN, ADMIN_ROLES.EVALUATION_ADMIN, ADMIN_ROLES.OPERATIONS_ADMIN]), sendTestEmail);

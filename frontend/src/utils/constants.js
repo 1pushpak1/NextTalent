@@ -1,13 +1,11 @@
 export const documentChecklist = [
-  'Passport',
-  'Education certificates',
-  'Diploma / Bachelor’s / Master’s documents',
-  'Language certification',
-  'Work experience letters',
-  'Internship certificates',
-  'Technical certifications',
-  'Resume / CV',
-  'Additional supporting documents',
+  'Passport copy',
+  'Educational qualifications',
+  'Employment documents',
+  'Certifications',
+  'Resume/CV',
+  'Language certifications (if applicable)',
+  'Supporting identification records',
 ];
 
 export const countryRequirements = {

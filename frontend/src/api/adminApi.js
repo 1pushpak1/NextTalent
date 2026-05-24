@@ -21,3 +21,4 @@ export const verifyCandidatePayment = (candidateId, paymentId, payload = {}) => 
 export const createInterviewSlot = (payload) => api.post('/admin/interview-slots', payload);
 export const fetchInterviewBookings = () => api.get('/admin/interview-bookings');
 export const sendAdminTestEmail = (payload) => api.post('/admin/test-email', payload);
+export const initiateCandidateRefund = (candidateId, payload) => api.post(`/admin/candidates/${candidateId}/refunds/initiate`, payload);

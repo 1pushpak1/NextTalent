@@ -59,6 +59,7 @@ const getDefaultAmountForType = (type) => {
   if (type === 'program') return getProgramFeeBreakdown(null).total;
   return amountByType[type];
 };
+const isProgressionApproved = (user) => Boolean(user?.admin1ProgressionApproved);
 
 const saveCompletedPayment = async (session, fallback = {}) => {
   const metadata = session.metadata || {};
@@ -163,7 +164,14 @@ const createPaymentIntent = async (req, res) => {
       return res.status(400).json({ message: 'Use bank transfer flow for program and final payments' });
     }
 
-    const profile = await Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 });
+    const [profile, user] = await Promise.all([
+      Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }),
+      User.findById(req.user._id).lean(),
+    ]);
+
+    if (!isProgressionApproved(user)) {
+      return res.status(403).json({ message: 'Payment access will unlock only after Admin 1 progression approval.' });
+    }
 
     if (type === 'initial' && profile?.status !== 'accepted') {
       return res.status(403).json({ message: 'Initial payment is available only after internal evaluation acceptance' });
@@ -228,6 +236,9 @@ const submitBankTransferPayment = async (req, res) => {
       Document.find({ userId: req.user._id }),
       Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
     ]);
+    if (!isProgressionApproved(user)) {
+      return res.status(403).json({ message: 'Payment access will unlock only after Admin 1 progression approval.' });
+    }
     const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
     const hasProgramCompleted = payments.some((p) => p.type === 'program' && p.status === 'completed');
     const hasFinalCompleted = payments.some((p) => p.type === 'final' && p.status === 'completed');
@@ -425,6 +436,9 @@ const getStage1Invoice = async (req, res) => {
       Payment.find({ userId: req.user._id }).lean(),
     ]);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+    if (!isProgressionApproved(candidate)) {
+      return res.status(403).json({ message: 'Invoice access will unlock only after Admin 1 progression approval.' });
+    }
 
     const hasInitialPayment = payments.some((p) => p.type === 'initial' && p.status === 'completed');
     if (!hasInitialPayment) {
@@ -464,6 +478,9 @@ const getStage2Invoice = async (req, res) => {
       Payment.find({ userId: req.user._id }).lean(),
     ]);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+    if (!isProgressionApproved(candidate)) {
+      return res.status(403).json({ message: 'Invoice access will unlock only after Admin 1 progression approval.' });
+    }
 
     const hasProgramPayment = payments.some((p) => p.type === 'program' && ['pending', 'completed'].includes(String(p.status || '').toLowerCase()));
     if (!hasProgramPayment) {

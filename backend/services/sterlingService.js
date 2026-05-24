@@ -1,5 +1,8 @@
 const User = require('../models/User');
 const { createAuditLog } = require('./auditService');
+const { getPaymentsAdminEmails, getEvaluationAdminEmails } = require('../utils/adminRoleEmails');
+const { sendTransactionalEmailSafe } = require('./emailService');
+const { wrapHtml } = require('./emailTemplateService');
 
 const isMockMode = () => String(process.env.STERLING_MOCK_MODE || 'false').toLowerCase() === 'true';
 
@@ -94,6 +97,67 @@ const handleSterlingWebhook = async (payload, req = null) => {
     },
     metadata: payload || {},
   });
+
+  if (mappedStatus === 'completed' && previous.backgroundCheckStatus !== 'completed') {
+    const candidateName = candidate.name || candidate.email?.split('@')?.[0] || 'Candidate';
+    const adminRecipients = [...new Set([...getPaymentsAdminEmails(), ...getEvaluationAdminEmails()])];
+
+    const adminText = `Candidate verification has been successfully completed through the external verification process.
+
+Candidate Name: ${candidateName}  
+Candidate ID: ${candidate.candidateId || String(candidate._id)}
+
+Verification Status: Cleared
+
+The candidate profile has now progressed to the employer coordination and opportunity alignment stage.
+
+Please proceed with the next operational steps as required.
+
+Regards,  
+NextStep Talent System Notification
+
+This is an automated email. Please do not reply to this message.`;
+
+    await sendTransactionalEmailSafe({
+      to: adminRecipients,
+      subject: 'NextStep Talent – Verification Successfully Completed',
+      text: adminText,
+      html: wrapHtml({
+        title: 'Verification Successfully Completed',
+        bodyHtml: adminText.replaceAll('\n', '<br/>'),
+      }),
+      fromEmail: 'noreply@nextsteptalent.net',
+      fromName: 'NextStep Talent System Notification',
+      templateKey: 'sterling_verification_completed_admin_notice',
+      relatedCandidateId: candidate._id,
+    });
+
+    const candidateText = `Dear Candidate,
+
+We are pleased to inform you that your verification process has been successfully completed.
+
+Your profile has now progressed to the next phase of internal coordination and opportunity alignment.
+
+Our team will continue with the next operational stages and will contact you should any additional information or actions be required.
+
+We appreciate your cooperation throughout the verification process.
+
+Regards,  
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
+
+    await sendTransactionalEmailSafe({
+      to: candidate.email,
+      subject: 'NextStep Talent – Verification Successfully Completed',
+      text: candidateText,
+      html: candidateText.replaceAll('\n', '<br/>'),
+      fromEmail: 'noreply@nextsteptalent.net',
+      fromName: 'NextStep Talent Team',
+      templateKey: 'sterling_verification_completed_candidate_notice',
+      relatedCandidateId: candidate._id,
+    });
+  }
 
   return { updated: true, candidateId: candidate._id, status: mappedStatus };
 };

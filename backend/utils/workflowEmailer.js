@@ -5,8 +5,6 @@ const normalizeEmail = (value = '') => String(value || '').trim().toLowerCase();
 
 const getWorkflowConfig = () => {
   const defaultSmtpFromEmail = String(process.env.SMTP_FROM_EMAIL || process.env.SMTP_USERNAME || '').trim();
-  const noreplyFromEmail = String(process.env.NOREPLY_FROM_EMAIL || defaultSmtpFromEmail).trim();
-  const teamFromEmail = String(process.env.TEAM_FROM_EMAIL || defaultSmtpFromEmail).trim();
 
   const paymentsAdmins = getPaymentsAdminEmails();
   const evaluationAdmins = getEvaluationAdminEmails();
@@ -22,8 +20,8 @@ const getWorkflowConfig = () => {
     admin1: paymentsAdmins[0] || '',
     admin2: evaluationAdmins[0] || '',
     admin3: operationsAdmins[0] || '',
-    noreplyFromEmail,
-    teamFromEmail,
+    noreplyFromEmail: defaultSmtpFromEmail,
+    teamFromEmail: defaultSmtpFromEmail,
   };
 };
 

@@ -14,8 +14,9 @@ const {
   filterAuditEntriesForAdmin,
 } = require('../utils/approvalAudit');
 const { getProgramFeeBreakdown } = require('../utils/programFee');
+const sendEmail = require('../utils/sendEmail');
 const { getWorkflowConfig, sendAdminNotification, normalizeEmail } = require('../utils/workflowEmailer');
-const { getEvaluationAdminEmails, getOperationsAdminEmails, getSuperAdminEmails } = require('../utils/adminRoleEmails');
+const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
 
 const validProfileStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 const validDocumentStatuses = ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'];
@@ -61,6 +62,85 @@ const stagePageLabelMap = {
 };
 
 const getFrontendBaseUrl = () => String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+const isAdmin1Role = (role = '') => ['payment_admin', 'payments_admin', 'super_admin'].includes(String(role || '').trim().toLowerCase());
+
+const sendInitialAssessmentApprovedEmail = async (candidate) => {
+  const text = `Profile approved for next stage
+Candidate can now proceed for USD $500 onboarding payment (Note: This payment is non refundable under any circumstances.)`;
+  await sendEmail({
+    to: candidate.email,
+    subject: 'NextStep Talent – Initial Assessment Approved',
+    text,
+    html: text.replaceAll('\n', '<br/>'),
+    fromEmail: 'noreply@nextsteptalent.net',
+    fromName: 'NextStep Talent Team',
+    templateKey: 'initial_assessment_approved',
+    relatedCandidateId: candidate._id,
+  });
+};
+
+const initiateDocumentationStage = async (req, res) => {
+  try {
+    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+    if (!candidate.admin1ProgressionApproved) {
+      return res.status(409).json({ message: 'Progression must be approved by Admin 1 before documentation stage initiation.' });
+    }
+
+    const alreadyInitiated = Boolean(candidate.documentationStageInitiated);
+    if (!alreadyInitiated) {
+      candidate.documentationStageInitiated = true;
+      candidate.documentationStageInitiatedAt = new Date();
+      candidate.documentationStageInitiatedBy = String(req.user?.email || '');
+      await candidate.save();
+
+      const text = `Dear Candidate,
+
+As part of the onboarding and evaluation process, you are required to upload the requested supporting documentation through your candidate portal.
+
+Required documents may include:
+- Passport copy
+- Educational qualifications
+- Employment documents
+- Certifications
+- Resume/CV
+- Language certifications (if applicable)
+- Supporting identification records
+
+Please ensure:
+- All documents are accurate and valid
+- Uploaded files are clear and readable
+- No altered or misleading documents are submitted
+
+Your onboarding process will proceed only after successful submission and review of the required documentation.
+
+Regards,  
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
+
+      await sendEmail({
+        to: candidate.email,
+        subject: 'NextStep Talent – Documentation Upload Required',
+        text,
+        html: text.replaceAll('\n', '<br/>'),
+        fromEmail: 'noreply@nextsteptalent.net',
+        fromName: 'NextStep Talent Team',
+        templateKey: 'documentation_upload_required',
+        relatedCandidateId: candidate._id,
+      });
+    }
+
+    return res.json({
+      message: alreadyInitiated ? 'Documentation stage is already initiated' : 'Documentation stage initiated',
+      documentationStageInitiated: Boolean(candidate.documentationStageInitiated),
+      documentationStageInitiatedAt: candidate.documentationStageInitiatedAt,
+      documentationStageInitiatedBy: candidate.documentationStageInitiatedBy || '',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
 
 const toId = (value) => String(value || '');
 const allowedSensitiveStageKeys = ['evaluation', 'document-verification', 'selection'];
@@ -747,6 +827,18 @@ const updateCandidateProfileStatus = async (req, res) => {
       candidate.stageStatuses.set('evaluation', 'under_review');
       candidate.status = 'profile_submitted';
     }
+
+    let initialAssessmentMailSent = false;
+    if (status === 'accepted' && isAdmin1Role(req.user?.adminRole)) {
+      const shouldSend = !candidate.admin1ProgressionApproved;
+      candidate.admin1ProgressionApproved = true;
+      candidate.admin1ProgressionApprovedAt = new Date();
+      candidate.admin1ProgressionApprovedBy = req.user?.email || '';
+      if (shouldSend) {
+        await sendInitialAssessmentApprovedEmail(candidate);
+        initialAssessmentMailSent = true;
+      }
+    }
     await candidate.save();
 
     await sendStepUpdateEmail({
@@ -787,7 +879,7 @@ const updateCandidateProfileStatus = async (req, res) => {
     });
     const progress = buildProgressSummary({ candidate, profile: profile.toObject(), eligibility, documents, interviews, payments, testimonial });
 
-    res.json({ profile, auditLog, progress });
+    res.json({ profile, auditLog, progress, initialAssessmentMailSent });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -964,6 +1056,98 @@ const updatePaymentStatus = async (req, res) => {
       },
     });
 
+    if (status === 'completed' && String(payment.type || '').toLowerCase() === 'initial') {
+      const text = `Dear Candidate,
+
+We confirm that your initial onboarding payment has been successfully received.
+
+Your profile has now progressed to the documentation and onboarding stage.
+
+The next steps of the process will include:
+- Documentation upload
+- Agreement acknowledgments
+- Internal onboarding review
+- Profile processing
+
+You will receive further instructions shortly regarding document submission requirements.
+
+Regards,  
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
+      await sendEmail({
+        to: candidate?.email,
+        subject: 'NextStep Talent – Payment Successfully Received',
+        text,
+        html: text.replaceAll('\n', '<br/>'),
+        fromEmail: 'noreply@nextsteptalent.net',
+        fromName: 'NextStep Talent Team',
+        templateKey: 'payment_500_received',
+        relatedCandidateId: candidate?._id,
+      });
+    }
+
+    if (status === 'completed' && String(payment.type || '').toLowerCase() === 'program') {
+      const text = `Dear Candidate,
+
+We confirm receipt of your payment toward the next stage of the onboarding and career development process.
+
+Your profile has now progressed to the mandatory verification stage.
+
+As part of this process, login to the portal & initiate the external professional verification for:
+- Education
+- Employment history
+- Background screening
+- Supporting credentials
+
+Please note:
+Verification completion is mandatory before progression to employer interview stages.
+
+Regards,  
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
+      await sendEmail({
+        to: candidate?.email,
+        subject: 'NextStep Talent – Payment Confirmation & Verification Process',
+        text,
+        html: text.replaceAll('\n', '<br/>'),
+        fromEmail: 'noreply@nextsteptalent.net',
+        fromName: 'NextStep Talent Team',
+        templateKey: 'payment_first_installment_received',
+        relatedCandidateId: candidate?._id,
+      });
+    }
+
+    if (status === 'completed' && String(payment.type || '').toLowerCase() === 'final') {
+      const text = `Dear Candidate,
+
+We confirm that your final payment has been successfully received.
+
+Your onboarding process is now progressing to the final coordination and completion stage.
+
+Our team will continue with the necessary employer coordination, onboarding formalities, and related operational processes as applicable to your profile and opportunity alignment.
+
+Should any additional documentation, instructions, or process-related actions be required from your end, you will receive further communication from the operations team.
+
+We appreciate your cooperation and professionalism throughout the process and wish you success in the next stage of your professional journey.
+
+Regards,  
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
+      await sendEmail({
+        to: candidate?.email,
+        subject: 'NextStep Talent – Final Payment Confirmation',
+        text,
+        html: text.replaceAll('\n', '<br/>'),
+        fromEmail: 'noreply@nextsteptalent.net',
+        fromName: 'NextStep Talent Team',
+        templateKey: 'final_payment_received',
+        relatedCandidateId: candidate?._id,
+      });
+    }
+
     if (status === 'completed' && String(payment.type || '').toLowerCase() === 'program') {
       const evaluationAdmins = getEvaluationAdminEmails();
       const candidateName = candidate?.name || candidate?.email?.split('@')[0] || 'Candidate';
@@ -1100,6 +1284,18 @@ const updateCandidateStageDecision = async (req, res) => {
       await profile.save();
     }
 
+    let initialAssessmentMailSent = false;
+    if (stageKey === 'evaluation' && status === 'accepted' && isAdmin1Role(req.user?.adminRole)) {
+      const shouldSend = !candidate.admin1ProgressionApproved;
+      candidate.admin1ProgressionApproved = true;
+      candidate.admin1ProgressionApprovedAt = new Date();
+      candidate.admin1ProgressionApprovedBy = req.user?.email || '';
+      if (shouldSend) {
+        await sendInitialAssessmentApprovedEmail(candidate);
+        initialAssessmentMailSent = true;
+      }
+    }
+
     if (stageKey === 'document-verification') {
       if (status === 'accepted') {
         candidate.status = 'documents_received';
@@ -1133,6 +1329,35 @@ const updateCandidateStageDecision = async (req, res) => {
     }
 
     await candidate.save();
+
+    if (stageKey === 'testimonials' && status === 'accepted' && previousCandidateStatus !== 'process_complete') {
+      const text = `Dear Candidate,
+
+We are pleased to confirm that your onboarding and coordination process with NextStep Talent has been successfully completed.
+
+We appreciate your cooperation, professionalism, and timely coordination throughout the various stages of the process.
+
+As you move forward into the next phase of your professional journey, we would like to extend our best wishes for your future success and growth.
+
+Should any additional process-related communication be required, the relevant team will reach out to you separately where applicable.
+
+Thank you for choosing NextStep Talent.
+
+Regards,  
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
+      await sendEmail({
+        to: candidate.email,
+        subject: 'NextStep Talent – Process Completion & Best Wishes',
+        text,
+        html: text.replaceAll('\n', '<br/>'),
+        fromEmail: 'noreply@nextsteptalent.net',
+        fromName: 'NextStep Talent Team',
+        templateKey: 'process_completion_best_wishes',
+        relatedCandidateId: candidate._id,
+      });
+    }
 
     const workflow = getWorkflowConfig();
     const actorEmail = normalizeEmail(req.user?.email || '');
@@ -1180,18 +1405,22 @@ const updateCandidateStageDecision = async (req, res) => {
 
     if (stageKey === 'selection' && actorEmail === workflow.admin3) {
       try {
-        const completionRecipients = [...new Set([...getSuperAdminEmails(), ...getEvaluationAdminEmails()])];
+        const completionRecipients = [...new Set([...getPaymentsAdminEmails(), ...getEvaluationAdminEmails()])];
+        const interviewsForCandidate = await Interview.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean();
+        const interviewConducted = interviewsForCandidate.length ? 'Yes' : 'No';
         await sendAdminNotification({
           to: completionRecipients,
-          subject: `NextStep Talent Admin 3 Process Completed / ${candidate.name || candidate.email?.split('@')[0] || 'Candidate'}`,
+          subject: `Admin 3 Review Completed / ${candidate.name || candidate.email?.split('@')[0] || 'Candidate'}`,
           lines: [
-            'Admin 3 has completed the selection-stage action for this candidate.',
-            `Decision: ${status}`,
+            `Approved / Rejected: ${status === 'rejected' ? 'Rejected' : 'Approved'}`,
+            `Interview Conducted: ${interviewConducted}`,
+            `Reviewer Notes: ${reviewPayload?.reasonNote || 'N/A'}`,
+            `Timestamp: ${new Date().toISOString()}`,
             `Candidate: ${candidate.name || candidate.email?.split('@')[0] || 'N/A'}`,
             `Email: ${candidate.email || 'N/A'}`,
-            `Interview Required: ${req.body?.interviewRequired === false ? 'No' : 'Yes / To Be Scheduled'}`,
           ],
           fromType: 'noreply',
+          templateKey: 'internal_admin3_review_completed',
         });
       } catch (error) {
         console.error('Admin 1/2 completion notification failed:', error.message);
@@ -1284,6 +1513,94 @@ const updateCandidateStageDecision = async (req, res) => {
       stageStatuses: candidate.stageStatuses,
       auditLog,
       progress,
+      initialAssessmentMailSent,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const initiateCandidateRefund = async (req, res) => {
+  try {
+    if (!isAdmin1Role(req.user?.adminRole)) {
+      return res.status(403).json({ message: 'Only Admin 1 can initiate refunds.' });
+    }
+    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+
+    const paymentIds = Array.isArray(req.body?.paymentIds) ? req.body.paymentIds.map(String).filter(Boolean) : [];
+    if (!paymentIds.length) {
+      return res.status(400).json({ message: 'paymentIds is required' });
+    }
+
+    const adminDeduction = Number(req.body?.adminDeduction ?? 300);
+    if (!Number.isFinite(adminDeduction) || adminDeduction < 0) {
+      return res.status(400).json({ message: 'adminDeduction must be a non-negative number' });
+    }
+
+    const payments = await Payment.find({ _id: { $in: paymentIds }, userId: candidate._id }).sort({ createdAt: -1 });
+    if (!payments.length) return res.status(404).json({ message: 'No matching payments found for candidate' });
+
+    const alreadyRefunded = payments.filter((p) => String(p.status || '').toLowerCase() === 'refunded');
+    if (alreadyRefunded.length) {
+      return res.status(409).json({ message: 'One or more selected payments are already refunded' });
+    }
+
+    const refundable = payments.filter((p) => ['completed', 'verified', 'paid'].includes(String(p.status || '').toLowerCase()));
+    if (refundable.length !== payments.length) {
+      return res.status(409).json({ message: 'All selected payments must be in completed/verified/paid status' });
+    }
+
+    for (const payment of payments) {
+      payment.status = 'refunded';
+      payment.refundStatus = 'sent';
+      payment.refundReason = 'visa_refusal';
+      await payment.save();
+    }
+
+    const originalPaymentReceived = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const approvedRefundAmount = Math.max(0, originalPaymentReceived - adminDeduction);
+
+    const text = `Dear Candidate,
+
+This is to confirm that your refund request has been reviewed and approved in accordance with the applicable terms and conditions of the service agreement.
+
+Refund Summary:
+
+Original Payment Received: USD ${originalPaymentReceived}
+Administrative Deduction: USD ${adminDeduction}
+Approved Refund Amount: USD ${approvedRefundAmount}
+
+The refund process has now been initiated.
+
+Please note:
+- Refund timelines may vary depending on banking channels and international transaction processing timelines.
+- Any intermediary banking delays or processing timelines remain outside the control of NextStep Talent.
+
+You will be notified once the refund transaction has been completed from our end.
+
+Regards,  
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
+
+    await sendEmail({
+      to: candidate.email,
+      subject: 'NextStep Talent – Refund Approved & Initiated',
+      text,
+      html: text.replaceAll('\n', '<br/>'),
+      fromEmail: 'noreply@nextsteptalent.net',
+      fromName: 'NextStep Talent Team',
+      templateKey: 'refund_initiated',
+      relatedCandidateId: candidate._id,
+    });
+
+    return res.status(201).json({
+      message: 'Refund marked and email sent',
+      paymentIds: payments.map((p) => String(p._id)),
+      originalPaymentReceived,
+      adminDeduction,
+      approvedRefundAmount,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -1305,4 +1622,6 @@ module.exports = {
   updatePaymentStatus,
   updateCandidateNotes,
   updateCandidateStageDecision,
+  initiateDocumentationStage,
+  initiateCandidateRefund,
 };
