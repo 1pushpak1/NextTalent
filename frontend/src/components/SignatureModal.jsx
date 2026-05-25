@@ -7,6 +7,7 @@ export default function SignatureModal({
   isOpen,
   onClose,
   onConfirm,
+  loading = false,
   title = 'Sign Document',
   description,
   metaFields = null,
@@ -154,12 +155,12 @@ export default function SignatureModal({
 
       <div className="sticky bottom-0 mt-4 flex justify-end gap-2 border-t border-[rgba(200,169,107,0.22)] bg-[#080808] pt-3">
         {tab === 'draw' && (
-          <Button type="button" className="text-white" variant="secondary" onClick={clearCanvas}>
+          <Button type="button" className="text-white" variant="secondary" onClick={clearCanvas} disabled={loading}>
             Clear
           </Button>
         )}
-        <Button type="button" onClick={submit}>
-          Sign & Continue
+        <Button type="button" onClick={submit} disabled={loading}>
+          {loading ? 'Continuing....' : 'Sign & Continue'}
         </Button>
       </div>
     </Modal>

@@ -1,5 +1,6 @@
 const Payment = require('../models/Payment');
 const Invoice = require('../models/Invoice');
+const Receipt = require('../models/Receipt');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Document = require('../models/Document');
@@ -9,12 +10,11 @@ const { wrapHtml } = require('../services/emailTemplateService');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails } = require('../utils/adminRoleEmails');
 const { getProgramFeeBreakdown } = require('../utils/programFee');
 const {
-  generateInitialPaymentReceiptPdf,
-  generateProgramPaymentReceiptPdf,
-  generateFinalPaymentReceiptPdf,
-} = require('../utils/paymentReceiptPdf');
-const { generateStage1InvoicePdf, generateStage2InvoicePdf } = require('../utils/invoicePdf');
-const { PAYMENT_STAGES, LEGACY_PAYMENT_TYPE_TO_STAGE } = require('../constants/workflow');
+  generateInvoiceForStage,
+  generateReceiptForPayment,
+  buildReceiptEmailForPayment,
+} = require('../services/billingPdfService');
+const { PAYMENT_STAGES, LEGACY_PAYMENT_TYPE_TO_STAGE, EMAIL_TEMPLATE_KEYS } = require('../constants/workflow');
 const Stripe = require('stripe');
 const fs = require('fs');
 const path = require('path');
@@ -61,6 +61,54 @@ const getDefaultAmountForType = (type) => {
 };
 const isProgressionApproved = (user) => Boolean(user?.admin1ProgressionApproved);
 
+const getTemplateKeyForStage = (stage) => {
+  if (stage === PAYMENT_STAGES.INITIAL_ONBOARDING_FEE) return EMAIL_TEMPLATE_KEYS.RECEIPT_INITIAL;
+  if (stage === PAYMENT_STAGES.FIRST_INSTALLMENT) return EMAIL_TEMPLATE_KEYS.RECEIPT_FIRST;
+  return EMAIL_TEMPLATE_KEYS.RECEIPT_FINAL;
+};
+
+const buildPdfAttachment = (document, numberField) => {
+  if (!document?.pdfPath || !fs.existsSync(document.pdfPath)) return null;
+  return {
+    filename: `${document[numberField] || document._id}.pdf`,
+    path: document.pdfPath,
+    contentType: 'application/pdf',
+  };
+};
+
+const ensureReceiptForPayment = async ({ payment, candidate, stage }) => {
+  let receipt = payment.receiptId ? await Receipt.findById(payment.receiptId) : null;
+  if (!receipt) {
+    receipt = await Receipt.findOne({ paymentId: payment._id }).sort({ createdAt: -1 });
+  }
+  if (!receipt) {
+    receipt = await generateReceiptForPayment({ candidate, payment, stage });
+    payment.receiptId = receipt._id;
+  }
+
+  payment.receiptId = receipt._id;
+  payment.receiptUrl = receipt.pdfUrl;
+  await payment.save();
+  await User.findByIdAndUpdate(candidate._id, { $addToSet: { receipts: receipt._id } });
+  return receipt;
+};
+
+const sendReceiptEmail = async ({ candidate, payment, receipt, stage, invoice = null }) => {
+  const receiptMail = await buildReceiptEmailForPayment({ candidate, payment, receipt, stage, invoice });
+  const attachments = [
+    buildPdfAttachment(receipt, 'receiptNumber'),
+    invoice ? buildPdfAttachment(invoice, 'invoiceNumber') : null,
+  ].filter(Boolean);
+
+  return sendTransactionalEmailSafe({
+    to: candidate.email,
+    ...receiptMail,
+    templateKey: getTemplateKeyForStage(stage),
+    attachments,
+    relatedCandidateId: candidate._id,
+  });
+};
+
 const saveCompletedPayment = async (session, fallback = {}) => {
   const metadata = session.metadata || {};
   const userId = metadata.userId || fallback.userId;
@@ -74,18 +122,21 @@ const saveCompletedPayment = async (session, fallback = {}) => {
   const transactionId = session.payment_intent || session.id;
   const existing = await Payment.findOne({ transactionId });
   if (existing) {
-    if (existing.type === 'initial' && !existing.receiptUrl) {
-      const [candidate, profile] = await Promise.all([
-        User.findById(existing.userId).lean(),
-        Profile.findOne({ userId: existing.userId }).sort({ createdAt: -1 }).lean(),
-      ]);
-      const { receiptUrl } = await generateInitialPaymentReceiptPdf({
-        payment: existing,
-        candidate,
-        profile,
-      });
-      existing.receiptUrl = receiptUrl;
-      await existing.save();
+    if (existing.type === 'initial' && !existing.receiptId) {
+      const candidate = await User.findById(existing.userId);
+      if (candidate) {
+        const receipt = await ensureReceiptForPayment({
+          payment: existing,
+          candidate,
+          stage: PAYMENT_STAGES.INITIAL_ONBOARDING_FEE,
+        });
+        await sendReceiptEmail({
+          candidate,
+          payment: existing,
+          receipt,
+          stage: PAYMENT_STAGES.INITIAL_ONBOARDING_FEE,
+        });
+      }
     }
     return existing;
   }
@@ -109,17 +160,24 @@ const saveCompletedPayment = async (session, fallback = {}) => {
   });
 
   if (type === 'initial') {
-    const [candidate, profile] = await Promise.all([
-      User.findById(userId).lean(),
-      Profile.findOne({ userId }).sort({ createdAt: -1 }).lean(),
-    ]);
-    const { receiptUrl } = await generateInitialPaymentReceiptPdf({
-      payment,
-      candidate,
-      profile,
-    });
-    payment.receiptUrl = receiptUrl;
-    await payment.save();
+    payment.nonRefundableAmount = 500;
+    payment.refundableAmount = 0;
+    payment.refundStatus = 'non_refundable';
+
+    const candidate = await User.findById(userId);
+    if (candidate) {
+      const receipt = await ensureReceiptForPayment({
+        payment,
+        candidate,
+        stage: PAYMENT_STAGES.INITIAL_ONBOARDING_FEE,
+      });
+      await sendReceiptEmail({
+        candidate,
+        payment,
+        receipt,
+        stage: PAYMENT_STAGES.INITIAL_ONBOARDING_FEE,
+      });
+    }
   }
 
   await User.findByIdAndUpdate(userId, { status: statusByType[type] });
@@ -398,26 +456,26 @@ const getMyPayments = async (req, res) => {
     );
 
     if (paymentsToRefreshReceipt.length) {
-      const [candidate, profile] = await Promise.all([
-        User.findById(req.user._id).lean(),
-        Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
-      ]);
+      const candidate = await User.findById(req.user._id);
 
       await Promise.all(
         paymentsToRefreshReceipt.map(async (payment) => {
           const normalizedType = String(payment.type || '').toLowerCase();
-          const generator =
-            normalizedType === 'initial'
-              ? generateInitialPaymentReceiptPdf
-              : normalizedType === 'program'
-                ? generateProgramPaymentReceiptPdf
-                : generateFinalPaymentReceiptPdf;
-          if (!payment.receiptId && normalizedType !== 'initial') {
+          const stage = LEGACY_PAYMENT_TYPE_TO_STAGE[normalizedType] || payment.stage;
+          if (!candidate || !stage) return;
+
+          if (payment.receiptId) {
+            const receipt = await Receipt.findById(payment.receiptId);
+            if (receipt?.pdfUrl && payment.receiptUrl !== receipt.pdfUrl) {
+              payment.receiptUrl = receipt.pdfUrl;
+              await payment.save();
+            }
             return;
           }
-          const { receiptUrl } = await generator({ payment, candidate, profile });
-          payment.receiptUrl = receiptUrl;
-          await payment.save();
+
+          if (normalizedType === 'initial') {
+            await ensureReceiptForPayment({ payment, candidate, stage });
+          }
         })
       );
     }
@@ -430,9 +488,8 @@ const getMyPayments = async (req, res) => {
 
 const getStage1Invoice = async (req, res) => {
   try {
-    const [candidate, profile, payments] = await Promise.all([
+    const [candidate, payments] = await Promise.all([
       User.findById(req.user._id).lean(),
-      Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
       Payment.find({ userId: req.user._id }).lean(),
     ]);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
@@ -449,16 +506,19 @@ const getStage1Invoice = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    const invoice = persistedInvoice || await generateStage1InvoicePdf({ candidate, profile });
+    const invoice = persistedInvoice || await generateInvoiceForStage({
+      candidate,
+      stage: PAYMENT_STAGES.FIRST_INSTALLMENT,
+    });
+    if (!persistedInvoice) {
+      await User.findByIdAndUpdate(candidate._id, { $addToSet: { invoices: invoice._id } });
+    }
+
     return res.json({
-      ...(persistedInvoice
-        ? {
-            invoiceNumber: persistedInvoice.invoiceNumber,
-            invoiceUrl: persistedInvoice.pdfUrl,
-            invoiceId: persistedInvoice._id,
-            pdfReferenceNumber: persistedInvoice.pdfReferenceNumber,
-          }
-        : invoice),
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceUrl: invoice.pdfUrl,
+      invoiceId: invoice._id,
+      pdfReferenceNumber: invoice.pdfReferenceNumber,
       candidateId: String(candidate._id),
       issueDate: new Date().toISOString(),
       amountDue: 3100,
@@ -472,9 +532,8 @@ const getStage1Invoice = async (req, res) => {
 
 const getStage2Invoice = async (req, res) => {
   try {
-    const [candidate, profile, payments] = await Promise.all([
+    const [candidate, payments] = await Promise.all([
       User.findById(req.user._id).lean(),
-      Profile.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
       Payment.find({ userId: req.user._id }).lean(),
     ]);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
@@ -482,7 +541,7 @@ const getStage2Invoice = async (req, res) => {
       return res.status(403).json({ message: 'Invoice access will unlock only after Admin 1 progression approval.' });
     }
 
-    const hasProgramPayment = payments.some((p) => p.type === 'program' && ['pending', 'completed'].includes(String(p.status || '').toLowerCase()));
+    const hasProgramPayment = payments.some((p) => p.type === 'program' && ['pending', 'completed', 'verified', 'paid'].includes(String(p.status || '').toLowerCase()));
     if (!hasProgramPayment) {
       return res.status(403).json({ message: 'Stage 2 invoice is available after first installment submission.' });
     }
@@ -490,16 +549,20 @@ const getStage2Invoice = async (req, res) => {
     let persistedInvoice = await Invoice.findOne({ candidateId: candidate._id, paymentStage: PAYMENT_STAGES.FINAL_PAYMENT })
       .sort({ createdAt: -1 })
       .lean();
-    const invoice = persistedInvoice || await generateStage2InvoicePdf({ candidate, profile });
+    const invoice = persistedInvoice || await generateInvoiceForStage({
+      candidate,
+      stage: PAYMENT_STAGES.FINAL_PAYMENT,
+      amountReceived: 3100,
+    });
+    if (!persistedInvoice) {
+      await User.findByIdAndUpdate(candidate._id, { $addToSet: { invoices: invoice._id } });
+    }
+
     return res.json({
-      ...(persistedInvoice
-        ? {
-            invoiceNumber: persistedInvoice.invoiceNumber,
-            invoiceUrl: persistedInvoice.pdfUrl,
-            invoiceId: persistedInvoice._id,
-            pdfReferenceNumber: persistedInvoice.pdfReferenceNumber,
-          }
-        : invoice),
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceUrl: invoice.pdfUrl,
+      invoiceId: invoice._id,
+      pdfReferenceNumber: invoice.pdfReferenceNumber,
       candidateId: String(candidate._id),
       issueDate: new Date().toISOString(),
       amountReceived: 3100,

@@ -1810,6 +1810,7 @@ By signing below, you accept full responsibility for the authenticity of the det
         onClose={() => setShowAckModal(false)}
         title="Digital Acknowledgement"
         description={acknowledgementText}
+        loading={loading}
         metaFields={{
           fullName: fullName || 'Not available',
           dateTime: signedDateTime,

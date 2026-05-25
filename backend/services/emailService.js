@@ -98,6 +98,8 @@ const sendTransactionalEmail = async ({
     'documentation_upload_required',
     // Email 7
     'invoice_generated_payment_request_stage1',
+    'invoice_stage_1',
+    'invoice_stage_2',
     'program_fee_instruction_sent',
     // Email 8
     'payment_first_installment_received',
@@ -111,6 +113,9 @@ const sendTransactionalEmail = async ({
     'final_payment_instruction_sent',
     // Email 12
     'final_payment_received',
+    'receipt_initial',
+    'receipt_first',
+    'receipt_final',
     // Email 13
     'process_completion_best_wishes',
     // Email 14

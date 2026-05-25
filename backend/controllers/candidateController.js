@@ -225,7 +225,15 @@ const getCandidatePayments = async (req, res) => {
               pdfUrl: receipt.pdfUrl,
               date: receipt.date,
             }
-          : null,
+          : payment.receiptUrl
+            ? {
+                _id: payment.receiptId || null,
+                receiptNumber: payment.transactionId || 'Payment Receipt',
+                paymentStage: stage,
+                pdfUrl: payment.receiptUrl,
+                date: payment.verifiedAt || payment.createdAt,
+              }
+            : null,
       };
     });
 

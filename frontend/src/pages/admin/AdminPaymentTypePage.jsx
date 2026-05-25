@@ -5,6 +5,7 @@ import {
   fetchApprovalAuditHistory,
   initiateCandidateRefund,
   reviewPayment,
+  sendCandidatePaymentInstruction,
 } from '../../api/adminApi';
 import api from '../../api/axios';
 import usePermissions from '../../hooks/usePermissions';
@@ -59,6 +60,7 @@ export default function AdminPaymentTypePage({ title, type }) {
   const [refundCandidateId, setRefundCandidateId] = useState('');
   const [refundConfirming, setRefundConfirming] = useState(false);
   const [refundSaving, setRefundSaving] = useState(false);
+  const [mailSendingForCandidateId, setMailSendingForCandidateId] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -141,6 +143,20 @@ export default function AdminPaymentTypePage({ title, type }) {
     }
   };
 
+  const sendInstructionMail = async (candidateId) => {
+    if (!candidateId || !['program', 'final'].includes(type)) return;
+    setMailSendingForCandidateId(String(candidateId));
+    setError('');
+    try {
+      await sendCandidatePaymentInstruction(candidateId, { type });
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send payment instruction email');
+    } finally {
+      setMailSendingForCandidateId('');
+    }
+  };
+
   return (
     <section className="space-y-5">
       <div>
@@ -205,17 +221,33 @@ export default function AdminPaymentTypePage({ title, type }) {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {row.paymentId && can('payments:verify') ? (
-                        <button
-                          type="button"
-                          className="rounded-xl border border-[rgba(200,169,107,0.35)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)]"
-                          onClick={() => openReview(row)}
-                        >
-                          {String(row.rawStatus || '').toLowerCase() === 'pending' ? 'Review & Decide' : 'Edit Status'}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-slate-500">{row.paymentId ? 'View only' : 'No payment record'}</span>
-                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {can('payments:verify') && (type === 'program' || type === 'final') ? (
+                          <button
+                            type="button"
+                            className="rounded-xl border border-[rgba(200,169,107,0.35)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)] disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => sendInstructionMail(row.candidateId)}
+                            disabled={mailSendingForCandidateId === String(row.candidateId)}
+                          >
+                            {mailSendingForCandidateId === String(row.candidateId)
+                              ? 'Sending...'
+                              : type === 'program'
+                                ? 'Send Program Fee Email'
+                                : 'Send Final Payment Email'}
+                          </button>
+                        ) : null}
+                        {row.paymentId && can('payments:verify') ? (
+                          <button
+                            type="button"
+                            className="rounded-xl border border-[rgba(200,169,107,0.35)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)]"
+                            onClick={() => openReview(row)}
+                          >
+                            {String(row.rawStatus || '').toLowerCase() === 'pending' ? 'Review & Decide' : 'Edit Status'}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-500">{row.paymentId ? 'View only' : 'No payment record'}</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

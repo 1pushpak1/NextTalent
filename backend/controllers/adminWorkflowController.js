@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const fs = require('fs');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Payment = require('../models/Payment');
@@ -11,7 +12,12 @@ const { normalizeAdminRole } = require('../constants/workflow');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
 const { sendTransactionalEmailSafe } = require('../services/emailService');
 const { createAuditLog } = require('../services/auditService');
-const { generateInvoiceForStage, generateReceiptForPayment } = require('../services/billingPdfService');
+const {
+  generateInvoiceForStage,
+  generateReceiptForPayment,
+  buildReceiptEmailForPayment,
+  buildInvoiceEmailForStage,
+} = require('../services/billingPdfService');
 const { initiateBackgroundCheck } = require('../services/sterlingService');
 const { wrapHtml, applicationStatusUpdate, websiteUrl } = require('../services/emailTemplateService');
 const { candidateInterviewEligible } = require('./candidateController');
@@ -456,15 +462,20 @@ const selectedCandidate = async (req, res) => {
       relatedCandidateId: candidate._id,
     });
 
+    const invoiceMail = await buildInvoiceEmailForStage({
+      candidate,
+      invoice,
+      stage: PAYMENT_STAGES.FIRST_INSTALLMENT,
+    });
+    const invoiceAttachments = invoice?.pdfPath && fs.existsSync(invoice.pdfPath)
+      ? [{ filename: `${invoice.invoiceNumber}.pdf`, path: invoice.pdfPath, contentType: 'application/pdf' }]
+      : [];
+
     await sendTransactionalEmailSafe({
       to: candidate.email,
-      subject: 'Invoice - Career Development Services Part I',
-      text: [`Your Stage 1 invoice is ready.`, `Invoice Number: ${invoice.invoiceNumber}`, `Invoice Link: ${invoiceUrl}`].join('\n'),
-      html: wrapHtml({
-        title: 'Invoice - Career Development Services Part I',
-        bodyHtml: `<p>Your Stage 1 invoice is ready.</p><p><b>Invoice Number:</b> ${invoice.invoiceNumber}<br/><b>Invoice Link:</b> <a href="${invoiceUrl}">${invoiceUrl}</a></p>`,
-      }),
+      ...invoiceMail,
       templateKey: EMAIL_TEMPLATE_KEYS.INVOICE_STAGE_1,
+      attachments: invoiceAttachments,
       relatedCandidateId: candidate._id,
     });
 
@@ -557,24 +568,24 @@ const generateInvoiceForCandidate = async (req, res) => {
     candidate.invoices = [...new Set([...(candidate.invoices || []).map(String), String(invoice._id)])];
     await candidate.save();
 
+    const invoiceMail = await buildInvoiceEmailForStage({
+      candidate,
+      invoice,
+      stage: paymentStage,
+      amountReceived,
+    });
+    const invoiceAttachments = invoice?.pdfPath && fs.existsSync(invoice.pdfPath)
+      ? [{ filename: `${invoice.invoiceNumber}.pdf`, path: invoice.pdfPath, contentType: 'application/pdf' }]
+      : [];
+
     await sendTransactionalEmailSafe({
       to: candidate.email,
-      subject:
-        paymentStage === PAYMENT_STAGES.FIRST_INSTALLMENT
-          ? 'Invoice - Career Development Services Part I'
-          : 'Invoice - Career Development Services Part II',
-      text: [`Invoice Number: ${invoice.invoiceNumber}`, `Invoice Link: ${websiteUrl()}${invoice.pdfUrl}`].join('\n'),
-      html: wrapHtml({
-        title:
-          paymentStage === PAYMENT_STAGES.FIRST_INSTALLMENT
-            ? 'Invoice - Career Development Services Part I'
-            : 'Invoice - Career Development Services Part II',
-        bodyHtml: `<p>Your invoice is ready.</p><p><b>Invoice Number:</b> ${invoice.invoiceNumber}<br/><b>Invoice Link:</b> <a href="${websiteUrl()}${invoice.pdfUrl}">${websiteUrl()}${invoice.pdfUrl}</a></p>`,
-      }),
+      ...invoiceMail,
       templateKey:
         paymentStage === PAYMENT_STAGES.FIRST_INSTALLMENT
           ? EMAIL_TEMPLATE_KEYS.INVOICE_STAGE_1
           : EMAIL_TEMPLATE_KEYS.INVOICE_STAGE_2,
+      attachments: invoiceAttachments,
       relatedCandidateId: candidate._id,
     });
 
@@ -729,7 +740,13 @@ const verifyCandidatePayment = async (req, res) => {
 
     let receipt = null;
     if (status === 'verified') {
-      receipt = await generateReceiptForPayment({ candidate, payment, stage });
+      receipt = payment.receiptId ? await Receipt.findById(payment.receiptId) : null;
+      if (!receipt) {
+        receipt = await Receipt.findOne({ paymentId: payment._id }).sort({ createdAt: -1 });
+      }
+      if (!receipt) {
+        receipt = await generateReceiptForPayment({ candidate, payment, stage });
+      }
       payment.receiptId = receipt._id;
       payment.receiptUrl = receipt.pdfUrl;
       candidate.receipts = [...new Set([...(candidate.receipts || []).map(String), String(receipt._id)])];
@@ -743,28 +760,40 @@ const verifyCandidatePayment = async (req, res) => {
     await candidate.save();
 
     if (receipt) {
+      const attachments = [];
+      if (receipt.pdfPath && fs.existsSync(receipt.pdfPath)) {
+        attachments.push({
+          filename: `${receipt.receiptNumber}.pdf`,
+          path: receipt.pdfPath,
+          contentType: 'application/pdf',
+        });
+      }
+      if (invoice?.pdfPath && fs.existsSync(invoice.pdfPath)) {
+        attachments.push({
+          filename: `${invoice.invoiceNumber}.pdf`,
+          path: invoice.pdfPath,
+          contentType: 'application/pdf',
+        });
+      }
+
+      const receiptMail = await buildReceiptEmailForPayment({
+        candidate,
+        payment,
+        receipt,
+        stage,
+        invoice,
+      });
+
       await sendTransactionalEmailSafe({
         to: candidate.email,
-        subject:
-          stage === PAYMENT_STAGES.INITIAL_ONBOARDING_FEE
-            ? 'Payment Receipt - Initial Onboarding & Profile Evaluation Fee'
-            : stage === PAYMENT_STAGES.FIRST_INSTALLMENT
-              ? 'Payment Receipt - First Installment'
-              : 'Payment Receipt - Final Payment',
-        text: [
-          `Receipt Number: ${receipt.receiptNumber}`,
-          `Receipt Link: ${websiteUrl()}${receipt.pdfUrl}`,
-        ].join('\n'),
-        html: wrapHtml({
-          title: 'Payment Receipt',
-          bodyHtml: `<p>Your payment receipt is generated.</p><p><b>Receipt Number:</b> ${receipt.receiptNumber}<br/><b>Receipt Link:</b> <a href="${websiteUrl()}${receipt.pdfUrl}">${websiteUrl()}${receipt.pdfUrl}</a></p>`,
-        }),
+        ...receiptMail,
         templateKey:
           stage === PAYMENT_STAGES.INITIAL_ONBOARDING_FEE
             ? EMAIL_TEMPLATE_KEYS.RECEIPT_INITIAL
             : stage === PAYMENT_STAGES.FIRST_INSTALLMENT
               ? EMAIL_TEMPLATE_KEYS.RECEIPT_FIRST
               : EMAIL_TEMPLATE_KEYS.RECEIPT_FINAL,
+        attachments,
         relatedCandidateId: candidate._id,
       });
     }

@@ -1,8 +1,11 @@
+const fs = require('fs');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Document = require('../models/Document');
 const Interview = require('../models/Interview');
 const Payment = require('../models/Payment');
+const Invoice = require('../models/Invoice');
+const Receipt = require('../models/Receipt');
 const Eligibility = require('../models/Eligibility');
 const Testimonial = require('../models/Testimonial');
 const ApprovalAuditLog = require('../models/ApprovalAuditLog');
@@ -14,10 +17,16 @@ const {
   filterAuditEntriesForAdmin,
 } = require('../utils/approvalAudit');
 const { getProgramFeeBreakdown } = require('../utils/programFee');
-const { LEGACY_PAYMENT_TYPE_TO_STAGE } = require('../constants/workflow');
+const { LEGACY_PAYMENT_TYPE_TO_STAGE, PAYMENT_STAGES, EMAIL_TEMPLATE_KEYS } = require('../constants/workflow');
 const sendEmail = require('../utils/sendEmail');
 const { getWorkflowConfig, sendAdminNotification, normalizeEmail } = require('../utils/workflowEmailer');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
+const {
+  generateInvoiceForStage,
+  generateReceiptForPayment,
+  buildReceiptEmailForPayment,
+  buildInvoiceEmailForStage,
+} = require('../services/billingPdfService');
 
 const validProfileStatuses = ['submitted', 'under_review', 'accepted', 'rejected'];
 const validDocumentStatuses = ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'];
@@ -73,6 +82,82 @@ const PAYMENT_REQUEST_STAGE_BY_TYPE = {
 const PAYMENT_REQUEST_AMOUNT_BY_TYPE = {
   program: 3100,
   final: 3100,
+};
+
+const getReceiptTemplateKeyForStage = (stage) => {
+  if (stage === PAYMENT_STAGES.INITIAL_ONBOARDING_FEE) return EMAIL_TEMPLATE_KEYS.RECEIPT_INITIAL;
+  if (stage === PAYMENT_STAGES.FIRST_INSTALLMENT) return EMAIL_TEMPLATE_KEYS.RECEIPT_FIRST;
+  return EMAIL_TEMPLATE_KEYS.RECEIPT_FINAL;
+};
+
+const getInvoiceTemplateKeyForStage = (stage) =>
+  stage === PAYMENT_STAGES.FIRST_INSTALLMENT ? EMAIL_TEMPLATE_KEYS.INVOICE_STAGE_1 : EMAIL_TEMPLATE_KEYS.INVOICE_STAGE_2;
+
+const buildPdfAttachment = (document, numberField) => {
+  if (!document?.pdfPath || !fs.existsSync(document.pdfPath)) return null;
+  return {
+    filename: `${document[numberField] || document._id}.pdf`,
+    path: document.pdfPath,
+    contentType: 'application/pdf',
+  };
+};
+
+const getPaymentStage = (payment) => payment.stage || LEGACY_PAYMENT_TYPE_TO_STAGE[payment.type];
+
+const ensureInvoiceForPaymentStage = async ({ candidate, stage, amountReceived = 0 }) => {
+  if (![PAYMENT_STAGES.FIRST_INSTALLMENT, PAYMENT_STAGES.FINAL_PAYMENT].includes(stage)) return null;
+
+  let invoice = await Invoice.findOne({ candidateId: candidate._id, paymentStage: stage }).sort({ createdAt: -1 });
+  if (!invoice) {
+    invoice = await generateInvoiceForStage({ candidate, stage, amountReceived });
+  }
+  await User.findByIdAndUpdate(candidate._id, { $addToSet: { invoices: invoice._id } });
+  return invoice;
+};
+
+const ensureReceiptForCompletedPayment = async ({ candidate, payment, stage }) => {
+  let receipt = payment.receiptId ? await Receipt.findById(payment.receiptId) : null;
+  if (!receipt) {
+    receipt = await Receipt.findOne({ paymentId: payment._id }).sort({ createdAt: -1 });
+  }
+  if (!receipt) {
+    receipt = await generateReceiptForPayment({ candidate, payment, stage });
+    payment.receiptId = receipt._id;
+  }
+
+  payment.receiptId = receipt._id;
+  payment.receiptUrl = receipt.pdfUrl;
+  await payment.save();
+  await User.findByIdAndUpdate(candidate._id, { $addToSet: { receipts: receipt._id } });
+  return receipt;
+};
+
+const sendPaymentReceiptDocumentEmail = async ({ candidate, payment, receipt, stage, invoice = null }) => {
+  const mail = await buildReceiptEmailForPayment({ candidate, payment, receipt, stage, invoice });
+  const attachments = [
+    buildPdfAttachment(receipt, 'receiptNumber'),
+    invoice ? buildPdfAttachment(invoice, 'invoiceNumber') : null,
+  ].filter(Boolean);
+
+  return sendEmail({
+    to: candidate.email,
+    ...mail,
+    attachments,
+    templateKey: getReceiptTemplateKeyForStage(stage),
+    relatedCandidateId: candidate._id,
+  });
+};
+
+const sendInvoiceDocumentEmail = async ({ candidate, invoice, stage, amountReceived = 0 }) => {
+  const mail = await buildInvoiceEmailForStage({ candidate, invoice, stage, amountReceived });
+  const attachment = buildPdfAttachment(invoice, 'invoiceNumber');
+  return sendEmail({
+    to: candidate.email,
+    ...mail,
+    attachments: attachment ? [attachment] : [],
+    templateKey: getInvoiceTemplateKeyForStage(stage),
+    relatedCandidateId: candidate._id,
+  });
 };
 
 const getBankTransferInstructionDetails = () => ({
@@ -247,11 +332,22 @@ const initiateCandidatePaymentInstruction = async (req, res) => {
       await existingPending.save();
     }
 
+    const invoice = await ensureInvoiceForPaymentStage({
+      candidate,
+      stage: PAYMENT_REQUEST_STAGE_BY_TYPE[type],
+      amountReceived: type === 'final' ? 3100 : 0,
+    });
+    if (invoice && String(pendingPayment.invoiceId || '') !== String(invoice._id)) {
+      pendingPayment.invoiceId = invoice._id;
+      await pendingPayment.save();
+    }
+
     const text = `Dear ${String(candidate.name || 'Candidate').trim()},
 
 This is to inform you that your ${paymentLabel} is now due.
 
 Amount to pay: USD ${amount}
+${invoice ? `\nInvoice Number: ${invoice.invoiceNumber}` : ''}
 
 Please complete the transfer using the bank details below:
 - Account Name: ${details.accountName}
@@ -282,6 +378,15 @@ This is an official communication from NextStep Talent.`;
 
     if (emailResult?.warning) {
       throw new Error(`Payment instruction email was not delivered: ${emailResult.warning}`);
+    }
+
+    if (invoice) {
+      await sendInvoiceDocumentEmail({
+        candidate,
+        invoice,
+        stage: PAYMENT_REQUEST_STAGE_BY_TYPE[type],
+        amountReceived: type === 'final' ? 3100 : 0,
+      });
     }
 
     return res.status(201).json({
@@ -1190,6 +1295,7 @@ const updatePaymentStatus = async (req, res) => {
     const existingPayment = await Payment.findById(paymentId);
     if (!existingPayment) return res.status(404).json({ message: 'Payment not found' });
     const previousStatus = existingPayment.status;
+    const hadReceiptBeforeCompletion = Boolean(existingPayment.receiptId);
     existingPayment.status = status;
     await existingPayment.save();
     const payment = existingPayment;
@@ -1201,6 +1307,51 @@ const updatePaymentStatus = async (req, res) => {
       }
       if (payment.type === 'final') {
         await User.findByIdAndUpdate(payment.userId, { status: 'final_payment_complete' });
+      }
+    }
+
+    const stage = getPaymentStage(payment);
+    let generatedInvoice = null;
+    let generatedReceipt = null;
+    if (status === 'completed' && candidate && stage) {
+      if (stage === PAYMENT_STAGES.INITIAL_ONBOARDING_FEE) {
+        payment.nonRefundableAmount = 500;
+        payment.refundableAmount = 0;
+        payment.refundStatus = 'non_refundable';
+      }
+      if (stage === PAYMENT_STAGES.FIRST_INSTALLMENT) {
+        if (candidate.selectedStatus === 'not_selected') {
+          payment.nonRefundableAmount = 200;
+          payment.refundableAmount = 2900;
+          payment.refundStatus = 'partially_refundable';
+        } else if (candidate.selectedStatus === 'selected') {
+          payment.nonRefundableAmount = 3100;
+          payment.refundableAmount = 0;
+          payment.refundStatus = 'non_refundable';
+        } else {
+          payment.nonRefundableAmount = 200;
+          payment.refundableAmount = 2900;
+          payment.refundStatus = 'conditional';
+        }
+      }
+
+      generatedInvoice = await ensureInvoiceForPaymentStage({
+        candidate,
+        stage,
+        amountReceived: stage === PAYMENT_STAGES.FINAL_PAYMENT ? 3100 : 0,
+      });
+      if (generatedInvoice) {
+        payment.invoiceId = generatedInvoice._id;
+      }
+      generatedReceipt = await ensureReceiptForCompletedPayment({ candidate, payment, stage });
+      if (!hadReceiptBeforeCompletion || previousStatus !== status) {
+        await sendPaymentReceiptDocumentEmail({
+          candidate,
+          payment,
+          receipt: generatedReceipt,
+          stage,
+          invoice: generatedInvoice,
+        });
       }
     }
 
