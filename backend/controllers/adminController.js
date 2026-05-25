@@ -14,6 +14,7 @@ const {
   filterAuditEntriesForAdmin,
 } = require('../utils/approvalAudit');
 const { getProgramFeeBreakdown } = require('../utils/programFee');
+const { LEGACY_PAYMENT_TYPE_TO_STAGE } = require('../constants/workflow');
 const sendEmail = require('../utils/sendEmail');
 const { getWorkflowConfig, sendAdminNotification, normalizeEmail } = require('../utils/workflowEmailer');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
@@ -61,12 +62,48 @@ const stagePageLabelMap = {
   testimonials: 'Testimonials',
 };
 
+const normalizeDocumentAdminComment = (value = '') => String(value || '').trim().slice(0, 1000);
+
 const getFrontendBaseUrl = () => String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
 const isAdmin1Role = (role = '') => ['payment_admin', 'payments_admin', 'super_admin'].includes(String(role || '').trim().toLowerCase());
+const PAYMENT_REQUEST_STAGE_BY_TYPE = {
+  program: LEGACY_PAYMENT_TYPE_TO_STAGE.program,
+  final: LEGACY_PAYMENT_TYPE_TO_STAGE.final,
+};
+const PAYMENT_REQUEST_AMOUNT_BY_TYPE = {
+  program: 3100,
+  final: 3100,
+};
+
+const getBankTransferInstructionDetails = () => ({
+  accountName: String(process.env.BANK_ACCOUNT_NAME || 'NextStep Talent Global LLC'),
+  accountNumber: String(process.env.BANK_ACCOUNT_NUMBER || '123456789012'),
+  bankName: String(process.env.BANK_NAME || 'Global Trust Bank'),
+  branch: String(process.env.BANK_BRANCH || 'Berlin Main Branch'),
+  swift: String(process.env.BANK_SWIFT || 'GTBKDEFFXXX'),
+  iban: String(process.env.BANK_IBAN || 'DE89370400440532013000'),
+  supportEmail: String(process.env.PAYMENT_SUPPORT_EMAIL || process.env.SUPPORT_EMAIL || 'contact@nextsteptalent.net'),
+});
 
 const sendInitialAssessmentApprovedEmail = async (candidate) => {
-  const text = `Profile approved for next stage
-Candidate can now proceed for USD $500 onboarding payment (Note: This payment is non refundable under any circumstances.)`;
+  const candidateName = String(candidate?.name || '').trim() || 'Candidate';
+  const text = `Dear ${candidateName},
+
+We are pleased to inform you that your profile has been approved to proceed to the next stage of the NextStep Talent process.
+
+As the next step, you may now complete the initial onboarding payment of USD $500 through your candidate portal. This payment confirms your continuation into the onboarding workflow and allows your process to move forward to the subsequent stages.
+
+Important Payment Note:
+The USD $500 onboarding payment is strictly non-refundable under any circumstances.
+
+Please complete this payment at the earliest so your application timeline is not delayed.
+
+If you need any clarification or support, you may reply to this email or contact us at contact@nextsteptalent.net.
+
+Regards,
+NextStep Talent Team
+
+This is an official communication from NextStep Talent.`;
   await sendEmail({
     to: candidate.email,
     subject: 'NextStep Talent – Initial Assessment Approved',
@@ -136,6 +173,121 @@ This is an automated email. Please do not reply to this message.`;
       documentationStageInitiated: Boolean(candidate.documentationStageInitiated),
       documentationStageInitiatedAt: candidate.documentationStageInitiatedAt,
       documentationStageInitiatedBy: candidate.documentationStageInitiatedBy || '',
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const initiateCandidatePaymentInstruction = async (req, res) => {
+  try {
+    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
+
+    const type = String(req.body?.type || '').trim().toLowerCase();
+    if (!['program', 'final'].includes(type)) {
+      return res.status(400).json({ message: 'Invalid payment type. Use program or final.' });
+    }
+    if (!candidate.admin1ProgressionApproved) {
+      return res.status(409).json({ message: 'Progression must be approved by Admin 1 before sending payment instructions.' });
+    }
+
+    const [profile, payments, documents] = await Promise.all([
+      Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Payment.find({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
+      Document.find({ userId: candidate._id }).sort({ uploadedAt: -1 }).lean(),
+    ]);
+
+    const hasInitialCompleted = payments.some((payment) => payment.type === 'initial' && isPaymentConfirmed(payment));
+    const hasProgramCompleted = payments.some((payment) => payment.type === 'program' && isPaymentConfirmed(payment));
+    const hasFinalCompleted = payments.some((payment) => payment.type === 'final' && isPaymentConfirmed(payment));
+    const hasDocumentsUploaded = documents.length > 0;
+
+    if (type === 'program') {
+      if (!hasInitialCompleted) return res.status(409).json({ message: 'Initial payment must be completed first.' });
+      if (!hasDocumentsUploaded) return res.status(409).json({ message: 'Documents must be uploaded before sending program fee instructions.' });
+      if (hasProgramCompleted) return res.status(409).json({ message: 'Program payment is already completed.' });
+    }
+
+    if (type === 'final') {
+      if (!hasProgramCompleted) return res.status(409).json({ message: 'Program payment must be completed before sending final payment instructions.' });
+      if (String(candidate.status || '').toLowerCase() !== 'selected') {
+        return res.status(409).json({ message: 'Final payment instructions can be sent only after candidate is selected.' });
+      }
+      if (hasFinalCompleted) return res.status(409).json({ message: 'Final payment is already completed.' });
+    }
+
+    const amount = type === 'program' ? getProgramFeeBreakdown(profile).total : PAYMENT_REQUEST_AMOUNT_BY_TYPE[type];
+    const details = getBankTransferInstructionDetails();
+    const paymentLabel = type === 'program' ? 'Program Fee Payment' : 'Final Payment';
+
+    const existingPending = await Payment.findOne({
+      userId: candidate._id,
+      type,
+      status: { $in: ['pending', 'failed'] },
+    }).sort({ createdAt: -1 });
+
+    const pendingPayment = existingPending || await Payment.create({
+      userId: candidate._id,
+      candidateId: candidate._id,
+      type,
+      stage: PAYMENT_REQUEST_STAGE_BY_TYPE[type],
+      amount,
+      currency: 'USD',
+      method: 'bank_transfer',
+      status: 'pending',
+      transactionId: `REQ-${type.toUpperCase()}-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+    });
+
+    if (existingPending) {
+      existingPending.amount = amount;
+      existingPending.currency = 'USD';
+      existingPending.method = 'bank_transfer';
+      existingPending.status = 'pending';
+      await existingPending.save();
+    }
+
+    const text = `Dear ${String(candidate.name || 'Candidate').trim()},
+
+This is to inform you that your ${paymentLabel} is now due.
+
+Amount to pay: USD ${amount}
+
+Please complete the transfer using the bank details below:
+- Account Name: ${details.accountName}
+- Account Number: ${details.accountNumber}
+- Bank Name: ${details.bankName}
+- Branch: ${details.branch}
+- SWIFT: ${details.swift}
+- IBAN: ${details.iban}
+
+After completing the transfer, send your payment receipt by replying to this email.
+Do not upload the receipt on the portal for this step.
+
+If you need help, contact: ${details.supportEmail}
+
+Regards,
+NextStep Talent Team
+
+This is an official communication from NextStep Talent.`;
+
+    const emailResult = await sendEmail({
+      to: candidate.email,
+      subject: `NextStep Talent – ${paymentLabel} Instructions`,
+      text,
+      html: text.replaceAll('\n', '<br/>'),
+      templateKey: type === 'program' ? 'program_fee_instruction_sent' : 'final_payment_instruction_sent',
+      relatedCandidateId: candidate._id,
+    });
+
+    if (emailResult?.warning) {
+      throw new Error(`Payment instruction email was not delivered: ${emailResult.warning}`);
+    }
+
+    return res.status(201).json({
+      message: `${paymentLabel} instruction email sent`,
+      payment: pendingPayment,
+      amount,
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });
@@ -567,6 +719,17 @@ const getDashboardSummary = async (req, res) => {
     const paymentsPendingVerificationFinal = rows.filter(
       (row) => row.paymentStatus?.final === 'pending_verification'
     ).length;
+    const paymentsPendingInstructionMail = rows.filter((row) => {
+      const hasProgramMailPending =
+        row.paymentStatus?.initial === 'verified' &&
+        row.paymentStatus?.program === 'not_started' &&
+        ['uploaded', 'under_review', 'needs_revision', 'verified'].includes(String(row.documentStatus || '').toLowerCase());
+      const hasFinalMailPending =
+        row.selectionStatus === 'selected' &&
+        row.paymentStatus?.program === 'verified' &&
+        row.paymentStatus?.final === 'not_started';
+      return hasProgramMailPending || hasFinalMailPending;
+    }).length;
     const documentsPendingVerification = rows.filter(
       (row) =>
         row.paymentStatus?.program === 'verified' &&
@@ -613,6 +776,7 @@ const getDashboardSummary = async (req, res) => {
         paymentsPendingVerificationInitial,
         paymentsPendingVerificationProgram,
         paymentsPendingVerificationFinal,
+        paymentsPendingInstructionMail,
         documentsPendingVerification,
         hiringPendingAssignment,
         interviewsPendingScheduled,
@@ -901,7 +1065,10 @@ const updateCandidateDocumentStatus = async (req, res) => {
     if (!document) return res.status(404).json({ message: 'Document not found for this candidate' });
 
     const previousStatus = document.status;
+    const previousComment = String(document.adminComment || '').trim();
+    const incomingComment = normalizeDocumentAdminComment(req.body?.adminComment || '');
     document.status = status;
+    document.adminComment = status === 'Needs Revision' ? incomingComment : '';
     await document.save();
 
     await sendStepUpdateEmail({
@@ -913,12 +1080,13 @@ const updateCandidateDocumentStatus = async (req, res) => {
         status === 'Accepted'
           ? 'Your document has been approved successfully.'
           : status === 'Needs Revision'
-            ? 'Your document needs revision. Please upload the corrected and complete document details again from your dashboard.'
+            ? `Your document needs revision.${document.adminComment ? ` Comment from admin: ${document.adminComment}` : ''} Please upload the corrected and complete document details again from your dashboard.`
             : 'Your document review status has been updated.',
       status: String(status || '').toLowerCase().replaceAll(' ', '_'),
       details: [
         { label: 'Document Type', value: document.documentType || 'Document' },
         { label: 'Status', value: status },
+        ...(document.adminComment ? [{ label: 'Admin Comment', value: document.adminComment }] : []),
       ],
       cta: { label: 'Open Documents', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/documents` },
     });
@@ -938,12 +1106,17 @@ const updateCandidateDocumentStatus = async (req, res) => {
       sectionRecordId: String(document._id),
       previousStatus,
       newStatus: status,
-      reasonNote: reviewPayload.reasonNote,
+      reasonNote: [reviewPayload.reasonNote, status === 'Needs Revision' && incomingComment ? `Comment: ${incomingComment}` : ''].filter(Boolean).join('\n'),
       sourcePage: reviewPayload.sourcePage,
     });
     const progress = buildProgressSummary({ candidate: candidate.toObject(), profile, eligibility, documents, interviews, payments, testimonial });
 
-    res.json({ document, auditLog, progress });
+    res.json({
+      document,
+      previousComment,
+      auditLog,
+      progress,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -1042,7 +1215,7 @@ const updatePaymentStatus = async (req, res) => {
             ? 'Your payment has been approved. Your case is now pending document verification.'
             : 'Your payment has been approved. Please continue with the next steps shown on your dashboard.'
           : status === 'failed'
-            ? 'Your payment verification was not approved. Please upload the complete and correct payment details again from your dashboard.'
+            ? 'Your payment verification was not approved. Please contact support and wait for updated payment instructions by email.'
             : 'Your payment verification status has been updated and is still pending completion.',
       status,
       details: [
@@ -1051,8 +1224,8 @@ const updatePaymentStatus = async (req, res) => {
         { label: 'Transaction ID', value: payment.transactionId || '—' },
       ],
       cta: {
-        label: status === 'failed' ? 'Upload Correct Payment Details' : 'Open Dashboard',
-        url: `${getFrontendBaseUrl()}/${status === 'failed' ? (payment.type === 'final' ? 'payment/final-payment' : payment.type === 'program' ? 'payment/program-fee' : 'initial-payment') : 'candidate-dashboard'}`,
+        label: status === 'failed' ? 'Contact Support' : 'Open Dashboard',
+        url: `${getFrontendBaseUrl()}/${status === 'failed' ? (payment.type === 'initial' ? 'initial-payment' : 'candidate-dashboard') : 'candidate-dashboard'}`,
       },
     });
 
@@ -1623,5 +1796,6 @@ module.exports = {
   updateCandidateNotes,
   updateCandidateStageDecision,
   initiateDocumentationStage,
+  initiateCandidatePaymentInstruction,
   initiateCandidateRefund,
 };

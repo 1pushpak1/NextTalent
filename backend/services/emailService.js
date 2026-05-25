@@ -98,6 +98,7 @@ const sendTransactionalEmail = async ({
     'documentation_upload_required',
     // Email 7
     'invoice_generated_payment_request_stage1',
+    'program_fee_instruction_sent',
     // Email 8
     'payment_first_installment_received',
     // Email 9
@@ -107,6 +108,7 @@ const sendTransactionalEmail = async ({
     'sterling_verification_completed_candidate_notice',
     // Email 11
     'final_payment_request',
+    'final_payment_instruction_sent',
     // Email 12
     'final_payment_received',
     // Email 13

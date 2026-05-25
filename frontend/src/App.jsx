@@ -51,7 +51,7 @@ import ScrollToTop from './components/ScrollToTop';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter unstable_useTransitions={false}>
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<HomePage />} />

@@ -1,107 +1,45 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import Button from '../components/Button';
 import api from '../api/axios';
-
-const BANK_DETAILS = {
-  accountName: 'NextStep Talent Global LLC',
-  accountNumber: '123456789012',
-  bankName: 'Global Trust Bank',
-  branch: 'Berlin Main Branch',
-  swift: 'GTBKDEFFXXX',
-  iban: 'DE89370400440532013000',
-};
-
-const FINAL_ONBOARDING_AMOUNT = 'USD 3,100';
+import { getCandidateNextRoute } from '../utils/pathwayFlow';
 
 export default function FinalPaymentPage() {
-  const [loading, setLoading] = useState(false);
-  const [bankReference, setBankReference] = useState('');
-  const [receipt, setReceipt] = useState(null);
-  const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
-
-  const submit = async () => {
-    if (!receipt) {
-      alert('Please upload transfer receipt');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('type', 'final');
-      formData.append('bankReference', bankReference);
-      formData.append('receipt', receipt);
-      await api.post('/payments/bank-transfer', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      alert('Receipt uploaded. Admin will verify and update your payment status.');
-      navigate('/candidate-dashboard');
-    } catch (error) {
-      alert(error.response?.data?.message || 'Unable to submit bank transfer receipt');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const openFilePicker = () => {
-    fileInputRef.current?.click();
-  };
+    const guard = async () => {
+      try {
+        const { data } = await api.get('/dashboard/me');
+        const required = getCandidateNextRoute(data);
+        if (required !== '/candidate-dashboard') {
+          navigate(required, { replace: true });
+        }
+      } catch {
+        navigate('/candidate-dashboard', { replace: true });
+      }
+    };
+    guard();
+  }, [navigate]);
 
   return (
     <div className="nst-shell">
       <Navbar />
       <main className="pt-28 pb-16">
-        <div className="mx-auto max-w-[900px] px-6">
+        <div className="mx-auto max-w-3xl px-6">
           <section className="nst-card rounded-xl p-8">
-            <h1 className="mb-2 text-4xl font-bold text-[#002147]">Final Onboarding Payment</h1>
-            <p className="mb-4 text-[#44474e]">Transfer {FINAL_ONBOARDING_AMOUNT} to the account below, then upload your transfer receipt.</p>
-            <div className="mb-6 rounded-xl border border-[#002147]/20 bg-[#002147]/5 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#002147]">Amount To Pay</p>
-              <p className="mt-1 text-3xl font-extrabold text-[#002147]">{FINAL_ONBOARDING_AMOUNT}</p>
-              {/* <p className="mt-1 text-sm text-slate-700">Please transfer exactly this amount before submitting the receipt.</p> */}
+            <h1 className="text-3xl font-bold text-[#002147]">Final Payment</h1>
+            <p className="mt-3 text-sm text-[#44474e]">
+              Final payment instructions are sent by email after your selection is confirmed.
+              Complete the transfer using the shared bank details and send your receipt by email reply only.
+            </p>
+            <div className="mt-6">
+              <Link to="/candidate-dashboard">
+                <Button>Back to Dashboard</Button>
+              </Link>
             </div>
-            <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm md:grid-cols-2">
-              <p><b>Account Name:</b> {BANK_DETAILS.accountName}</p>
-              <p><b>Account Number:</b> {BANK_DETAILS.accountNumber}</p>
-              <p><b>Bank Name:</b> {BANK_DETAILS.bankName}</p>
-              <p><b>Branch:</b> {BANK_DETAILS.branch}</p>
-              <p><b>SWIFT:</b> {BANK_DETAILS.swift}</p>
-              <p><b>IBAN:</b> {BANK_DETAILS.iban}</p>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <input
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none"
-                placeholder="Bank transfer reference"
-                value={bankReference}
-                onChange={(e) => setBankReference(e.target.value)}
-              />
-              <div className="rounded-xl border border-slate-300 bg-white p-2.5">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.png,.jpg,.jpeg,.webp"
-                  onChange={(e) => setReceipt(e.target.files?.[0] || null)}
-                />
-                <div className="flex items-center justify-between gap-2">
-                  <Button type="button" variant="secondary" className="text-white" onClick={openFilePicker}>
-                    Choose File
-                  </Button>
-                  <span className="truncate text-xs text-slate-600">
-                    {receipt?.name || 'No file selected'}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <Button className="mt-6 text-white" onClick={submit} disabled={loading}>{loading ? 'Submitting...' : `Submit ${FINAL_ONBOARDING_AMOUNT} Receipt`}</Button>
           </section>
         </div>
       </main>

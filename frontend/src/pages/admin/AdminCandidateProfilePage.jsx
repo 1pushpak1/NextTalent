@@ -8,6 +8,7 @@ import Modal from '../../components/Modal';
 import {
   applyOperationsDecision,
   fetchAdminCandidateProfile,
+  sendCandidatePaymentInstruction,
   reviewCandidateDocument,
   reviewCandidateProfile,
   reviewCandidateStage,
@@ -121,8 +122,12 @@ export default function AdminCandidateProfilePage() {
   const [operationsSaving, setOperationsSaving] = useState('');
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundSaving, setRefundSaving] = useState(false);
+  const [paymentActionSaving, setPaymentActionSaving] = useState('');
   const [refundSelection, setRefundSelection] = useState({});
   const [refundDeduction, setRefundDeduction] = useState('300');
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState({});
+  const [documentBulkComment, setDocumentBulkComment] = useState('');
+  const [documentBulkSaving, setDocumentBulkSaving] = useState(false);
   const [interviewDraft, setInterviewDraft] = useState({
     country: '',
     role: '',
@@ -411,6 +416,7 @@ export default function AdminCandidateProfilePage() {
       await reviewCandidateDocument(id, activeReview.item._id, {
         status: decision,
         reasonNote,
+        adminComment: decision === 'Needs Revision' ? reasonNote : '',
         reviewConfirmed,
         evidenceViewed,
         sourcePage: '/admin/candidates/documents',
@@ -550,6 +556,85 @@ export default function AdminCandidateProfilePage() {
     }
   };
 
+  const selectedDocuments = (documents || []).filter((doc) => Boolean(selectedDocumentIds[doc._id]));
+  const allDocumentsApproved = documents.length > 0 && documents.every((doc) => String(doc?.status || '') === 'Accepted');
+  const toggleDocumentSelection = (documentId, checked) => {
+    setSelectedDocumentIds((prev) => ({ ...prev, [documentId]: checked }));
+  };
+
+  const applyBulkDocumentAction = async (status) => {
+    if (!selectedDocuments.length) {
+      alert('Select at least one document.');
+      return;
+    }
+    if (status === 'Needs Revision' && !documentBulkComment.trim()) {
+      alert('Add a comment before requesting reupload.');
+      return;
+    }
+    setDocumentBulkSaving(true);
+    setError('');
+    try {
+      for (const doc of selectedDocuments) {
+        await reviewCandidateDocument(id, doc._id, {
+          status,
+          reasonNote:
+            status === 'Accepted'
+              ? 'Bulk approval of selected documents by admin.'
+              : `Bulk reupload requested. ${documentBulkComment.trim()}`,
+          adminComment: status === 'Needs Revision' ? documentBulkComment.trim() : '',
+          reviewConfirmed: true,
+          evidenceViewed: true,
+          sourcePage: '/admin/candidates/documents',
+        });
+      }
+      setSelectedDocumentIds({});
+      setDocumentBulkComment('');
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to apply bulk document action');
+    } finally {
+      setDocumentBulkSaving(false);
+    }
+  };
+
+  const sendPaymentInstruction = async (type) => {
+    const normalizedType = String(type || '').toLowerCase();
+    if (!['program', 'final'].includes(normalizedType)) return;
+    setPaymentActionSaving(`send-${normalizedType}`);
+    setError('');
+    try {
+      await sendCandidatePaymentInstruction(id, { type: normalizedType });
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send payment instruction email');
+    } finally {
+      setPaymentActionSaving('');
+    }
+  };
+
+  const markPaymentComplete = async (payment, sourceType) => {
+    if (!payment?._id) return;
+    const normalizedType = String(sourceType || payment?.type || '').toLowerCase();
+    setPaymentActionSaving(`complete-${normalizedType}`);
+    setError('');
+    try {
+      await reviewPayment(payment._id, {
+        status: 'completed',
+        reasonNote: normalizedType === 'program'
+          ? 'Payment marked completed by admin after receipt confirmation over email.'
+          : 'Final payment marked completed by admin after receipt confirmation over email.',
+        reviewConfirmed: true,
+        evidenceViewed: true,
+        sourcePage: '/admin/candidates/payments',
+      });
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to mark payment completed');
+    } finally {
+      setPaymentActionSaving('');
+    }
+  };
+
   const reviewConfig = (() => {
     if (!activeReview) return null;
 
@@ -582,6 +667,8 @@ export default function AdminCandidateProfilePage() {
     }
 
     if (activeReview.type === 'payment') {
+      const paymentType = String(activeReview.item?.type || '').toLowerCase();
+      const isMailReceiptFlow = paymentType === 'program' || paymentType === 'final';
       return {
         title: 'Payment Verification Review',
         currentStage: 'Payment Verification',
@@ -593,28 +680,27 @@ export default function AdminCandidateProfilePage() {
           { label: 'Bank Reference', value: activeReview.item?.bankReference || '—' },
         ],
         evidenceItems: [
-          activeReview.item?.receiptUrl
-            ? {
+          ...(activeReview.item?.receiptUrl
+            ? [{
                 key: `payment-${activeReview.item?._id}`,
                 label: 'Open uploaded payment proof',
                 description: 'Review the uploaded receipt or payment screenshot.',
                 href: `${getBackendBaseUrl()}${activeReview.item?.receiptUrl}`,
                 buttonLabel: 'Open Receipt',
-              }
-            : {
-                key: `payment-summary-${activeReview.item?._id}`,
-                label: 'Open payment record summary',
-                description: 'No receipt is uploaded. Review the payment details before deciding.',
-                onOpen: () => window.open(`data:text/plain;charset=utf-8,${encodeURIComponent(JSON.stringify(activeReview.item, null, 2))}`, '_blank', 'noopener,noreferrer'),
-                buttonLabel: 'Open Summary',
-              },
+              }]
+            : []),
         ],
         history: filteredHistory(['payment_verification']).filter((item) => item.sectionRecordId === String(activeReview.item?._id)),
-        decisionOptions: [
-          { label: 'Approve Payment', value: 'completed', variant: 'primary' },
-          { label: 'Reject Payment', value: 'failed', variant: 'danger' },
-          { label: 'Keep Pending', value: 'pending', variant: 'secondary' },
-        ],
+        decisionOptions: isMailReceiptFlow
+          ? [
+              { label: 'Mark Payment Received', value: 'completed', variant: 'primary' },
+              { label: 'Keep Pending', value: 'pending', variant: 'secondary' },
+            ]
+          : [
+              { label: 'Approve Payment', value: 'completed', variant: 'primary' },
+              { label: 'Reject Payment', value: 'failed', variant: 'danger' },
+              { label: 'Keep Pending', value: 'pending', variant: 'secondary' },
+            ],
       };
     }
 
@@ -801,6 +887,18 @@ export default function AdminCandidateProfilePage() {
   };
 
   const latestReviewablePayment = payments.find((payment) => canReviewPayment(payment)) || null;
+  const latestProgramPayment = payments.find((payment) => String(payment?.type || '').toLowerCase() === 'program') || null;
+  const latestFinalPayment = payments.find((payment) => String(payment?.type || '').toLowerCase() === 'final') || null;
+  const programPaymentCompleted = ['completed', 'verified', 'paid'].includes(String(latestProgramPayment?.status || '').toLowerCase());
+  const finalPaymentCompleted = ['completed', 'verified', 'paid'].includes(String(latestFinalPayment?.status || '').toLowerCase());
+  const canSendProgramInstruction = can('payments:verify') && !programPaymentCompleted && documents.length > 0;
+  const canSendFinalInstruction =
+    can('payments:verify') &&
+    !finalPaymentCompleted &&
+    programPaymentCompleted &&
+    String(candidate?.status || '').toLowerCase() === 'selected';
+  const canMarkProgramComplete = can('payments:verify') && Boolean(latestProgramPayment) && !programPaymentCompleted;
+  const canMarkFinalComplete = can('payments:verify') && Boolean(latestFinalPayment) && !finalPaymentCompleted;
   const latestPendingReviewPayment = payments.find((payment) => {
     const status = String(payment?.status || '').toLowerCase();
     return canReviewPayment(payment) && status === 'pending';
@@ -892,17 +990,19 @@ export default function AdminCandidateProfilePage() {
     const pendingFromAdmin = String(progress?.pendingFrom || '').toLowerCase() === 'admin';
     const stageKey = String(progress?.currentStageKey || '').toLowerCase();
     const normalizedRole = String(role || '');
+    const hasPaymentInstructionPending = can('payments:verify') && (canSendProgramInstruction || canSendFinalInstruction);
 
+    if (hasPaymentInstructionPending) counts.payments = 1;
     if (!pendingFromAdmin) return counts;
 
     if (stageKey === 'profile_review' && can('evaluation:approve')) counts.profile = 1;
     if (stageKey === 'document_verification' && can('documents:verify')) counts.documents = 1;
     if (stageKey === 'hiring' && can('candidates:update')) counts.hiring = 1;
     if (stageKey === 'selection' && ['super_admin', 'payments_admin'].includes(normalizedRole)) counts.selection = 1;
-    if (['initial_payment', 'program_payment', 'final_payment'].includes(stageKey) && can('payments:verify')) counts.payments = 1;
+    if (!counts.payments && ['initial_payment', 'program_payment', 'final_payment'].includes(stageKey) && can('payments:verify')) counts.payments = 1;
 
     return counts;
-  }, [progress?.pendingFrom, progress?.currentStageKey, can, role]);
+  }, [progress?.pendingFrom, progress?.currentStageKey, can, role, canSendProgramInstruction, canSendFinalInstruction]);
 
   return (
     <section ref={contentRef} className="space-y-5">
@@ -974,7 +1074,7 @@ export default function AdminCandidateProfilePage() {
             key={tab}
             type="button"
             className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              activeTab === tab ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100'
+              activeTab === tab ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-[#bdbdc3] hover:!text-white'
             }`}
             onClick={() => setTab(tab)}
           >
@@ -1174,9 +1274,47 @@ export default function AdminCandidateProfilePage() {
       {!loading && !error && candidate && activeTab === 'payments' && (
         <Card
           title="Payments"
-          subtitle="Review receipts and bank references before verifying."
+          subtitle="Send payment instructions by email, then mark completed after receipt confirmation over email."
           actions={(
             <div className="flex flex-wrap gap-2">
+              {canSendProgramInstruction ? (
+                <Button
+                  variant="adminPrimary"
+                  onClick={() => sendPaymentInstruction('program')}
+                  disabled={paymentActionSaving === 'send-program'}
+                >
+                  {paymentActionSaving === 'send-program' ? 'Sending...' : 'Send Program Fee Email'}
+                </Button>
+              ) : null}
+              {canMarkProgramComplete ? (
+                <Button
+                  variant="adminSecondary"
+                  className="text-white"
+                  onClick={() => markPaymentComplete(latestProgramPayment, 'program')}
+                  disabled={paymentActionSaving === 'complete-program'}
+                >
+                  {paymentActionSaving === 'complete-program' ? 'Saving...' : 'Mark Program Fee Completed'}
+                </Button>
+              ) : null}
+              {canSendFinalInstruction ? (
+                <Button
+                  variant="adminPrimary"
+                  onClick={() => sendPaymentInstruction('final')}
+                  disabled={paymentActionSaving === 'send-final'}
+                >
+                  {paymentActionSaving === 'send-final' ? 'Sending...' : 'Send Final Payment Email'}
+                </Button>
+              ) : null}
+              {canMarkFinalComplete ? (
+                <Button
+                  variant="adminSecondary"
+                  className="text-white"
+                  onClick={() => markPaymentComplete(latestFinalPayment, 'final')}
+                  disabled={paymentActionSaving === 'complete-final'}
+                >
+                  {paymentActionSaving === 'complete-final' ? 'Saving...' : 'Mark Final Payment Completed'}
+                </Button>
+              ) : null}
               {latestReviewablePayment ? <Button variant="adminPrimary" onClick={() => setActiveReview({ type: 'payment', item: latestReviewablePayment })}>Review Latest Payment</Button> : null}
               {can('payments:verify') ? <Button variant="adminSecondary" className="text-white" onClick={openRefundModal}>Initiate Refund</Button> : null}
             </div>
@@ -1265,6 +1403,25 @@ export default function AdminCandidateProfilePage() {
           subtitle="Every document decision is audit logged."
           actions={latestReviewableDocument ? <Button variant="adminPrimary" onClick={() => setActiveReview({ type: 'document', item: latestReviewableDocument })}>Review Latest Document</Button> : null}
         >
+          {can('documents:verify') && documents.length > 0 && !allDocumentsApproved ? (
+            <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="adminPrimary" onClick={() => applyBulkDocumentAction('Accepted')} disabled={documentBulkSaving}>
+                  {documentBulkSaving ? 'Saving...' : 'Bulk Approve Selected'}
+                </Button>
+                <Button variant="danger" onClick={() => applyBulkDocumentAction('Needs Revision')} disabled={documentBulkSaving}>
+                  {documentBulkSaving ? 'Saving...' : 'Request Reupload For Selected'}
+                </Button>
+                <span className="text-xs text-slate-500">Selected: {selectedDocuments.length}</span>
+              </div>
+              <textarea
+                className="mt-2 min-h-20 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[rgba(200,169,107,0.5)]"
+                placeholder="Comment for candidate (required for reupload request)."
+                value={documentBulkComment}
+                onChange={(event) => setDocumentBulkComment(event.target.value)}
+              />
+            </div>
+          ) : null}
           {showProgramPaymentPendingMessage ? (
             <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
               Program fee payment pending
@@ -1275,12 +1432,23 @@ export default function AdminCandidateProfilePage() {
               {documents.map((document) => (
                 <div key={document._id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4">
                   <div>
+                    {can('documents:verify') && !allDocumentsApproved ? (
+                      <label className="mb-2 flex items-center gap-2 text-xs text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(selectedDocumentIds[document._id])}
+                          onChange={(event) => toggleDocumentSelection(document._id, event.target.checked)}
+                        />
+                        Select
+                      </label>
+                    ) : null}
                     <p className="font-semibold text-slate-900">{document.documentType}</p>
                     <p className="text-sm text-slate-500">{humanize(document.status)} • {formatDate(document.uploadedAt)}</p>
+                    {document.adminComment ? <p className="mt-1 text-xs text-rose-700">Admin comment: {document.adminComment}</p> : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <a className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100" href={`${getBackendBaseUrl()}${document.fileUrl}`} target="_blank" rel="noreferrer">Open File</a>
-                    {canReviewDocument(document) ? <Button variant="adminSecondary" className="text-white" onClick={() => setActiveReview({ type: 'document', item: document })}>Review</Button> : null}
+                    {canReviewDocument(document) && !allDocumentsApproved ? <Button variant="adminSecondary" className="text-white" onClick={() => setActiveReview({ type: 'document', item: document })}>Review</Button> : null}
                   </div>
                 </div>
               ))}

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import ApprovalReviewModal from '../../components/admin/ApprovalReviewModal';
+import Modal from '../../components/Modal';
 import {
   fetchApprovalAuditHistory,
+  initiateCandidateRefund,
   reviewPayment,
 } from '../../api/adminApi';
 import api from '../../api/axios';
@@ -30,8 +32,7 @@ const decisionLabelFromRawStatus = (rawStatus) => {
 const getStatusOptions = (paymentType) => {
   if (paymentType === 'program' || paymentType === 'final') {
     return [
-      { label: 'Approve Payment', value: 'completed', variant: 'primary' },
-      { label: 'Reject Payment', value: 'failed', variant: 'danger' },
+      { label: 'Mark Payment Received', value: 'completed', variant: 'primary' },
       { label: 'Keep Pending', value: 'pending', variant: 'secondary' },
     ];
   }
@@ -54,6 +55,10 @@ export default function AdminPaymentTypePage({ title, type }) {
   const [error, setError] = useState('');
   const [activeReview, setActiveReview] = useState(null);
   const [auditHistory, setAuditHistory] = useState([]);
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
+  const [refundCandidateId, setRefundCandidateId] = useState('');
+  const [refundConfirming, setRefundConfirming] = useState(false);
+  const [refundSaving, setRefundSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -95,12 +100,66 @@ export default function AdminPaymentTypePage({ title, type }) {
     await load();
   };
 
+  const refundableRows = rows.filter((row) => {
+    const normalized = String(row?.rawStatus || '').toLowerCase();
+    return Boolean(row?.paymentId) && ['completed', 'verified', 'paid'].includes(normalized);
+  });
+
+  const selectedRefundRow = refundableRows.find((row) => String(row.candidateId) === String(refundCandidateId)) || null;
+
+  const openRefundFlow = () => {
+    setRefundCandidateId('');
+    setRefundConfirming(false);
+    setRefundModalOpen(true);
+  };
+
+  const proceedRefundConfirmation = () => {
+    if (!refundCandidateId) {
+      alert('Select a candidate first.');
+      return;
+    }
+    setRefundConfirming(true);
+  };
+
+  const submitRefund = async () => {
+    if (!selectedRefundRow?.paymentId) return;
+    setRefundSaving(true);
+    setError('');
+    try {
+      await initiateCandidateRefund(selectedRefundRow.candidateId, {
+        paymentIds: [selectedRefundRow.paymentId],
+        adminDeduction: 0,
+      });
+      setRefundModalOpen(false);
+      setRefundConfirming(false);
+      setRefundCandidateId('');
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to issue refund');
+    } finally {
+      setRefundSaving(false);
+    }
+  };
+
   return (
     <section className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
         <p className="text-sm text-slate-600">Review actual proof before verifying any payment. Every decision is audit logged.</p>
       </div>
+
+      {(type === 'program' || type === 'final') && can('payments:verify') && (
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            className="rounded-xl border border-[rgba(200,169,107,0.35)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)] disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={openRefundFlow}
+            disabled={!refundableRows.length}
+          >
+            Issue Refund
+          </button>
+        </div>
+      )}
 
       {loading && <p className="text-sm text-slate-500">Loading payments...</p>}
       {!!error && <p className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</p>}
@@ -181,26 +240,86 @@ export default function AdminPaymentTypePage({ title, type }) {
           { label: 'Bank Reference', value: activeReview.bankReference || '—' },
         ] : []}
         evidenceItems={activeReview ? [
-          activeReview.receiptUrl
-            ? {
+          ...(activeReview.receiptUrl
+            ? [{
                 key: 'receipt-proof',
                 label: 'Open uploaded payment proof',
-                description: 'Review the uploaded receipt before approving or rejecting.',
+                description: 'Review the uploaded receipt before confirming receipt.',
                 href: `${getBackendBaseUrl()}${activeReview.receiptUrl}`,
                 buttonLabel: 'Open Receipt',
-              }
-            : {
-                key: 'payment-summary',
-                label: 'Review payment record details',
-                description: 'No receipt is available. Open the payment record summary before deciding.',
-                onOpen: () => window.open(`data:text/plain;charset=utf-8,${encodeURIComponent(JSON.stringify(activeReview, null, 2))}`, '_blank', 'noopener,noreferrer'),
-                buttonLabel: 'Open Summary',
-              },
+              }]
+            : []),
         ] : []}
         history={auditHistory}
         decisionOptions={activeReview ? getStatusOptions(activeReview.paymentType) : []}
         onSubmit={submitReview}
       />
+
+      <Modal isOpen={refundModalOpen} onClose={() => setRefundModalOpen(false)} title="Issue Refund">
+        <div className="space-y-4">
+          {!refundConfirming ? (
+            <>
+              <p className="text-sm text-slate-600">Select the candidate whose refund should be issued.</p>
+              <select
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none"
+                value={refundCandidateId}
+                onChange={(event) => setRefundCandidateId(event.target.value)}
+                disabled={refundSaving}
+              >
+                <option value="">Select candidate</option>
+                {refundableRows.map((row) => (
+                  <option key={row.paymentId} value={row.candidateId}>
+                    {row.candidateName} • {row.email} • USD {row.amount}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl bg-[#c8a96b] px-4 py-2 text-sm font-semibold text-black"
+                  onClick={proceedRefundConfirmation}
+                  disabled={refundSaving}
+                >
+                  Continue
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                  onClick={() => setRefundModalOpen(false)}
+                  disabled={refundSaving}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600">
+                Confirm refund issue for <span className="font-semibold text-slate-900">{selectedRefundRow?.candidateName || 'selected candidate'}</span>.
+                This will send the refund email and mark payment as refunded.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl bg-[#c8a96b] px-4 py-2 text-sm font-semibold text-black"
+                  onClick={submitRefund}
+                  disabled={refundSaving}
+                >
+                  {refundSaving ? 'Issuing...' : 'Confirm Refund'}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                  onClick={() => setRefundConfirming(false)}
+                  disabled={refundSaving}
+                >
+                  Back
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
     </section>
   );
 }

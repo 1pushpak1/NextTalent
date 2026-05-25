@@ -10,6 +10,7 @@ const documentSchema = new mongoose.Schema(
       enum: ['Pending', 'Uploaded', 'Under Review', 'Accepted', 'Needs Revision'],
       default: 'Uploaded',
     },
+    adminComment: { type: String, default: '' },
     uploadedAt: { type: Date, default: Date.now },
   },
   { timestamps: true }

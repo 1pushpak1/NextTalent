@@ -15,16 +15,6 @@ const paymentRouteNotice = {
     description: 'Please complete the initial payment to continue with evaluation milestones.',
     cta: 'Pay Initial USD 500',
   },
-  '/payment/program-fee': {
-    title: 'Program fee required',
-    description: 'Please complete the program fee payment before the next processing stage. Your dashboard and profile are still accessible.',
-    cta: 'Pay Program Fee',
-  },
-  '/payment/final-payment': {
-    title: 'Final payment required',
-    description: 'Please complete the final payment to proceed with post-selection steps.',
-    cta: 'Pay Final Payment USD 3,100',
-  },
 };
 const eligibilityBurstPieces = [
   { left: '16%', delay: '0ms', duration: '2350ms', rotate: '-18deg', color: '#f59e0b' },
@@ -59,7 +49,6 @@ const selectionBannerConfig = {
 };
 
 const isLegacyInterviewStage = (name = '') => /interview/i.test(String(name).trim());
-const formatUsd = (amount) => `USD ${Number(amount || 0).toLocaleString('en-US')}`;
 
 export default function CandidateDashboardPage() {
   const [data, setData] = useState(null);
@@ -68,7 +57,6 @@ export default function CandidateDashboardPage() {
     data?.profile?.personalDetails?.firstName ||
     user?.name?.split?.(' ')?.[0] ||
     (user?.email?.split?.('@')?.[0] || 'Candidate');
-  const programTotal = 3100;
 
   useEffect(() => {
     api
@@ -94,10 +82,9 @@ export default function CandidateDashboardPage() {
   const docsIncomplete = !data?.documentStatus?.length;
   const hasInitial = data?.paymentStatus?.some((p) => p.type === 'initial' && p.status === 'completed');
   const programPaid = latestProgramPayment?.status === 'completed';
-  const programFailed = latestProgramPayment?.status === 'failed';
   const finalPending = latestFinalPayment?.status === 'pending';
-  const finalFailed = latestFinalPayment?.status === 'failed';
   const finalPaid = latestFinalPayment?.status === 'completed';
+  const refundIssued = (data?.paymentStatus || []).some((payment) => String(payment?.status || '').toLowerCase() === 'refunded');
   const internalEvaluationPassed = data?.profileStatus === 'accepted';
   const progressionApproved = Boolean(data?.progressionApproved);
   const profileRejected = data?.profileStatus === 'rejected';
@@ -107,18 +94,8 @@ export default function CandidateDashboardPage() {
   const selected = data?.candidate?.status === 'selected';
   const journeyLocked = profileRejected || ['not_selected', 'rejected'].includes(String(data?.candidate?.status || '').toLowerCase());
   const requiredRoute = getCandidateNextRoute(data);
-  const failedPaymentRoute = programFailed ? '/payment/program-fee' : finalFailed ? '/payment/final-payment' : '';
+  const canUploadDocuments = requiredRoute === '/documents' && docsIncomplete;
   const paymentNotice = paymentRouteNotice[requiredRoute] || null;
-  const dynamicPaymentNotice = paymentNotice && requiredRoute === '/payment/program-fee'
-    ? { ...paymentNotice, cta: `Pay Program Fee ${formatUsd(programTotal)}` }
-    : paymentNotice;
-  const failedPaymentNotice = programFailed || finalFailed
-    ? {
-        title: 'Payment Not Received',
-        description: 'Please upload the complete and correct payment details again, including the right receipt file, or contact support to resolve this issue.',
-        cta: programFailed ? 'Re-upload Program Fee Receipt' : 'Re-upload Final Payment Receipt',
-      }
-    : null;
   const currentStageLabel = isLegacyInterviewStage(data?.currentStage) ? 'Selection Result' : data?.currentStage || 'Pending';
   const selectionStageStatus = useMemo(() => {
     if (profileRejected) return '';
@@ -213,14 +190,9 @@ export default function CandidateDashboardPage() {
                   <Button>Pay USD 500</Button>
                 </Link>
               )}
-              {!journeyLocked && progressionApproved && hasInitial && docsIncomplete && (
+              {!journeyLocked && progressionApproved && hasInitial && canUploadDocuments && (
                 <Link to="/documents">
-                  <Button variant="secondary">Upload Documents</Button>
-                </Link>
-              )}
-              {!journeyLocked && progressionApproved && data?.candidate?.status === 'documents_received' && !programPaid && (
-                <Link to="/payment/program-fee">
-                  <Button>Pay {formatUsd(programTotal)}</Button>
+                  <Button variant="secondary" className="!text-white">Upload Documents</Button>
                 </Link>
               )}
             </div>
@@ -292,13 +264,13 @@ export default function CandidateDashboardPage() {
             )
           )}
 
-          {(failedPaymentNotice || dynamicPaymentNotice) && (
-            <section className={`mb-8 rounded-xl border p-5 ${failedPaymentNotice ? 'border-rose-300 bg-rose-50' : 'border-amber-300 bg-amber-50'}`}>
+          {paymentNotice && (
+            <section className="mb-8 rounded-xl border border-amber-300 bg-amber-50 p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Action Required</p>
-              <h2 className={`mt-1 text-xl font-bold ${failedPaymentNotice ? 'text-rose-900' : 'text-amber-900'}`}>{(failedPaymentNotice || dynamicPaymentNotice).title}</h2>
-              <p className={`mt-1 text-sm ${failedPaymentNotice ? 'text-rose-900' : 'text-amber-900'}`}>{(failedPaymentNotice || dynamicPaymentNotice).description}</p>
-              <Link className="mt-3 inline-block" to={failedPaymentNotice ? failedPaymentRoute : requiredRoute}>
-                <Button>{(failedPaymentNotice || dynamicPaymentNotice).cta}</Button>
+              <h2 className="mt-1 text-xl font-bold text-amber-900">{paymentNotice.title}</h2>
+              <p className="mt-1 text-sm text-amber-900">{paymentNotice.description}</p>
+              <Link className="mt-3 inline-block" to={requiredRoute}>
+                <Button>{paymentNotice.cta}</Button>
               </Link>
             </section>
           )}
@@ -351,8 +323,8 @@ export default function CandidateDashboardPage() {
               <h3 className="mb-3 text-2xl font-semibold text-[#002147]">Milestone Actions</h3>
               <div className="flex flex-wrap gap-3">
                 {!journeyLocked && internalEvaluationPassed && !hasInitial && <Link to="/initial-payment"><Button>Pay Initial USD 500</Button></Link>}
-                {!journeyLocked && hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Link to="/payment/program-fee"><Button>{programFailed ? 'Re-upload Program Fee Receipt' : 'Pay Program Fee'}</Button></Link>}
-                {!journeyLocked && selected && !finalPaid && !finalPending && <Link to="/payment/final-payment"><Button>{finalFailed ? 'Re-upload Final Payment Receipt' : 'Pay Final Payment USD 3,100'}</Button></Link>}
+                {!journeyLocked && hasInitial && data?.candidate?.status === 'documents_received' && !programPaid && <Button className="text-white" variant="secondary" disabled>Program Fee Pending Email Instructions</Button>}
+                {!journeyLocked && selected && !finalPaid && !finalPending && <Button className="text-white" variant="secondary" disabled>Final Payment Pending Email Instructions</Button>}
                 {!journeyLocked && selected && finalPending && <Button className="text-white" variant="secondary" disabled>Final Payment Under Verification</Button>}
                 {!journeyLocked && testimonialPending && <Link to="/testimonial"><Button className="text-white" variant="secondary">Share Testimonial</Button></Link>}
                 {!journeyLocked && finalPaid && testimonialSubmitted && <Button className="text-white" variant="secondary" disabled>Testimonial Shared</Button>}
@@ -366,6 +338,7 @@ export default function CandidateDashboardPage() {
                 <p>Documents uploaded: {data?.documentStatus?.length || 0}</p>
                 <p>Payments made: {data?.paymentStatus?.length || 0}</p>
                 <p>Final payment status: {finalPaid ? 'Received' : finalPending ? 'Under Verification' : 'Not Submitted'}</p>
+                <p>Refund status: {refundIssued ? 'Refund Issued' : 'No Refund Issued'}</p>
               </div>
             </div>
           </section>

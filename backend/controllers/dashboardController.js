@@ -21,7 +21,20 @@ const hasPassedInitialEligibility = ({ eligibility, user, profile, payments, doc
   interviews.length > 0;
 
 const hasAdmin1ProgressionApproval = (user) => Boolean(user?.admin1ProgressionApproved);
-const hasDocumentationStageInitiated = (user) => Boolean(user?.documentationStageInitiated);
+const documentationUploadOpenStatuses = new Set([
+  'onboarding_complete',
+  'documents_submitted',
+  'documents_received',
+  'program_payment_complete',
+  'sent_to_partners',
+  'interview_completed',
+  'selected',
+  'process_complete',
+]);
+
+const hasDocumentationStageInitiated = (user) =>
+  Boolean(user?.documentationStageInitiated) ||
+  documentationUploadOpenStatuses.has(String(user?.status || '').toLowerCase());
 
 const buildStages = ({ eligibility, profile, user, docs, interviews, payments, testimonial }) => {
   const hasSubmittedProfile = Boolean(profile) && profile.status !== 'draft';
@@ -168,10 +181,10 @@ const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
   if (hasInitial && declarationDone && !onboardingDone) return '/onboarding';
   if (hasInitial && onboardingDone && !documentationStageInitiated) return '/candidate-dashboard';
   if (hasInitial && onboardingDone && !docsUploaded) return '/documents';
-  if (hasInitial && onboardingDone && docsUploaded && !hasProgram && !hasProgramPending) return '/payment/program-fee';
-  if (hasInitial && onboardingDone && docsUploaded && hasProgramFailed) return '/payment/program-fee';
-  if (user.status === 'selected' && !hasFinal && !hasFinalPending) return '/payment/final-payment';
-  if (user.status === 'selected' && hasFinalFailed) return '/payment/final-payment';
+  if (hasInitial && onboardingDone && docsUploaded && !hasProgram && !hasProgramPending) return '/candidate-dashboard';
+  if (hasInitial && onboardingDone && docsUploaded && hasProgramFailed) return '/candidate-dashboard';
+  if (user.status === 'selected' && !hasFinal && !hasFinalPending) return '/candidate-dashboard';
+  if (user.status === 'selected' && hasFinalFailed) return '/candidate-dashboard';
 
   return '/candidate-dashboard';
 };

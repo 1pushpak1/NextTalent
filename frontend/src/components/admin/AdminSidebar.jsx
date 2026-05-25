@@ -14,6 +14,7 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
     paymentsPendingVerificationInitial: 0,
     paymentsPendingVerificationProgram: 0,
     paymentsPendingVerificationFinal: 0,
+    paymentsPendingInstructionMail: 0,
     hiringPendingAssignment: 0,
     interviewsPendingScheduled: 0,
   });
@@ -30,14 +31,15 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
   const visiblePaymentNav = adminPaymentNav.filter(canAccessEntry);
   const sidebarBubbles = useMemo(
     () => ({
+      '/admin/candidates': Number(summaryCards.paymentsPendingInstructionMail || 0),
       '/admin/evaluation': Number(summaryCards.profilesPendingReview || 0),
       '/admin/document-verification': Number(summaryCards.documentsPendingVerification || 0),
       '/admin/hiring': Number(summaryCards.hiringPendingAssignment || 0),
       '/admin/selection': Number(summaryCards.interviewsPendingScheduled || 0),
-      '/admin/payments': Number(summaryCards.paymentsPendingVerification || 0),
+      '/admin/payments': Number(summaryCards.paymentsPendingVerification || 0) + Number(summaryCards.paymentsPendingInstructionMail || 0),
       '/admin/payments/initial': Number(summaryCards.paymentsPendingVerificationInitial || 0),
-      '/admin/payments/program': Number(summaryCards.paymentsPendingVerificationProgram || 0),
-      '/admin/payments/final': Number(summaryCards.paymentsPendingVerificationFinal || 0),
+      '/admin/payments/program': Number(summaryCards.paymentsPendingVerificationProgram || 0) + Number(summaryCards.paymentsPendingInstructionMail || 0),
+      '/admin/payments/final': Number(summaryCards.paymentsPendingVerificationFinal || 0) + Number(summaryCards.paymentsPendingInstructionMail || 0),
     }),
     [summaryCards],
   );

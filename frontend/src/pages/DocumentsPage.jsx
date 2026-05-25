@@ -108,6 +108,7 @@ export default function DocumentsPage() {
                     label={doc}
                     status={latestDocMap[doc]?.status || 'Pending'}
                     hasUploadedFile={Boolean(latestDocMap[doc])}
+                    adminComment={latestDocMap[doc]?.adminComment || ''}
                     onUploaded={(data) =>
                       setDocs((prev) => [data, ...prev.filter((existing) => existing.documentType !== data.documentType)])
                     }

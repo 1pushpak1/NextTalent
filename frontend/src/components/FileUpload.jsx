@@ -12,7 +12,7 @@ const isPdfFile = (file) => {
   return mimeType === 'application/pdf' || fileName.endsWith('.pdf');
 };
 
-export default function FileUpload({ label, status = 'Pending', hasUploadedFile = false, onUploaded }) {
+export default function FileUpload({ label, status = 'Pending', hasUploadedFile = false, adminComment = '', onUploaded }) {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
 
@@ -54,7 +54,10 @@ export default function FileUpload({ label, status = 'Pending', hasUploadedFile 
 
   return (
     <div className="grid items-center gap-2 rounded-xl border border-[rgba(200,169,107,0.18)] bg-[rgba(255,255,255,0.025)] p-3 md:grid-cols-[1fr_auto_auto]">
-      <span className="text-sm font-medium text-[#e8e8ed]">{label}</span>
+      <div>
+        <span className="text-sm font-medium text-[#e8e8ed]">{label}</span>
+        {adminComment ? <p className="mt-1 text-xs text-rose-300">Reupload note: {adminComment}</p> : null}
+      </div>
       <input
         ref={inputRef}
         type="file"
@@ -63,7 +66,7 @@ export default function FileUpload({ label, status = 'Pending', hasUploadedFile 
         accept=".pdf,application/pdf"
       />
       <Button className="text-white" type="button" variant="secondary" disabled={uploading} onClick={openPicker}>
-        {uploading ? 'Uploading...' : hasUploadedFile ? 'Change File' : 'Upload File'}
+        {uploading ? 'Uploading...' : status === 'Needs Revision' ? 'Re-upload File' : hasUploadedFile ? 'Change File' : 'Upload File'}
       </Button>
       <StatusBadge status={status} />
     </div>

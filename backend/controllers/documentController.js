@@ -9,12 +9,26 @@ const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const uploadDir = path.join(__dirname, '..', 'uploads', 'documents');
 const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_PDF_MIME_TYPES = new Set(['application/pdf']);
+const DOCUMENT_UPLOAD_OPEN_STATUSES = new Set([
+  'onboarding_complete',
+  'documents_submitted',
+  'documents_received',
+  'program_payment_complete',
+  'sent_to_partners',
+  'interview_completed',
+  'selected',
+  'process_complete',
+]);
 
 const isPdfFile = (file = {}) => {
   const mimeType = String(file.mimetype || '').toLowerCase();
   const extension = String(path.extname(file.originalname || '') || '').toLowerCase();
   return ALLOWED_PDF_MIME_TYPES.has(mimeType) || extension === '.pdf';
 };
+
+const canAccessDocumentUpload = (user = {}) =>
+  Boolean(user?.documentationStageInitiated) ||
+  DOCUMENT_UPLOAD_OPEN_STATUSES.has(String(user?.status || '').toLowerCase());
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -47,8 +61,8 @@ const uploadDocument = async (req, res) => {
     if (!user?.admin1ProgressionApproved) {
       return res.status(403).json({ message: 'Document access will unlock only after Admin 1 progression approval.' });
     }
-    if (!user?.documentationStageInitiated) {
-      return res.status(403).json({ message: 'Document upload is not available until Admin 1 initiates the documentation stage.' });
+    if (!canAccessDocumentUpload(user)) {
+      return res.status(403).json({ message: 'Document upload is not available until the documentation stage opens.' });
     }
     if (profile?.status === 'rejected' || ['rejected', 'not_selected'].includes(String(user?.status || '').toLowerCase())) {
       return res.status(403).json({ message: 'This application is not active for further document submissions.' });

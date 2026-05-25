@@ -110,8 +110,8 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
       key: 'program_payment',
       done: programPaymentStatus === 'verified',
       pendingFrom: programPaymentStatus === 'pending_verification' ? 'admin' : programPaymentStatus === 'verified' ? 'completed' : 'candidate',
-      action: programPaymentStatus === 'pending_verification' ? 'Verify program payment' : 'Pay program fee',
-      recommendation: programPaymentStatus === 'pending_verification' ? 'Verify receipt and bank reference' : 'Wait for candidate payment submission',
+      action: programPaymentStatus === 'pending_verification' ? 'Verify program payment' : 'Await program payment instruction email',
+      recommendation: programPaymentStatus === 'pending_verification' ? 'Verify payment receipt shared over email' : 'Send payment instruction email to candidate',
     },
     {
       key: 'document_verification',
@@ -138,8 +138,8 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
       key: 'final_payment',
       done: finalPaymentStatus === 'verified',
       pendingFrom: finalPaymentStatus === 'pending_verification' ? 'admin' : finalPaymentStatus === 'verified' ? 'completed' : 'candidate',
-      action: finalPaymentStatus === 'pending_verification' ? 'Verify final payment' : 'Pay final amount',
-      recommendation: finalPaymentStatus === 'pending_verification' ? 'Verify final payment receipt' : 'Wait for candidate final payment',
+      action: finalPaymentStatus === 'pending_verification' ? 'Verify final payment' : 'Await final payment instruction email',
+      recommendation: finalPaymentStatus === 'pending_verification' ? 'Verify final payment receipt shared over email' : 'Send final payment instruction email to candidate',
     },
     {
       key: 'testimonial',
