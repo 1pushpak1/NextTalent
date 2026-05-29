@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const profileSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    email: { type: String, default: '' },
+    eligibilityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Eligibility', default: null },
     personalDetails: { type: Object, default: {} },
     education: { type: Object, default: {} },
     certifications: { type: Array, default: [] },

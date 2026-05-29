@@ -1,8 +1,21 @@
 const express = require('express');
-const { createProfile, getMyProfile, updateMyProfile, generateProfilePdf, downloadProfilePdf } = require('../controllers/profileController');
+const {
+	createProfile,
+	createPublicProfile,
+	getMyProfile,
+	getPublicProfile,
+	updateMyProfile,
+	updatePublicProfile,
+	generateProfilePdf,
+	downloadProfilePdf,
+} = require('../controllers/profileController');
 const { protect } = require('../middleware/authMiddleware');
 
 const router = express.Router();
+
+router.post('/public', createPublicProfile);
+router.get('/public', getPublicProfile);
+router.put('/public', updatePublicProfile);
 
 router.post('/', protect, createProfile);
 router.get('/me', protect, getMyProfile);

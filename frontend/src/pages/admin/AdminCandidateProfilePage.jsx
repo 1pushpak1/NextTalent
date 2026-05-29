@@ -154,6 +154,13 @@ export default function AdminCandidateProfilePage() {
   const activeTab = visibleTabs.includes(activeTabParam) ? activeTabParam : 'profile';
   const reviewParam = searchParams.get('review');
   const canReviewSelection = ['super_admin', 'payments_admin'].includes(String(role || ''));
+  // Admin 3 (operations_admin) can approve evaluation as the final approver
+  const isAdmin3PendingEvaluation =
+    String(role || '') === 'operations_admin' &&
+    Boolean(candidate?.admin2EvaluationApproved) &&
+    !candidate?.admin3EvaluationApproved &&
+    readStageDecision(candidate, 'evaluation') !== 'accepted' &&
+    readStageDecision(candidate, 'evaluation') !== 'rejected';
 
   useEffect(() => {
     if (activeTabParam && visibleTabs.includes(activeTabParam)) return;
@@ -213,7 +220,7 @@ export default function AdminCandidateProfilePage() {
     reviewParam === 'evaluation' &&
     Boolean(profile) &&
     can('evaluation:approve') &&
-    (profile?.status !== 'accepted' && profile?.status !== 'rejected' ? true : allowReviewedProfileEditor);
+    (profile?.status !== 'rejected' ? true : allowReviewedProfileEditor);
   const profileReviewHistory = filteredHistory(['profile_evaluation']);
   const lastProfileReview = profileReviewHistory[0] || null;
   const profileAlreadyReviewed =
@@ -927,12 +934,14 @@ export default function AdminCandidateProfilePage() {
       helperText: '',
     };
 
-    if (can('evaluation:approve') && profile && currentStageKey === 'profile_review') {
+    if (can('evaluation:approve') && profile && (currentStageKey === 'profile_review' || isAdmin3PendingEvaluation)) {
       return {
         ...base,
-        buttonLabel: profileAlreadyReviewed ? 'Edit Response' : 'Review Internal Evaluation',
+        buttonLabel: profileAlreadyReviewed ? 'Edit Response' : isAdmin3PendingEvaluation ? 'Final Approval Required' : 'Review Internal Evaluation',
         onClick: openProfileReview,
-        helperText: 'Profile review is the current required admin action.',
+        helperText: isAdmin3PendingEvaluation
+          ? 'Admin 2 has approved this candidate. Your final approval is required to send the account creation invite.'
+          : 'Profile review is the current required admin action.',
       };
     }
 
@@ -975,10 +984,13 @@ export default function AdminCandidateProfilePage() {
   }, [
     progress,
     candidate?.updatedAt,
+    candidate?.admin2EvaluationApproved,
+    candidate?.admin3EvaluationApproved,
     can,
     profile,
     profileAlreadyReviewed,
     openProfileReview,
+    isAdmin3PendingEvaluation,
     canReviewSelection,
     hiringAccepted,
     latestPendingReviewPayment,

@@ -8,8 +8,8 @@ const base = {
   qualification: '',
   languageAnswer: '',
   currentLocation: 'Europe',
-  willingToRelocate: false,
-  comfortableWithFees: false,
+  willingToRelocate: true,
+  comfortableWithFees: true,
 };
 
 test('Germany: Yes + Bachelor + German B2 -> PASS', () => {
@@ -32,6 +32,20 @@ test('Germany: Yes + Bachelor + No German -> FAIL', () => {
   });
   assert.equal(result.isEligible, false);
   assert.match(result.rejectionReason, /Certified German B2 or above must be Yes/);
+});
+
+test('Germany: No relocation or fees -> FAIL', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    country: 'Germany',
+    qualification: 'Bachelor’s',
+    languageAnswer: 'Yes',
+    willingToRelocate: false,
+    comfortableWithFees: false,
+  });
+  assert.equal(result.isEligible, false);
+  assert.match(result.rejectionReason, /Willingness to relocate must be Yes/);
+  assert.match(result.rejectionReason, /Acceptance of program\/service fees must be Yes/);
 });
 
 test('Poland: Yes + English Yes + Europe -> PASS', () => {
@@ -119,6 +133,6 @@ test('Relocation and fees do not affect eligibility', () => {
     comfortableWithFees: true,
   });
 
-  assert.equal(passWithNoRelocationNoFees.isEligible, true);
+  assert.equal(passWithNoRelocationNoFees.isEligible, false);
   assert.equal(passWithRelocationAndFees.isEligible, true);
 });

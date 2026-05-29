@@ -1,13 +1,10 @@
 const ADMIN_ROLES = Object.freeze({
   SUPER_ADMIN: 'super_admin',
-  PAYMENTS_ADMIN: 'payments_admin',
   EVALUATION_ADMIN: 'evaluation_admin',
   OPERATIONS_ADMIN: 'operations_admin',
 });
 
 const ADMIN_ROLE_ALIASES = Object.freeze({
-  payment_admin: ADMIN_ROLES.PAYMENTS_ADMIN,
-  payments_admin: ADMIN_ROLES.PAYMENTS_ADMIN,
   evaluation_admin: ADMIN_ROLES.EVALUATION_ADMIN,
   operations_admin: ADMIN_ROLES.OPERATIONS_ADMIN,
   super_admin: ADMIN_ROLES.SUPER_ADMIN,
@@ -71,6 +68,7 @@ const COMPANY_DETAILS = Object.freeze({
 const EMAIL_TEMPLATE_KEYS = Object.freeze({
   CANDIDATE_SUBMISSION_ADMIN_NOTICE: 'candidate_submission_admin_notice',
   CANDIDATE_SUBMISSION_CONFIRMATION: 'candidate_submission_confirmation',
+  PROFILE_ACCOUNT_INVITE: 'profile_account_creation_invite',
   EVALUATION_APPROVED_NOTIFY_OPERATIONS: 'evaluation_approved_notify_operations',
   OPERATIONS_DECISION_COMPLETED: 'operations_decision_completed',
   CANDIDATE_REJECTION: 'candidate_rejection',

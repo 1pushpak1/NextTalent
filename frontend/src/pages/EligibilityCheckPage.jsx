@@ -78,6 +78,8 @@ export default function EligibilityCheckPage() {
       answers.hasITBackground,
       answers.languageAnswer,
       answers.currentLocation,
+      answers.willingToRelocate,
+      answers.comfortableWithFees,
     ];
 
     if (country === 'Germany') baseRequired.push(answers.qualification);
@@ -88,6 +90,17 @@ export default function EligibilityCheckPage() {
     if (checkingEligibility) return;
     setCheckingEligibility(true);
     const normalizedEmail = String(email || '').toLowerCase().trim();
+    // If either of these critical checks is not a Yes, short-circuit as not eligible
+    if (answers.willingToRelocate !== 'Yes' || answers.comfortableWithFees !== 'Yes') {
+      setResult({
+        isEligible: false,
+        rejectionReason: 'You must be willing to relocate and accept program/service fees to be eligible.',
+      });
+      setStep(5);
+      setCheckingEligibility(false);
+      return;
+    }
+
     const payload = {
       email: normalizedEmail,
       destination,
@@ -311,8 +324,8 @@ export default function EligibilityCheckPage() {
                   />
                 )}
                 <Select required label="Current location" options={['Europe', 'Outside Europe']} value={answers.currentLocation} onChange={(e) => setAnswers({ ...answers, currentLocation: e.target.value })} />
-                <Select label="Are you willing to relocate to the selected country?" options={['Yes', 'No']} value={answers.willingToRelocate} onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })} />
-                <Select label="Are you comfortable with program/service fees for processing?" options={['Yes', 'No']} value={answers.comfortableWithFees} onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })} />
+                <Select required label="Are you willing to relocate to the selected country?" options={['Yes', 'No']} value={answers.willingToRelocate} onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })} />
+                <Select required label="Are you comfortable with program/service fees for processing?" options={['Yes', 'No']} value={answers.comfortableWithFees} onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })} />
               </div>
               <div className="mt-6 flex gap-2">
                 <Button
@@ -376,10 +389,10 @@ export default function EligibilityCheckPage() {
                   <Button
                     className="border-[#c8a96b] bg-[#c8a96b] text-black hover:bg-[#d4b87e]"
                     onClick={() =>
-                      navigate(isAuthenticated ? '/profile-submission' : '/signup?next=/profile-submission')
+                      navigate('/profile-submission')
                     }
                   >
-                    {isAuthenticated ? 'Continue to Profile Submission' : 'Create Candidate Account'}
+                    Continue to Profile Submission
                   </Button>
                 </>
               ) : (

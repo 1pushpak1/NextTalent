@@ -57,14 +57,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/evaluation-program" element={<EvaluationProgramPage />} />
         <Route path="/eligibility-check" element={<EligibilityCheckPage />} />
-        <Route
-          path="/profile-submission"
-          element={
-            <ProtectedRoute requireEmailVerified requirePhoneVerified>
-              <ProfileSubmissionPage />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/profile-submission" element={<ProfileSubmissionPage />} />
         <Route path="/profile-submitted" element={<ProfileSubmittedPage />} />
         <Route
           path="/internal-evaluation"

@@ -14,15 +14,15 @@ const {
   generateReceiptForPayment,
   buildReceiptEmailForPayment,
 } = require('../services/billingPdfService');
-const { PAYMENT_STAGES, LEGACY_PAYMENT_TYPE_TO_STAGE, EMAIL_TEMPLATE_KEYS } = require('../constants/workflow');
+const { PAYMENT_STAGES, LEGACY_PAYMENT_TYPE_TO_STAGE, EMAIL_TEMPLATE_KEYS, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 const Stripe = require('stripe');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 
 const amountByType = {
-  initial: 500,
-  final: 3100,
+  initial: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.INITIAL_ONBOARDING_FEE].amount || 0),
+  final: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0),
 };
 
 const statusByType = {
@@ -160,7 +160,7 @@ const saveCompletedPayment = async (session, fallback = {}) => {
   });
 
   if (type === 'initial') {
-    payment.nonRefundableAmount = 500;
+    payment.nonRefundableAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.INITIAL_ONBOARDING_FEE].amount || 0);
     payment.refundableAmount = 0;
     payment.refundStatus = 'non_refundable';
 
@@ -521,7 +521,7 @@ const getStage1Invoice = async (req, res) => {
       pdfReferenceNumber: invoice.pdfReferenceNumber,
       candidateId: String(candidate._id),
       issueDate: new Date().toISOString(),
-      amountDue: 3100,
+      amountDue: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0),
       currency: 'USD',
       paymentStatus: 'DUE',
     });
@@ -552,7 +552,7 @@ const getStage2Invoice = async (req, res) => {
     const invoice = persistedInvoice || await generateInvoiceForStage({
       candidate,
       stage: PAYMENT_STAGES.FINAL_PAYMENT,
-      amountReceived: 3100,
+      amountReceived: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0),
     });
     if (!persistedInvoice) {
       await User.findByIdAndUpdate(candidate._id, { $addToSet: { invoices: invoice._id } });
@@ -565,8 +565,8 @@ const getStage2Invoice = async (req, res) => {
       pdfReferenceNumber: invoice.pdfReferenceNumber,
       candidateId: String(candidate._id),
       issueDate: new Date().toISOString(),
-      amountReceived: 3100,
-      amountDue: 3100,
+      amountReceived: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0),
+      amountDue: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0),
       currency: 'USD',
       paymentStatus: 'FINAL PAYMENT DUE',
     });

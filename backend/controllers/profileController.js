@@ -1,3 +1,5 @@
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const Profile = require('../models/Profile');
 const User = require('../models/User');
 const Eligibility = require('../models/Eligibility');
@@ -12,6 +14,64 @@ const clampSavedStep = (value, fallback = 1) => {
   return Math.min(8, Math.max(1, Math.trunc(numeric)));
 };
 
+const normalizeEmail = (value = '') => String(value || '').toLowerCase().trim();
+
+const resolveEligibilityByAccess = async ({ eligibilityId, email }) => {
+  const normalizedEmail = normalizeEmail(email);
+  const eligibility = eligibilityId
+    ? await Eligibility.findById(eligibilityId)
+    : await Eligibility.findOne({ email: normalizedEmail }).sort({ createdAt: -1 });
+
+  if (!eligibility) {
+    const error = new Error('Complete and pass eligibility check before profile submission');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (!eligibility.isEligible) {
+    const error = new Error('Complete and pass eligibility check before profile submission');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (normalizedEmail && normalizeEmail(eligibility.email) !== normalizedEmail) {
+    const error = new Error('Eligibility email does not match the submitted profile email');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return eligibility;
+};
+
+const createPlaceholderCandidateUser = async ({ email, name, eligibility }) => {
+  const normalizedEmail = normalizeEmail(email);
+  let user = await User.findOne({ email: normalizedEmail });
+  if (!user) {
+    const randomPassword = crypto.randomBytes(32).toString('hex');
+    const passwordHash = await bcrypt.hash(randomPassword, 10);
+    user = await User.create({
+      name: name || normalizedEmail.split('@')[0],
+      email: normalizedEmail,
+      passwordHash,
+      role: 'candidate',
+      status: 'profile_submitted',
+      evaluationStatus: 'pending',
+      operationsStatus: 'pending',
+      accountStatus: 'not_invited',
+      emailVerified: false,
+      phoneVerified: false,
+      accountCreationInviteSent: false,
+    });
+  }
+
+  if (eligibility && !eligibility.userId) {
+    eligibility.userId = user._id;
+    await eligibility.save();
+  }
+
+  return user;
+};
+
 const ensureEligible = async (userId) => {
   const eligibility = await Eligibility.findOne({ userId, isEligible: true }).sort({ createdAt: -1 });
   if (!eligibility) {
@@ -21,7 +81,22 @@ const ensureEligible = async (userId) => {
   }
 };
 
+const getProfileByAccess = async ({ userId = null, email = '', eligibilityId = '' }) => {
+  if (userId) {
+    return Profile.findOne({ userId }).sort({ createdAt: -1 });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+
+  const query = { email: normalizedEmail };
+  if (eligibilityId) query.eligibilityId = eligibilityId;
+  return Profile.findOne(query).sort({ createdAt: -1 });
+};
+
 const applyProfileFields = (profile, body = {}) => {
+  if ('email' in body) profile.email = normalizeEmail(body.email || profile.email || '');
+  if ('eligibilityId' in body) profile.eligibilityId = body.eligibilityId || profile.eligibilityId || null;
   if ('personalDetails' in body) profile.personalDetails = body.personalDetails || {};
   if ('education' in body) profile.education = body.education || {};
   if ('certifications' in body) profile.certifications = body.certifications || [];
@@ -76,9 +151,10 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
 
   const applicationSubmittedAt = new Date();
   await User.findByIdAndUpdate(userId, {
-    status: 'profile_submitted',
+    status: 'awaiting_evaluation_review',
     applicationSubmittedAt,
-    evaluationStatus: 'submitted',
+    evaluationStatus: 'pending',
+    operationsStatus: 'pending',
   });
 
   if (body.signature?.value) {
@@ -91,63 +167,74 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
     };
   }
 
-  const recipientEmail = body.personalDetails?.email || req.user?.email;
+  const recipientEmail = body.email || body.personalDetails?.email || req.user?.email;
   const candidateDisplayName = body.personalDetails?.firstName || req.user?.name || req.user?.email?.split('@')[0];
-  const applicationConfirmationText = `Dear Candidate,
+  
+  // Send confirmation to candidate
+  const applicationConfirmationText = `Dear ${candidateDisplayName},
 
-Your application has been successfully submitted to NextStep Talent for initial review.
+Your profile has been successfully submitted to NextStep Talent for evaluation.
 
-Our internal evaluation team will assess your submitted profile, qualifications, experience, certifications, language skills, and related information.
+Our evaluation team will review your submitted profile, qualifications, experience, certifications, and language skills.
 
 Please note:
-- Submission of an application does not guarantee approval or progression to the next stage.
-- Only shortlisted candidates will proceed further in the process.
+- Profile submission does not guarantee approval.
+- Only approved candidates will receive account creation invitations.
+- You will be notified via email once your profile has been reviewed.
 
-You will receive further communication if your profile is approved for the next stage.
+Thank you for your interest in NextStep Talent.
 
 Regards,  
 NextStep Talent Team
 
 This is an automated email. Please do not reply to this message.`;
+  
   await sendEmail({
     to: recipientEmail,
-    subject: 'NextStep Talent – Application Successfully Submitted',
+    subject: 'NextStep Talent – Profile Submitted for Evaluation',
     text: applicationConfirmationText,
     html: applicationConfirmationText.replaceAll('\n', '<br/>'),
     fromEmail: 'noreply@nextsteptalent.net',
     fromName: 'NextStep Talent Team',
-    templateKey: 'application_submission_confirmation',
+    templateKey: 'profile_submission_confirmation',
     relatedCandidateId: userId,
   });
 
-  const workflow = getWorkflowConfig();
+  // Send notification to Super Admin and Evaluation Admin
   try {
-    const positionOrCategory =
-      String(
+    const workflow = getWorkflowConfig();
+    const evaluationAdminEmail = process.env.EVALUATION_ADMIN_EMAIL || '';
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || '';
+    const notificationRecipients = [superAdminEmail, evaluationAdminEmail].filter(Boolean);
+    
+    if (notificationRecipients.length) {
+      const positionOrCategory = String(
         body?.personalDetails?.position ||
-          body?.personalDetails?.desiredPosition ||
-          body?.personalDetails?.category ||
-          body?.skills?.primarySkill ||
-          ''
+        body?.personalDetails?.desiredPosition ||
+        body?.personalDetails?.category ||
+        body?.skills?.primarySkill ||
+        ''
       ).trim() || 'N/A';
-    await sendAdminNotification({
-      to: ['admin@example.com', 'evaluation@example.com'],
-      subject: `NextStep Talent Candidate Submission Received / ${candidateDisplayName}`,
-      lines: [
-        `Candidate Name: ${candidateDisplayName}`,
-        `Country: ${body?.personalDetails?.currentCountryOfResidence || 'N/A'}`,
-        `Position/Category: ${positionOrCategory}`,
-        `Candidate ID: ${String(userId)}`,
-        `Submission Timestamp: ${applicationSubmittedAt.toISOString()}`,
-        `Backend Review Link: ${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')}/admin/candidates/${String(userId)}`,
-        `Candidate Email: ${recipientEmail || req.user?.email || 'N/A'}`,
-        `Candidate Phone: ${req.user?.phone || 'N/A'}`,
-      ],
-      fromType: 'noreply',
-      templateKey: 'internal_candidate_submission_admin12',
-    });
+      
+      await sendAdminNotification({
+        to: notificationRecipients,
+        subject: `New Candidate Profile Submitted for Evaluation`,
+        lines: [
+          `Candidate Name: ${candidateDisplayName}`,
+          `Email: ${recipientEmail}`,
+          `Country: ${body?.personalDetails?.currentCountryOfResidence || 'N/A'}`,
+          `Position/Category: ${positionOrCategory}`,
+          `Submission Time: ${applicationSubmittedAt.toISOString()}`,
+          ``,
+          `Action Required: Evaluation Admin must review and approve/reject this profile.`,
+          `Review Link: ${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')}/admin/candidates/${String(userId)}`,
+        ],
+        fromType: 'noreply',
+        templateKey: 'admin_profile_submission_notification',
+      });
+    }
   } catch (error) {
-    console.error('Admin submission notification failed:', error.message);
+    console.error('Admin notification failed:', error.message);
   }
 
   return { profile, statusCode: isNewProfile ? 201 : 200 };
@@ -159,7 +246,7 @@ const saveDraftProfile = async ({ profile, body }) => {
   profile.generatedPdfUrl = '';
   await profile.save();
   await sendStepUpdateEmail({
-    to: body?.personalDetails?.email || '',
+    to: body?.email || body?.personalDetails?.email || '',
     candidateName: body?.personalDetails?.firstName || '',
     stepKey: 'profile',
     heading: 'Profile draft saved',
@@ -171,30 +258,99 @@ const saveDraftProfile = async ({ profile, body }) => {
   return profile;
 };
 
+const finalizeOrDraftProfile = async ({ req, body, userId, profile, isNewProfile, eligibility = null }) => {
+  if (body.status === 'draft') {
+    const draftProfile = await saveDraftProfile({ profile, body });
+    return { profile: draftProfile, statusCode: isNewProfile ? 201 : 200 };
+  }
+
+  const { profile: savedProfile, statusCode } = await finalizeSubmission({
+    req,
+    profile,
+    body,
+    userId,
+    isNewProfile,
+  });
+
+  if (eligibility) {
+    eligibility.profileSubmittedAt = eligibility.profileSubmittedAt || new Date();
+    await eligibility.save();
+  }
+
+  return { profile: savedProfile, statusCode };
+};
+
+const createOrUpdateProfileForUser = async ({ req, body, userId }) => {
+  await ensureEligible(userId);
+  const existingProfile = await Profile.findOne({ userId }).sort({ createdAt: -1 });
+  const profile = existingProfile || new Profile({ userId });
+  applyProfileFields(profile, body);
+
+  if (!existingProfile && body.status === 'draft') {
+    profile.status = 'draft';
+    profile.generatedPdfUrl = '';
+    await profile.save();
+    return { profile, statusCode: 201 };
+  }
+
+  return finalizeOrDraftProfile({
+    req,
+    body,
+    userId,
+    profile,
+    isNewProfile: !existingProfile,
+  });
+};
+
+const createOrUpdateProfileForPublicAccess = async ({ req, body }) => {
+  const email = normalizeEmail(body.email || body?.personalDetails?.email || '');
+  const eligibilityId = String(body.eligibilityId || '').trim();
+  const eligibility = await resolveEligibilityByAccess({ eligibilityId, email });
+  const user = await createPlaceholderCandidateUser({ email, name: body?.personalDetails?.firstName || email.split('@')[0], eligibility });
+
+  const existingProfile = await Profile.findOne({ userId: user._id }).sort({ createdAt: -1 });
+  let profile = existingProfile;
+  if (!profile) {
+    profile = new Profile({ userId: user._id, email, eligibilityId: eligibility._id });
+  }
+
+  applyProfileFields(profile, { ...body, email, eligibilityId: eligibility._id });
+  profile.userId = user._id;
+  profile.email = email;
+  profile.eligibilityId = eligibility._id;
+
+  const result = await finalizeOrDraftProfile({
+    req,
+    body: { ...body, email, eligibilityId: eligibility._id },
+    userId: user._id,
+    profile,
+    isNewProfile: !existingProfile,
+    eligibility,
+  });
+
+  await User.findByIdAndUpdate(user._id, {
+    status: body.status === 'draft' ? 'profile_submitted' : 'profile_submitted',
+    applicationSubmittedAt: body.status === 'draft' ? null : new Date(),
+    evaluationStatus: 'submitted',
+    accountCreationInviteSent: false,
+  });
+
+  return result;
+};
+
 const createProfile = async (req, res) => {
   try {
-    const body = req.body;
-    const userId = req.user?._id;
+    const { profile, statusCode } = await createOrUpdateProfileForUser({ req, body: req.body, userId: req.user?._id });
+    res.status(statusCode).json(profile);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
 
-    await ensureEligible(userId);
-
-    const existingProfile = await Profile.findOne({ userId }).sort({ createdAt: -1 });
-    if (body.status === 'draft') {
-      const profile = existingProfile || new Profile({ userId });
-      const draftProfile = await saveDraftProfile({ profile, body });
-      return res.status(existingProfile ? 200 : 201).json(draftProfile);
-    }
-
-    const profile = existingProfile || new Profile({ userId });
-    const { profile: savedProfile, statusCode } = await finalizeSubmission({
-      req,
-      profile,
-      body,
-      userId,
-      isNewProfile: !existingProfile,
-    });
-
-    res.status(statusCode).json(savedProfile);
+const createPublicProfile = async (req, res) => {
+  try {
+    const { profile, statusCode } = await createOrUpdateProfileForPublicAccess({ req, body: req.body });
+    res.status(statusCode).json(profile);
   } catch (error) {
     res.status(error.statusCode || 500).json({ message: error.message });
   }
@@ -209,35 +365,60 @@ const getMyProfile = async (req, res) => {
   }
 };
 
+const getPublicProfile = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.query?.email || req.body?.email || '');
+    const eligibilityId = String(req.query?.eligibilityId || req.body?.eligibilityId || '').trim();
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const profile = await getProfileByAccess({ email, eligibilityId });
+    res.json(profile || null);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
 const updateMyProfile = async (req, res) => {
   try {
-    const body = req.body;
-    const userId = req.user._id;
-
-    await ensureEligible(userId);
-
-    const isDraftSave = body.status === 'draft';
-    let profile = await Profile.findOne({ userId }).sort({ createdAt: -1 });
-
-    if (!profile && !isDraftSave) {
+    await ensureEligible(req.user._id);
+    const profile = await getProfileByAccess({ userId: req.user._id });
+    if (!profile) {
       return res.status(404).json({ message: 'Profile not found' });
     }
 
-    if (!profile) {
-      profile = new Profile({ userId });
-    }
-
-    if (isDraftSave) {
-      const draftProfile = await saveDraftProfile({ profile, body });
-      return res.json(draftProfile);
-    }
-
-    const { profile: savedProfile } = await finalizeSubmission({
+    const { profile: savedProfile } = await finalizeOrDraftProfile({
       req,
+      body: req.body,
+      userId: req.user._id,
       profile,
-      body,
-      userId,
       isNewProfile: false,
+    });
+
+    res.json(savedProfile);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
+const updatePublicProfile = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email || req.body?.personalDetails?.email || '');
+    const eligibilityId = String(req.body?.eligibilityId || '').trim();
+    const eligibility = await resolveEligibilityByAccess({ eligibilityId, email });
+    const profile = await getProfileByAccess({ email, eligibilityId: String(eligibility._id) });
+    if (!profile) {
+      return res.status(404).json({ message: 'Profile not found' });
+    }
+
+    const { profile: savedProfile } = await finalizeOrDraftProfile({
+      req,
+      body: { ...req.body, email, eligibilityId: String(eligibility._id) },
+      userId: profile.userId,
+      profile,
+      isNewProfile: false,
+      eligibility,
     });
 
     res.json(savedProfile);
@@ -277,4 +458,13 @@ const downloadProfilePdf = async (req, res) => {
   }
 };
 
-module.exports = { createProfile, getMyProfile, updateMyProfile, generateProfilePdf, downloadProfilePdf };
+module.exports = {
+  createProfile,
+  createPublicProfile,
+  getMyProfile,
+  getPublicProfile,
+  updateMyProfile,
+  updatePublicProfile,
+  generateProfilePdf,
+  downloadProfilePdf,
+};

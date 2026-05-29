@@ -17,7 +17,7 @@ const {
   filterAuditEntriesForAdmin,
 } = require('../utils/approvalAudit');
 const { getProgramFeeBreakdown } = require('../utils/programFee');
-const { LEGACY_PAYMENT_TYPE_TO_STAGE, PAYMENT_STAGES, EMAIL_TEMPLATE_KEYS } = require('../constants/workflow');
+const { LEGACY_PAYMENT_TYPE_TO_STAGE, PAYMENT_STAGES, EMAIL_TEMPLATE_KEYS, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 const sendEmail = require('../utils/sendEmail');
 const { getWorkflowConfig, sendAdminNotification, normalizeEmail } = require('../utils/workflowEmailer');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
@@ -80,8 +80,8 @@ const PAYMENT_REQUEST_STAGE_BY_TYPE = {
   final: LEGACY_PAYMENT_TYPE_TO_STAGE.final,
 };
 const PAYMENT_REQUEST_AMOUNT_BY_TYPE = {
-  program: 3100,
-  final: 3100,
+  program: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0),
+  final: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0),
 };
 
 const getReceiptTemplateKeyForStage = (stage) => {
@@ -172,14 +172,15 @@ const getBankTransferInstructionDetails = () => ({
 
 const sendInitialAssessmentApprovedEmail = async (candidate) => {
   const candidateName = String(candidate?.name || '').trim() || 'Candidate';
+  const initialAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.INITIAL_ONBOARDING_FEE].amount || 0);
   const text = `Dear ${candidateName},
 
 We are pleased to inform you that your profile has been approved to proceed to the next stage of the NextStep Talent process.
 
-As the next step, you may now complete the initial onboarding payment of USD $500 through your candidate portal. This payment confirms your continuation into the onboarding workflow and allows your process to move forward to the subsequent stages.
+As the next step, you may now complete the initial onboarding payment of USD ${initialAmount} through your candidate portal. This payment confirms your continuation into the onboarding workflow and allows your process to move forward to the subsequent stages.
 
 Important Payment Note:
-The USD $500 onboarding payment is strictly non-refundable under any circumstances.
+The USD ${initialAmount} onboarding payment is strictly non-refundable under any circumstances.
 
 Please complete this payment at the earliest so your application timeline is not delayed.
 
@@ -335,7 +336,7 @@ const initiateCandidatePaymentInstruction = async (req, res) => {
     const invoice = await ensureInvoiceForPaymentStage({
       candidate,
       stage: PAYMENT_REQUEST_STAGE_BY_TYPE[type],
-      amountReceived: type === 'final' ? 3100 : 0,
+      amountReceived: type === 'final' ? Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0) : 0,
     });
     if (invoice && String(pendingPayment.invoiceId || '') !== String(invoice._id)) {
       pendingPayment.invoiceId = invoice._id;
@@ -385,7 +386,7 @@ This is an official communication from NextStep Talent.`;
         candidate,
         invoice,
         stage: PAYMENT_REQUEST_STAGE_BY_TYPE[type],
-        amountReceived: type === 'final' ? 3100 : 0,
+        amountReceived: type === 'final' ? Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0) : 0,
       });
     }
 
@@ -546,8 +547,9 @@ const deriveAdminStageKey = (snapshot) => {
   if (status === 'selected') return 'selection';
   if (status === 'interview_completed') return 'selection';
   if (status === 'sent_to_partners' || hiringDecision === 'accepted') return 'selection';
-  if (!profile || profile.status === 'draft') return null;
+  if (!profile || profile.status === 'draft') return 'evaluation';
 
+  // Admin 2 approved but Admin 3 hasn't yet — still in evaluation queue
   if (!hasInitial) return 'evaluation';
   if (evaluationDecision !== 'accepted') return 'evaluation';
 
@@ -621,6 +623,8 @@ const formatCandidateRow = (snapshot, stageKey = '') => {
     date: candidate.createdAt,
     profileStatus: profile?.status || 'not_submitted',
     stepStatus,
+    admin2EvaluationApproved: Boolean(candidate.admin2EvaluationApproved),
+    admin3EvaluationApproved: Boolean(candidate.admin3EvaluationApproved),
     assignedHiringPartner: candidate.assignedHiringPartner || '',
     latestInterviewStatus: latestInterview?.status || '',
     latestInterviewRole: latestInterview?.role || '',
@@ -936,9 +940,9 @@ const paymentStageMatcher = (type, snapshot) => {
 };
 
 const paymentExpectedAmount = {
-  initial: 500,
+  initial: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.INITIAL_ONBOARDING_FEE].amount || 0),
   program: getProgramFeeBreakdown(null).total,
-  final: 3100,
+  final: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0),
 };
 
 const paymentStatusLabel = (rawStatus = '') => {
@@ -1315,22 +1319,25 @@ const updatePaymentStatus = async (req, res) => {
     let generatedReceipt = null;
     if (status === 'completed' && candidate && stage) {
       if (stage === PAYMENT_STAGES.INITIAL_ONBOARDING_FEE) {
-        payment.nonRefundableAmount = 500;
+        payment.nonRefundableAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.INITIAL_ONBOARDING_FEE].amount || 0);
         payment.refundableAmount = 0;
         payment.refundStatus = 'non_refundable';
       }
       if (stage === PAYMENT_STAGES.FIRST_INSTALLMENT) {
+        const firstAmt = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0);
+        const deduction = 200;
+        const refundableIfNotSelected = Math.max(0, firstAmt - deduction);
         if (candidate.selectedStatus === 'not_selected') {
-          payment.nonRefundableAmount = 200;
-          payment.refundableAmount = 2900;
+          payment.nonRefundableAmount = deduction;
+          payment.refundableAmount = refundableIfNotSelected;
           payment.refundStatus = 'partially_refundable';
         } else if (candidate.selectedStatus === 'selected') {
-          payment.nonRefundableAmount = 3100;
+          payment.nonRefundableAmount = firstAmt;
           payment.refundableAmount = 0;
           payment.refundStatus = 'non_refundable';
         } else {
-          payment.nonRefundableAmount = 200;
-          payment.refundableAmount = 2900;
+          payment.nonRefundableAmount = deduction;
+          payment.refundableAmount = refundableIfNotSelected;
           payment.refundStatus = 'conditional';
         }
       }
@@ -1338,7 +1345,7 @@ const updatePaymentStatus = async (req, res) => {
       generatedInvoice = await ensureInvoiceForPaymentStage({
         candidate,
         stage,
-        amountReceived: stage === PAYMENT_STAGES.FINAL_PAYMENT ? 3100 : 0,
+        amountReceived: stage === PAYMENT_STAGES.FINAL_PAYMENT ? Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0) : 0,
       });
       if (generatedInvoice) {
         payment.invoiceId = generatedInvoice._id;
@@ -1589,27 +1596,94 @@ const updateCandidateStageDecision = async (req, res) => {
     }
     candidate.stageStatuses.set(stageKey, status);
 
+    const actorRoleNormalized = String(req.user?.adminRole || '').trim().toLowerCase();
+    const isAdmin2Actor = actorRoleNormalized === 'evaluation_admin';
+    const isAdmin3Actor = actorRoleNormalized === 'operations_admin';
+
     if (stageKey === 'evaluation') {
       const profile = await Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 });
       if (!profile) {
         return res.status(404).json({ message: 'Profile not found for this candidate' });
       }
 
-      if (status === 'accepted') {
+      if (isAdmin2Actor && status === 'accepted') {
+        // Admin 2 approves: keep profile under_review, mark admin2 approved, notify Admin 3
+        profile.status = 'under_review';
+        candidate.status = 'profile_submitted';
+        candidate.stageStatuses.set('evaluation', 'under_review');
+        candidate.admin2EvaluationApproved = true;
+        candidate.admin2EvaluationApprovedAt = new Date();
+        candidate.admin2EvaluationApprovedBy = req.user?.email || '';
+        await profile.save();
+        try {
+          const workflow = getWorkflowConfig();
+          await sendAdminNotification({
+            to: workflow.admin3 ? [workflow.admin3] : getOperationsAdminEmails(),
+            subject: `NextStep Talent Candidate For Approval / ${candidate.name || candidate.email?.split('@')[0] || 'Candidate'}`,
+            lines: [
+              'Admin 2 (Evaluation Admin) has reviewed and approved the candidate. Admin 3 final approval is now required.',
+              `Candidate: ${candidate.name || candidate.email?.split('@')[0] || 'N/A'}`,
+              `Email: ${candidate.email || 'N/A'}`,
+              `Candidate ID: ${String(candidate._id)}`,
+              `Review Link: ${getFrontendBaseUrl()}/admin/candidates/${String(candidate._id)}?tab=profile&review=evaluation`,
+            ],
+            fromType: 'noreply',
+          });
+        } catch (notifyErr) {
+          console.error('Admin 3 notification failed:', notifyErr.message);
+        }
+      } else if (isAdmin3Actor && status === 'accepted') {
+        // Admin 3 approves: finalize profile, send account creation invite
         profile.status = 'accepted';
         candidate.status = 'accepted';
+        candidate.stageStatuses.set('evaluation', 'accepted');
+        candidate.admin3EvaluationApproved = true;
+        candidate.admin3EvaluationApprovedAt = new Date();
+        candidate.admin3EvaluationApprovedBy = req.user?.email || '';
+        await profile.save();
       } else if (status === 'rejected') {
         profile.status = 'rejected';
         candidate.status = 'rejected';
+        candidate.stageStatuses.set('evaluation', 'rejected');
+        await profile.save();
       } else if (status === 'under_review') {
         profile.status = 'under_review';
         candidate.status = 'profile_submitted';
+        candidate.stageStatuses.set('evaluation', 'under_review');
+        await profile.save();
+      } else if (!isAdmin2Actor && !isAdmin3Actor && status === 'accepted') {
+        // Super/payments admin direct approval
+        profile.status = 'accepted';
+        candidate.status = 'accepted';
+        candidate.stageStatuses.set('evaluation', 'accepted');
+        await profile.save();
       }
-      await profile.save();
     }
 
     let initialAssessmentMailSent = false;
-    if (stageKey === 'evaluation' && status === 'accepted' && isAdmin1Role(req.user?.adminRole)) {
+
+    if (stageKey === 'evaluation' && status === 'accepted' && isAdmin3Actor) {
+      // Admin 3 final approval: send account creation invite to candidate
+      const shouldSend = !candidate.admin3EvaluationApproved || !candidate.accountCreationInviteSent;
+      candidate.accountCreationInviteSent = true;
+      candidate.accountCreationInviteSentAt = new Date();
+      if (shouldSend) {
+        const inviteUrl = `${getFrontendBaseUrl()}/signup?email=${encodeURIComponent(candidate.email)}&invite=1`;
+        const inviteText = `Dear ${String(candidate.name || 'Candidate').trim()},\n\nYour profile has been reviewed and approved.\n\nYou may now create your candidate account using the link below.\n\nEmail: ${candidate.email}\nCreate Account Link: ${inviteUrl}\n\nAfter creating your account, you will receive email verification instructions and can then access your dashboard.\n\nRegards,\nNextStep Talent Team\n\nThis is an official communication from NextStep Talent.`;
+        await sendEmail({
+          to: candidate.email,
+          subject: 'NextStep Talent – Account Creation Invitation',
+          text: inviteText,
+          html: inviteText.replaceAll('\n', '<br/>'),
+          fromEmail: 'noreply@nextsteptalent.net',
+          fromName: 'NextStep Talent Team',
+          templateKey: 'profile_account_creation_invite',
+          relatedCandidateId: candidate._id,
+        });
+        initialAssessmentMailSent = true;
+      }
+    } else if (stageKey === 'evaluation' && status === 'accepted' && isAdmin1Role(req.user?.adminRole) && !isAdmin2Actor && !isAdmin3Actor) {
+      // Super/payments admin direct approval: send initial assessment approved email
       const shouldSend = !candidate.admin1ProgressionApproved;
       candidate.admin1ProgressionApproved = true;
       candidate.admin1ProgressionApprovedAt = new Date();
@@ -1685,23 +1759,6 @@ This is an automated email. Please do not reply to this message.`;
 
     const workflow = getWorkflowConfig();
     const actorEmail = normalizeEmail(req.user?.email || '');
-    if (stageKey === 'evaluation' && status === 'accepted' && actorEmail === workflow.admin2) {
-      try {
-        await sendAdminNotification({
-          to: workflow.admin3,
-          subject: `NextStep Talent Candidate For Approval / ${candidate.name || candidate.email?.split('@')[0] || 'Candidate'}`,
-          lines: [
-            'Admin 2 approved the candidate and requires Admin 3 review.',
-            `Candidate: ${candidate.name || candidate.email?.split('@')[0] || 'N/A'}`,
-            `Email: ${candidate.email || 'N/A'}`,
-            `Candidate ID: ${String(candidate._id)}`,
-          ],
-          fromType: 'noreply',
-        });
-      } catch (error) {
-        console.error('Admin 3 approval notification failed:', error.message);
-      }
-    }
 
     if (stageKey === 'document-verification' && status === 'accepted') {
       const actorRole = String(req.user?.adminRole || '').trim().toLowerCase();
@@ -1786,21 +1843,26 @@ This is an automated email. Please do not reply to this message.`;
       };
     })();
 
-    await sendStepUpdateEmail({
-      to: candidate.email,
-      candidateName: candidate.name || candidate.email?.split('@')[0],
-      stepKey: stageToEmailStep[stageKey] || 'profile',
-      stepName: stagePageLabelMap[stageKey] || stageKey,
-      heading: stageEmailConfig.heading,
-      message: stageEmailConfig.message,
-      status,
-      details: [
-        { label: 'Stage', value: stagePageLabelMap[stageKey] || stageKey },
-        { label: 'Decision', value: status },
-        ...(hiringPartner ? [{ label: 'Hiring Partner', value: hiringPartner }] : []),
-      ],
-      cta: { label: 'Open Dashboard', url: `${getFrontendBaseUrl()}/candidate-dashboard` },
-    });
+    // For evaluation stage: Admin 2 never emails candidate. Admin 3 sends account creation invite (handled above).
+    // Neither sends a generic step-update email for evaluation.
+    const skipCandidateStepEmail = stageKey === 'evaluation' && (isAdmin2Actor || isAdmin3Actor);
+    if (!skipCandidateStepEmail) {
+      await sendStepUpdateEmail({
+        to: candidate.email,
+        candidateName: candidate.name || candidate.email?.split('@')[0],
+        stepKey: stageToEmailStep[stageKey] || 'profile',
+        stepName: stagePageLabelMap[stageKey] || stageKey,
+        heading: stageEmailConfig.heading,
+        message: stageEmailConfig.message,
+        status,
+        details: [
+          { label: 'Stage', value: stagePageLabelMap[stageKey] || stageKey },
+          { label: 'Decision', value: status },
+          ...(hiringPartner ? [{ label: 'Hiring Partner', value: hiringPartner }] : []),
+        ],
+        cta: { label: 'Open Dashboard', url: `${getFrontendBaseUrl()}/candidate-dashboard` },
+      });
+    }
 
     const [profile, eligibility, documents, interviews, payments, testimonial, refreshedCandidate] = await Promise.all([
       Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),

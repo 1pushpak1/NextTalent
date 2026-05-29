@@ -63,7 +63,17 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
                   <p className="text-xs text-slate-500 group-hover:text-black">{row.email || '—'}</p>
                 </td>
                 <td className="px-4 py-3 text-slate-700 group-hover:text-black">{row.currentStage || '—'}</td>
-                <td className="px-4 py-3 text-slate-700 group-hover:text-black">{row.status || '—'}</td>
+                <td className="px-4 py-3 text-slate-700 group-hover:text-black">
+                  <div className="flex flex-col gap-1">
+                    <span>{row.status || '—'}</span>
+                    {stageKey === 'evaluation' && row.admin2EvaluationApproved && !row.admin3EvaluationApproved ? (
+                      <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Admin 2 Approved · Awaiting Admin 3</span>
+                    ) : null}
+                    {stageKey === 'evaluation' && !row.admin2EvaluationApproved ? (
+                      <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Pending Admin 2 Review</span>
+                    ) : null}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-slate-700 group-hover:text-black">{formatDate(row.date)}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">

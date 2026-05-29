@@ -1,13 +1,14 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const User = require('../models/User');
+const Eligibility = require('../models/Eligibility');
 const Profile = require('../models/Profile');
 const Payment = require('../models/Payment');
 const Invoice = require('../models/Invoice');
 const Receipt = require('../models/Receipt');
 const InterviewSlot = require('../models/InterviewSlot');
 const InterviewBooking = require('../models/InterviewBooking');
-const { ADMIN_ROLES, PAYMENT_STAGES, EMAIL_TEMPLATE_KEYS, LEGACY_PAYMENT_TYPE_TO_STAGE } = require('../constants/workflow');
+const { ADMIN_ROLES, PAYMENT_STAGES, EMAIL_TEMPLATE_KEYS, LEGACY_PAYMENT_TYPE_TO_STAGE, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 const { normalizeAdminRole } = require('../constants/workflow');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
 const { sendTransactionalEmailSafe } = require('../services/emailService');
@@ -63,7 +64,7 @@ const evaluationApprove = async (req, res) => {
       { sort: { createdAt: -1 } }
     );
 
-    const operationsAdmins = ['operations@example.com'];
+    const operationsAdmins = getOperationsAdminEmails();
     const profile = await Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 });
     const profileSummary = profile
       ? [
@@ -284,6 +285,47 @@ This is an automated email. Please do not reply to this message.`;
         fromEmail: 'noreply@nextsteptalent.net',
         fromName: 'NextStep Talent Team',
         templateKey: 'admin3_rejection_candidate',
+        relatedCandidateId: candidate._id,
+      });
+    }
+
+    if (normalizedDecision === 'interview_not_required') {
+      candidate.accountCreationInviteSent = true;
+      candidate.accountCreationInviteSentAt = new Date();
+      await candidate.save();
+
+      const eligibility = await Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 });
+      if (eligibility) {
+        eligibility.accountCreationInviteSent = true;
+        eligibility.accountCreationInviteSentAt = new Date();
+        await eligibility.save();
+      }
+
+      const inviteUrl = `${FRONTEND_BASE}/signup?email=${encodeURIComponent(candidate.email)}&invite=1`;
+      const inviteText = `Dear ${String(candidate.name || 'Candidate').trim()},
+
+Your profile has been approved by the final review stage.
+
+You may now create your candidate account using the same email address used for your profile submission.
+
+Email: ${candidate.email}
+Create Account Link: ${inviteUrl}
+
+After you create your password, you will receive email verification instructions and can then access your dashboard.
+
+Regards,
+NextStep Talent Team
+
+This is an official communication from NextStep Talent.`;
+
+      await sendTransactionalEmailSafe({
+        to: candidate.email,
+        subject: 'NextStep Talent – Account Creation Invitation',
+        text: inviteText,
+        html: inviteText.replaceAll('\n', '<br/>'),
+        fromEmail: 'noreply@nextsteptalent.net',
+        fromName: 'NextStep Talent Team',
+        templateKey: EMAIL_TEMPLATE_KEYS.PROFILE_ACCOUNT_INVITE,
         relatedCandidateId: candidate._id,
       });
     }
@@ -563,7 +605,7 @@ const generateInvoiceForCandidate = async (req, res) => {
     const existing = await Invoice.findOne({ candidateId: candidate._id, paymentStage }).sort({ createdAt: -1 });
     if (existing) return res.json({ message: 'Invoice already exists', invoice: existing });
 
-    const amountReceived = paymentStage === PAYMENT_STAGES.FINAL_PAYMENT ? 3100 : 0;
+    const amountReceived = paymentStage === PAYMENT_STAGES.FINAL_PAYMENT ? Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0) : 0;
     const invoice = await generateInvoiceForStage({ candidate, stage: paymentStage, amountReceived });
     candidate.invoices = [...new Set([...(candidate.invoices || []).map(String), String(invoice._id)])];
     await candidate.save();
@@ -590,16 +632,8 @@ const generateInvoiceForCandidate = async (req, res) => {
     });
 
     if (paymentStage === PAYMENT_STAGES.FIRST_INSTALLMENT) {
-      const text = `Invoice available in portal
-Amount due: USD $3,100
-Payment details mentioned on invoice 
-Timeline of payment within 30 days of invoice date 
-Processing continues after payment confirmation
-
-Regards,  
-NextStep Talent Team
-
-This is an automated email. Please do not reply to this message.`;
+      const firstAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0);
+      const text = `Invoice available in portal\nAmount due: USD $${firstAmount.toLocaleString('en-US')}\nPayment details mentioned on invoice \nTimeline of payment within 30 days of invoice date \nProcessing continues after payment confirmation\n\nRegards,  \nNextStep Talent Team\n\nThis is an automated email. Please do not reply to this message.`;
       await sendTransactionalEmailSafe({
         to: candidate.email,
         subject: 'NextStep Talent – Invoice Generated & Payment Request',
@@ -613,28 +647,8 @@ This is an automated email. Please do not reply to this message.`;
     }
 
     if (paymentStage === PAYMENT_STAGES.FINAL_PAYMENT) {
-      const text = `Dear Candidate,
-
-We are pleased to inform you that your profile has successfully progressed through the evaluation and employer coordination stages, and your application has been approved to proceed to the final onboarding phase.
-
-As part of the final onboarding process, the remaining balance payment is now due.
-
-Final Payment Amount: USD $3,100
-
-Your invoice has been generated and is available within your candidate portal for review and download.
-
-Please complete the payment within the specified timeline to avoid delays in onboarding progression and employer-side processing.
-
-Upon successful receipt of payment, our team will continue with the final coordination, onboarding formalities, and process completion steps.
-
-If any additional documentation or actions are required from your end, the operations team will contact you separately.
-
-We appreciate your cooperation throughout the process and look forward to supporting you through the final onboarding stage.
-
-Regards,  
-NextStep Talent Team
-
-This is an automated email. Please do not reply to this message.`;
+      const finalAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0);
+      const text = `Dear Candidate,\n\nWe are pleased to inform you that your profile has successfully progressed through the evaluation and employer coordination stages, and your application has been approved to proceed to the final onboarding phase.\n\nAs part of the final onboarding process, the remaining balance payment is now due.\n\nFinal Payment Amount: USD $${finalAmount.toLocaleString('en-US')}\n\nYour invoice has been generated and is available within your candidate portal for review and download.\n\nPlease complete the payment within the specified timeline to avoid delays in onboarding progression and employer-side processing.\n\nUpon successful receipt of payment, our team will continue with the final coordination, onboarding formalities, and process completion steps.\n\nIf any additional documentation or actions are required from your end, the operations team will contact you separately.\n\nWe appreciate your cooperation throughout the process and look forward to supporting you through the final onboarding stage.\n\nRegards,  \nNextStep Talent Team\n\nThis is an automated email. Please do not reply to this message.`;
       await sendTransactionalEmailSafe({
         to: candidate.email,
         subject: 'NextStep Talent – Final Payment Request',
@@ -715,7 +729,7 @@ const verifyCandidatePayment = async (req, res) => {
         payment.refundableAmount = 2900;
         payment.refundStatus = 'partially_refundable';
       } else if (candidate.selectedStatus === 'selected') {
-        payment.nonRefundableAmount = 3100;
+        payment.nonRefundableAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0);
         payment.refundableAmount = 0;
         payment.refundStatus = 'non_refundable';
       } else {
@@ -731,7 +745,7 @@ const verifyCandidatePayment = async (req, res) => {
         invoice = await generateInvoiceForStage({
           candidate,
           stage,
-          amountReceived: stage === PAYMENT_STAGES.FINAL_PAYMENT ? 3100 : 0,
+          amountReceived: stage === PAYMENT_STAGES.FINAL_PAYMENT ? Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0) : 0,
         });
       }
       payment.invoiceId = invoice._id;

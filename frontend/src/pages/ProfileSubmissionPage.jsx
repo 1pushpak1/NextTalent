@@ -11,6 +11,7 @@ import Modal from '../components/Modal';
 import SignatureModal from '../components/SignatureModal';
 import CandidatePortalSidebar from '../components/CandidatePortalSidebar';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 import { countries } from 'countries-list';
 
 const formSteps = ['Personal', 'Education', 'Certifications', 'Experience', 'Skills', 'Languages', 'Additional', 'Review'];
@@ -534,6 +535,7 @@ const hydrateFormFromProfile = (profile) => {
 };
 
 export default function ProfileSubmissionPage() {
+  const { isAuthenticated } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [fieldErrors, setFieldErrors] = useState({});
   const [listLimitMessages, setListLimitMessages] = useState({});
@@ -548,6 +550,8 @@ export default function ProfileSubmissionPage() {
   const [technicalSkillInput, setTechnicalSkillInput] = useState('');
   const [eligibilityDetails, setEligibilityDetails] = useState(null);
   const navigate = useNavigate();
+  const publicEligibilityId = String(localStorage.getItem('nst_eligibility_id') || '').trim();
+  const publicEligibilityEmail = String(localStorage.getItem('nst_eligibility_email') || '').toLowerCase().trim();
 
   const [form, setForm] = useState(createDefaultForm);
   const getFieldError = (path) => fieldErrors[path];
@@ -562,6 +566,44 @@ export default function ProfileSubmissionPage() {
 
     const loadExistingProfile = async () => {
       try {
+        if (!isAuthenticated) {
+          if (!publicEligibilityId || !publicEligibilityEmail) {
+            navigate('/eligibility-check', { replace: true });
+            return;
+          }
+
+          const { data: eligibilityData } = await api.get(`/eligibility/${publicEligibilityId}`);
+          if (isMounted) {
+            setEligibilityDetails(eligibilityData || null);
+          }
+
+          const { data: existingProfile } = await api.get('/profile/public', {
+            params: { eligibilityId: publicEligibilityId, email: publicEligibilityEmail },
+          });
+          if (!isMounted) return;
+
+          if (existingProfile) {
+            setHasExistingProfile(true);
+            setIsApprovedProfileView(existingProfile.status === 'accepted');
+            setForm(hydrateFormFromProfile(existingProfile));
+            setFinancialAccepted(Boolean(existingProfile.financialDisclosureAccepted));
+            setSignature(existingProfile.signature || null);
+            if (existingProfile.status === 'draft') {
+              setCurrentStep(clampStep(existingProfile.savedStep, 1));
+              setShowFinancialModal(Boolean(!existingProfile.financialDisclosureAccepted));
+            } else {
+              setCurrentStep(8);
+              setShowFinancialModal(false);
+            }
+            return;
+          }
+
+          setHasExistingProfile(false);
+          setIsApprovedProfileView(false);
+          setShowFinancialModal(true);
+          return;
+        }
+
         const { data: dashboardData } = await api.get('/dashboard/me');
         if (isMounted) {
           setEligibilityDetails(dashboardData?.eligibility || null);
@@ -600,7 +642,7 @@ export default function ProfileSubmissionPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAuthenticated, navigate, publicEligibilityEmail, publicEligibilityId]);
 
   const requireVisa =
     form.personalDetails.currentCountryOfResidence &&
@@ -700,6 +742,12 @@ By signing below, you accept full responsibility for the authenticity of the det
     try {
       const payload = {
         ...form,
+        personalDetails: {
+          ...form.personalDetails,
+          email: publicEligibilityEmail || form.personalDetails?.email || '',
+        },
+        email: publicEligibilityEmail || form.personalDetails?.email || '',
+        eligibilityId: publicEligibilityId || '',
         financialDisclosureAccepted: financialAccepted,
         acknowledgementSigned: Boolean(signature?.value),
         signature: signature || null,
@@ -707,7 +755,13 @@ By signing below, you accept full responsibility for the authenticity of the det
         status: 'draft',
       };
 
-      const request = hasExistingProfile ? api.put('/profile/me', payload) : api.post('/profile', payload);
+      const request = isAuthenticated
+        ? hasExistingProfile
+          ? api.put('/profile/me', payload)
+          : api.post('/profile', payload)
+        : hasExistingProfile
+          ? api.put('/profile/public', payload)
+          : api.post('/profile/public', payload);
       await request;
       setHasExistingProfile(true);
       setFieldErrors({});
@@ -773,6 +827,12 @@ By signing below, you accept full responsibility for the authenticity of the det
     try {
       const payload = {
         ...form,
+        personalDetails: {
+          ...form.personalDetails,
+          email: publicEligibilityEmail || form.personalDetails?.email || '',
+        },
+        email: publicEligibilityEmail || form.personalDetails?.email || '',
+        eligibilityId: publicEligibilityId || '',
         financialDisclosureAccepted: financialAccepted,
         acknowledgementSigned: true,
         signature: {
@@ -783,12 +843,16 @@ By signing below, you accept full responsibility for the authenticity of the det
         },
       };
 
-      if (hasExistingProfile) {
+      if (isAuthenticated && hasExistingProfile) {
         await api.put('/profile/me', payload);
-      } else {
+      } else if (isAuthenticated) {
         await api.post('/profile', payload);
+      } else if (hasExistingProfile) {
+        await api.put('/profile/public', payload);
+      } else {
+        await api.post('/profile/public', payload);
       }
-      navigate('/internal-evaluation');
+      navigate(isAuthenticated ? '/internal-evaluation' : '/profile-submitted');
     } catch (err) {
       alert(err.response?.data?.message || 'Profile submission failed');
     } finally {
@@ -817,8 +881,8 @@ By signing below, you accept full responsibility for the authenticity of the det
   return (
     <div className="nst-shell min-h-screen">
       <Navbar />
-      <CandidatePortalSidebar />
-      <main className="flex-1 px-6 pb-16 pt-28 lg:ml-64">
+      {isAuthenticated && <CandidatePortalSidebar />}
+      <main className={isAuthenticated ? 'flex-1 px-6 pb-16 pt-28 lg:ml-64' : 'px-6 pb-16 pt-28'}>
         <div className="mx-auto max-w-[1200px]">
           <div className="flex flex-col gap-6">
             {!isApprovedProfileView && (
@@ -1774,24 +1838,21 @@ By signing below, you accept full responsibility for the authenticity of the det
         <div className="space-y-3 text-sm">
           <div className="rounded-lg border border-slate-200 bg-white p-3">
             <p className="font-semibold text-slate-900">Initial Evaluation Fee</p>
-            <p className="text-slate-700">USD 500 non-refundable</p>
+            <p className="text-slate-700">USD 500 (non-refundable)</p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-3">
             <p className="font-semibold text-slate-900">Program Fee</p>
-            <p className="text-slate-700">USD 8,000</p>
+            <p className="text-slate-700">USD 6,200</p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
-            <p className="font-semibold text-slate-900">Documentation Verification Fee</p>
-            <p className="text-slate-700">USD 500</p>
-          </div>
+         
         </div>
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
           <p className="font-semibold text-slate-900">Post Initial Evaluation</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>USD 500 non-refundable</li>
+            <li>USD 500 (non-refundable)</li>
             <li>First installment payment is USD 3,100 (includes bank fees), refundable minus USD 200 only if not selected post-interview or in valid visa rejection scenarios per agreement.</li>
-            <li>USD 4,000 payable upon successful selection</li>
+            <li>USD 3,100 payable upon successful selection</li>
           </ul>
           <p className="mt-3 rounded-md bg-amber-50 p-2 text-white">
             This fee supports evaluation and process coordination services. It does not promise employment outcomes.

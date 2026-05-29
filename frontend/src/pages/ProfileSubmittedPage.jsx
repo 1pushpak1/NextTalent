@@ -15,7 +15,17 @@ export default function ProfileSubmittedPage() {
               Your profile has been successfully submitted. Our team will review your details as part of the evaluation
               process. If your profile aligns with current requirements, you will be contacted with next steps.
             </p>
-            <Link to="/internal-evaluation"><Button>Go to Internal Evaluation</Button></Link>
+         <p className="mx-auto mb-6 max-w-2xl text-[#44474e]">
+  For any further updates, please contact us at{" "}
+  <a
+    href="mailto:contact@nextsteptalent.net"
+    className="text-blue-600 hover:text-blue-800 underline transition-colors"
+    style={{ color: '#a0b8f8' }}
+  >
+    contact@nextsteptalent.net
+  </a>.
+</p>
+            {/* <Link to="/internal-evaluation"><Button>Go to Internal Evaluation</Button></Link> */}
           </div>
         </div>
       </main>
