@@ -195,8 +195,8 @@ This is an official communication from NextStep Talent.`;
     subject: 'NextStep Talent – Initial Assessment Approved',
     text,
     html: text.replaceAll('\n', '<br/>'),
-    fromEmail: 'noreply@nextsteptalent.net',
-    fromName: 'NextStep Talent Team',
+    fromEmail: String(process.env.SMTP_FROM_EMAIL || process.env.FROM_EMAIL || 'noreply@nextsteptalent.net').trim(),
+    fromName: String(process.env.SMTP_FROM_NAME || process.env.FROM_NAME || 'NextStep Talent Team').trim(),
     templateKey: 'initial_assessment_approved',
     relatedCandidateId: candidate._id,
   });
@@ -1097,7 +1097,7 @@ const updateCandidateProfileStatus = async (req, res) => {
     }
 
     let initialAssessmentMailSent = false;
-    if (status === 'accepted' && isAdmin1Role(req.user?.adminRole)) {
+    if (status === 'accepted' && String(req.user?.adminRole || '').trim().toLowerCase() === 'super_admin') {
       const shouldSend = !candidate.admin1ProgressionApproved;
       candidate.admin1ProgressionApproved = true;
       candidate.admin1ProgressionApprovedAt = new Date();
@@ -1109,24 +1109,55 @@ const updateCandidateProfileStatus = async (req, res) => {
     }
     await candidate.save();
 
-    await sendStepUpdateEmail({
-      to: candidate.email,
-      candidateName: candidate.name || candidate.email?.split('@')[0],
-      stepKey: 'evaluation',
-      heading: status === 'accepted' ? 'Profile approved' : status === 'rejected' ? 'Profile rejected' : 'Profile kept under review',
-      message:
-        status === 'accepted'
-          ? 'Your profile has been approved. Please complete the next steps from your dashboard.'
-          : status === 'rejected'
-            ? 'Your profile was not approved in the current review cycle. Your dashboard will now show this rejection and the next steps will remain inactive.'
-            : 'Your profile is still under internal evaluation. No action is needed from you right now.',
-      status,
-      details: [
-        { label: 'Profile Status', value: status },
-        { label: 'Next Step', value: status === 'accepted' ? 'Complete the next dashboard step' : status === 'rejected' ? 'No further candidate action available' : 'Wait for final review decision' },
-      ],
-      cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
-    });
+    if (status === 'accepted' && isAdmin2Actor) {
+      const workflow = getWorkflowConfig();
+      await sendAdminNotification({
+        to: workflow.admin3 ? [workflow.admin3] : getOperationsAdminEmails(),
+        subject: `NextStep Talent Candidate For Approval / ${candidate.name || candidate.email?.split('@')[0] || 'Candidate'}`,
+        lines: [
+          'Admin 2 (Evaluation Admin) has reviewed and approved the candidate. Admin 3 final approval is now required.',
+          `Candidate: ${candidate.name || candidate.email?.split('@')[0] || 'N/A'}`,
+          `Email: ${candidate.email || 'N/A'}`,
+          `Candidate ID: ${String(candidate._id)}`,
+          `Review Link: ${getFrontendBaseUrl()}/admin/candidates/${String(candidate._id)}?tab=profile&review=evaluation`,
+        ],
+        fromType: 'noreply',
+      });
+    }
+
+    if (status === 'accepted' && isAdmin3Actor) {
+      await sendStepUpdateEmail({
+        to: candidate.email,
+        candidateName: candidate.name || candidate.email?.split('@')[0],
+        stepKey: 'evaluation',
+        heading: 'Profile approved',
+        message: 'Your profile has been approved. Please complete the next steps from your dashboard.',
+        status,
+        details: [
+          { label: 'Profile Status', value: status },
+          { label: 'Next Step', value: 'Complete the next dashboard step' },
+        ],
+        cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+      });
+      initialAssessmentMailSent = true;
+    }
+
+    if (status === 'accepted' && isAdmin1Role(req.user?.adminRole) && !isAdmin2Actor && !isAdmin3Actor) {
+      await sendStepUpdateEmail({
+        to: candidate.email,
+        candidateName: candidate.name || candidate.email?.split('@')[0],
+        stepKey: 'evaluation',
+        heading: 'Profile approved',
+        message: 'Your profile has been approved. Please complete the next steps from your dashboard.',
+        status,
+        details: [
+          { label: 'Profile Status', value: status },
+          { label: 'Next Step', value: 'Complete the next dashboard step' },
+        ],
+        cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+      });
+      initialAssessmentMailSent = true;
+    }
 
     const [eligibility, documents, interviews, payments, testimonial] = await Promise.all([
       Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),

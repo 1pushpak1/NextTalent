@@ -104,33 +104,52 @@ const sendTransactionalEmail = async ({
       attachments,
     });
 
-    const log = await EmailLog.create({
-      to: toList,
-      cc: ccList,
-      bcc: bccList,
-      subject: String(subject || ''),
-      templateKey,
-      relatedCandidateId,
-      relatedAdminActionId: String(relatedAdminActionId || ''),
-      status: 'sent',
-      sentAt: new Date(),
-      errorMessage: '',
-    });
+    let log = null;
+    try {
+      log = await EmailLog.create({
+        to: toList,
+        cc: ccList,
+        bcc: bccList,
+        subject: String(subject || ''),
+        templateKey,
+        relatedCandidateId,
+        relatedAdminActionId: String(relatedAdminActionId || ''),
+        status: 'sent',
+        sentAt: new Date(),
+        errorMessage: '',
+      });
+    } catch (logErr) {
+      const shouldLog = String(process.env.EMAIL_LOG_ERRORS || 'false').toLowerCase() === 'true';
+      if (shouldLog) {
+        console.error('[EmailLog Create Failed]', { error: logErr?.message || logErr });
+      }
+      // Don't fail the send if logging the email fails (e.g., Mongo down). Return send info without a log.
+      log = null;
+    }
 
     return { info, log };
   } catch (error) {
-    const log = await EmailLog.create({
-      to: toList,
-      cc: ccList,
-      bcc: bccList,
-      subject: String(subject || ''),
-      templateKey,
-      relatedCandidateId,
-      relatedAdminActionId: String(relatedAdminActionId || ''),
-      status: 'failed',
-      sentAt: null,
-      errorMessage: String(error?.message || 'Unknown email error'),
-    });
+    let log = null;
+    try {
+      log = await EmailLog.create({
+        to: toList,
+        cc: ccList,
+        bcc: bccList,
+        subject: String(subject || ''),
+        templateKey,
+        relatedCandidateId,
+        relatedAdminActionId: String(relatedAdminActionId || ''),
+        status: 'failed',
+        sentAt: null,
+        errorMessage: String(error?.message || 'Unknown email error'),
+      });
+    } catch (logErr) {
+      const shouldLog = String(process.env.EMAIL_LOG_ERRORS || 'false').toLowerCase() === 'true';
+      if (shouldLog) {
+        console.error('[EmailLog Create Failed After Send Error]', { error: logErr?.message || logErr });
+      }
+      log = null;
+    }
 
     const shouldLog = String(process.env.EMAIL_LOG_ERRORS || 'false').toLowerCase() === 'true';
     if (shouldLog) {

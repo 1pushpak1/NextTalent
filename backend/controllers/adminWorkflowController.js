@@ -26,6 +26,8 @@ const { candidateInterviewEligible } = require('./candidateController');
 
 const FRONTEND_BASE = String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
 const adminCandidateLink = (candidateId) => `${FRONTEND_BASE}/admin/candidates/${candidateId}`;
+const workflowFromEmail = String(process.env.SMTP_FROM_EMAIL || process.env.SMTP_USERNAME || 'noreply@nextsteptalent.net').trim();
+const workflowFromName = String(process.env.SMTP_FROM_NAME || 'NextStep Talent').trim();
 
 const resolveCandidate = async (candidateId) => {
   if (!mongoose.Types.ObjectId.isValid(candidateId)) return null;
@@ -342,8 +344,8 @@ This is an official communication from NextStep Talent.`;
         subject: 'NextStep Talent – Account Creation Invitation',
         text: inviteText,
         html: inviteText.replaceAll('\n', '<br/>'),
-        fromEmail: 'noreply@nextsteptalent.net',
-        fromName: 'NextStep Talent Team',
+        fromEmail: workflowFromEmail,
+        fromName: workflowFromName,
         templateKey: EMAIL_TEMPLATE_KEYS.PROFILE_ACCOUNT_INVITE,
         relatedCandidateId: candidate._id,
       });

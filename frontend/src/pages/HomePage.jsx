@@ -36,7 +36,6 @@ const processSteps = [
 const navigationLinks = [
   { href: '/', label: 'Home' },
   { href: '/evaluation-program', label: 'Evaluation Program' },
-  { href: '/eligibility-check', label: 'Eligibility Check' },
 ];
 
 export default function HomePage() {
@@ -44,7 +43,7 @@ export default function HomePage() {
     <div className="nst-shell nst-home-shell">
       <Navbar navigationLinks={navigationLinks} />
       <main className="bg-[#050505] text-white">
-        <section id="hero" className="relative flex min-h-screen items-center overflow-hidden px-6 pt-28 pb-[4.5rem] md:px-10">
+        <section id="hero" className="relative flex min-h-screen items-center overflow-hidden px-6 pt-28 pb-[2.25rem] md:px-10">
           <ParticleField className="absolute inset-0 h-full w-full opacity-100" />
           <ParticleField className="absolute inset-x-0 bottom-0 h-[42%] w-full opacity-100" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(200,169,107,0.14),transparent_30%),radial-gradient(circle_at_50%_100%,rgba(255,255,255,0.06),transparent_45%),linear-gradient(180deg,rgba(5,5,5,0.25)_0%,#050505_86%)]" />
@@ -77,7 +76,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="who-we-are" className="nst-home-section px-6 py-20 md:px-10 md:py-28">
+        <section id="who-we-are" className="nst-home-section px-6 py-10 md:px-10 md:py-14">
           <div className="mx-auto max-w-[1180px]">
             <Reveal>
               <span className="nst-kicker">Who We Are</span>
@@ -85,15 +84,9 @@ export default function HomePage() {
                 A global platform built on <span className="italic text-[#c8a96b]">experience</span> and precision.
               </h2>
               <div className="mt-10 space-y-7 text-[1.02rem] leading-8 text-[#cdced3]">
-                <p>
-                  NextStep Talent is a United States-based global platform focused on building structured career pathways for individuals seeking opportunities beyond their home countries.
-                </p>
-                <p>
-                Backed by a team with over 40+ years of collective experience in education, international programs, and global engagement, we bring deep industry insight and strong global networks to support candidates in navigating complex international career journeys.
-                 </p>
-                <p>
-                Our approach is process-driven, selective, and designed to ensure that every candidate is aligned, prepared, and positioned for the right international opportunities. 
-                </p>
+                <p>NextStep Talent is a United States-based global platform focused on building structured career pathways for individuals seeking opportunities beyond their home countries.</p>
+                <p>Backed by a team with over 40+ years of collective experience in education, international programs, and global engagement, we bring deep industry insight and strong global networks to support candidates in navigating complex international career journeys.</p>
+                <p>Our approach is process-driven, selective, and designed to ensure that every candidate is aligned, prepared, and positioned for the right international opportunities.</p>
               </div>
             </Reveal>
           </div>
@@ -107,9 +100,7 @@ export default function HomePage() {
               <h2 className="mt-6 nst-display text-[2.9rem] leading-[1] tracking-[-0.04em] text-white sm:text-[3.6rem] md:text-[4.55rem]">
                 A structured process, at every stage.
               </h2>
-              <p className="mt-8 max-w-[700px] text-base leading-8 text-[#cfd0d4] sm:text-lg">
-              We offer a structured and selective process designed to support candidates at every stage of their international career journey:
-                </p>
+              <p className="mt-8 max-w-[700px] text-base leading-8 text-[#cfd0d4] sm:text-lg">We offer a structured and selective process designed to support candidates at every stage of their international career journey:</p>
             </Reveal>
 
             <div className="mt-14 grid grid-cols-1 border-t border-[rgba(200,169,107,0.18)] md:grid-cols-2 xl:grid-cols-5">
@@ -147,11 +138,9 @@ export default function HomePage() {
 
         <section id="notice" className="nst-home-section px-6 pb-8 pt-2 md:px-10 md:pb-12 md:pt-3">
           <Reveal className="mx-auto max-w-[1180px]">
-            <div className="relative overflow-hidden rounded-[1.25rem] border border-[rgba(200,169,107,0.32)] bg-[linear-gradient(140deg,rgba(17,18,21,0.9),rgba(12,13,16,0.92))] px-6 py-5 text-center shadow-[0_0_30px_rgba(200,169,107,0.12)] backdrop-blur-xl md:px-10 md:py-6">
-              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(200,169,107,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(200,169,107,0.06)_1px,transparent_1px)] bg-[size:30px_30px] opacity-25" />
+            <div className="px-6 py-4 md:px-10 md:py-6">
               <div className="relative z-10 mx-auto max-w-[860px]">
-                <p className="text-sm leading-7 text-[#f2e6c9] md:text-[1.02rem]">
-                  {/* <span className="font-semibold uppercase tracking-[0.24em] text-[#d8bd86]">Important:</span>{' '} */}
+                <p className="mx-auto text-center nst-display text-[1.15rem] leading-[1.15] tracking-[-0.03em] text-[#c8a96b] sm:text-[1.4rem] md:text-[1.6rem] font-semibold">
                   Due to the structured and selective nature of our process, only a limited number of candidates are onboarded for each cycle.
                 </p>
               </div>

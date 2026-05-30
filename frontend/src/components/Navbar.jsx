@@ -178,9 +178,9 @@ export default function Navbar({ navigationLinks = defaultLinks }) {
             </div>
           ) : (
             <>
-              <Link className={navLinkClass} to="/login">
+              {/* <Link className={navLinkClass} to="/login">
                 Login
-              </Link>
+              </Link> */}
               <Link to="/eligibility-check" className={isHome || !isAdminRoute ? 'nst-outline-button' : 'nst-inline-cta'}>
                 Check Eligibility
               </Link>

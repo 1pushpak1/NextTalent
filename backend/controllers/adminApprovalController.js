@@ -205,7 +205,9 @@ const operationsApprove = async (req, res) => {
       return res.status(404).json({ message: 'Candidate not found' });
     }
 
-    if (candidate.evaluationStatus !== 'approved' || candidate.status !== 'evaluation_approved') {
+    const evaluationApproved = candidate.evaluationStatus === 'approved';
+    const evaluationStatusOk = ['evaluation_approved', 'accepted'].includes(String(candidate.status || '').toLowerCase());
+    if (!evaluationApproved || !evaluationStatusOk) {
       return res.status(409).json({ message: 'Evaluation approval must be completed first' });
     }
 
@@ -231,15 +233,15 @@ const operationsApprove = async (req, res) => {
 
     // Send account creation invitation email
     const inviteUrl = `${getFrontendBaseUrl()}/create-account?token=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(candidate.email)}`;
-    const inviteText = `Dear ${candidate.name || 'Candidate'},\r\n\r\nCongratulations! Your profile has been approved by both review stages.\r\n\r\nYou are now invited to create your candidate account using the same email address that was used for eligibility and profile submission.\r\n\r\nEmail: ${candidate.email}\r\n\r\nPlease use the link below to create your account:\r\n${inviteUrl}\r\n\r\nThis invitation link will expire in 7 days and can be used only once.\r\n\r\nImportant:\r\n- You must use the email address: ${candidate.email}\r\n- The link is for one-time use only\r\n- After creating your account, you will need to verify your email\r\n\r\nRegards,  \r\nNextStep Talent Team\r\n\r\nThis is an automated email. Please do not reply to this message.`;
+    const inviteText = `Dear ${candidate.name || 'Candidate'},\r\n\r\nProfile approved\r\nYour profile has been approved. Please complete the next steps from your dashboard.\r\n\r\nStatus: Approved\r\nProfile Status: accepted\r\nNext Step: Complete the next dashboard step\r\n\r\nYou may now create your candidate account using the link below.\r\n\r\nCreate Account Link: ${inviteUrl}\r\nEmail: ${candidate.email}\r\n\r\nThis invitation link will expire in 7 days and can be used only once. After creating your account, you will need to verify your email, then continue to your dashboard.\r\n\r\nRegards,  \r\nNextStep Talent Team\r\n\r\nThis is an automated email. Please do not reply to this message.`;
 
     await sendEmail({
       to: candidate.email,
-      subject: 'NextStep Talent – Account Creation Invitation',
+      subject: 'NextStep Talent – Profile approved and account creation link',
       text: inviteText,
       html: inviteText.replaceAll('\n', '<br/>'),
-      fromEmail: 'noreply@nextsteptalent.net',
-      fromName: 'NextStep Talent Team',
+      fromEmail: process.env.SMTP_FROM_EMAIL || process.env.FROM_EMAIL || 'noreply@nextsteptalent.net',
+      fromName: process.env.SMTP_FROM_NAME || process.env.FROM_NAME || 'NextStep Talent Team',
       templateKey: 'account_creation_invitation',
       relatedCandidateId: candidate._id,
     });
@@ -250,7 +252,7 @@ const operationsApprove = async (req, res) => {
     await createApprovalAuditLog(req, {
       candidateId: candidate._id,
       candidateEmail: candidate.email,
-      approvalType: 'operations_approval',
+      approvalType: 'final_selection',
       sectionRecordId: String(candidate._id),
       previousStatus,
       newStatus: 'account_invited',
@@ -316,7 +318,7 @@ const operationsReject = async (req, res) => {
     await createApprovalAuditLog(req, {
       candidateId: candidate._id,
       candidateEmail: candidate.email,
-      approvalType: 'operations_approval',
+      approvalType: 'final_selection',
       sectionRecordId: String(candidate._id),
       previousStatus,
       newStatus: 'operations_rejected',
