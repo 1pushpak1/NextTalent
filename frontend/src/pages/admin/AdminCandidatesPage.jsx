@@ -40,7 +40,7 @@ export default function AdminCandidatesPage({
   const [draftFilters, setDraftFilters] = useState(filters);
   const showPaymentAccess = can('payments:verify');
   const showDocumentAccess = can('documents:verify');
-  const showSelectionAccess = ['super_admin', 'payments_admin'].includes(String(role || ''));
+  const showSelectionAccess = can('selection:publish');
   const availableStageOptions = useMemo(
     () =>
       stageOptions.filter((stage) => {

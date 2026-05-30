@@ -87,12 +87,13 @@ const sendAdminNotification = async ({
   to,
   subject,
   lines = [],
+  html = '',
   fromType = 'noreply',
   templateKey = 'admin_notification',
   relatedCandidateId = null,
 }) => {
   const text = lines.join('\n');
-  await sendWorkflowEmail({ to, subject, text, fromType, templateKey, relatedCandidateId });
+  await sendWorkflowEmail({ to, subject, text, html, fromType, templateKey, relatedCandidateId });
 };
 
 module.exports = {

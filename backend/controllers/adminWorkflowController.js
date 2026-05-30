@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const User = require('../models/User');
@@ -196,7 +197,7 @@ const operationsDecision = async (req, res) => {
       status: candidate.status,
     };
 
-    candidate.operationsStatus = 'completed';
+    candidate.operationsStatus = ['rejected', 'cancelled'].includes(normalizedDecision) ? 'rejected' : 'approved';
     candidate.operationsDecision = normalizedDecision;
     candidate.operationsApprovedBy = req.user.email;
     candidate.operationsCompletedAt = new Date();
@@ -290,6 +291,18 @@ This is an automated email. Please do not reply to this message.`;
     }
 
     if (normalizedDecision === 'interview_not_required') {
+      const evaluationApproved = String(candidate.evaluationStatus || '').toLowerCase() === 'approved' || String(candidate.status || '').toLowerCase() === 'evaluation_approved' || Boolean(candidate.admin2EvaluationApproved);
+      if (!evaluationApproved) {
+        return res.status(409).json({ message: 'Evaluation approval must be completed before sending the account invitation' });
+      }
+
+      candidate.operationsStatus = 'approved';
+      candidate.status = 'account_invited';
+      candidate.accountStatus = 'invited';
+
+      const inviteToken = crypto.randomBytes(32).toString('hex');
+      candidate.accountInviteToken = crypto.createHash('sha256').update(inviteToken).digest('hex');
+      candidate.accountInviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       candidate.accountCreationInviteSent = true;
       candidate.accountCreationInviteSentAt = new Date();
       await candidate.save();
@@ -301,17 +314,23 @@ This is an automated email. Please do not reply to this message.`;
         await eligibility.save();
       }
 
-      const inviteUrl = `${FRONTEND_BASE}/signup?email=${encodeURIComponent(candidate.email)}&invite=1`;
+      const inviteUrl = `${FRONTEND_BASE}/create-account?token=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(candidate.email)}`;
       const inviteText = `Dear ${String(candidate.name || 'Candidate').trim()},
 
-Your profile has been approved by the final review stage.
+Your application has been approved by both review stages.
 
-You may now create your candidate account using the same email address used for your profile submission.
+You may now create your candidate account using the same email address used for your application.
+
+Next steps:
+1. Create your account using the link below.
+2. Verify your email address after account creation.
+3. Verify your mobile number after email verification.
+4. Continue to your candidate dashboard for the next steps.
 
 Email: ${candidate.email}
 Create Account Link: ${inviteUrl}
 
-After you create your password, you will receive email verification instructions and can then access your dashboard.
+This invitation link expires in 7 days and can be used only once.
 
 Regards,
 NextStep Talent Team
@@ -475,26 +494,10 @@ const selectedCandidate = async (req, res) => {
     candidate.status = 'selected';
     await candidate.save();
 
-    let invoice = await Invoice.findOne({
-      candidateId: candidate._id,
-      paymentStage: PAYMENT_STAGES.FIRST_INSTALLMENT,
-    }).sort({ createdAt: -1 });
-
-    if (!invoice) {
-      invoice = await generateInvoiceForStage({
-        candidate,
-        stage: PAYMENT_STAGES.FIRST_INSTALLMENT,
-      });
-      candidate.invoices = [...new Set([...(candidate.invoices || []).map(String), String(invoice._id)])];
-      await candidate.save();
-    }
-
-    const invoiceUrl = `${websiteUrl()}${invoice.pdfUrl}`;
     const mail = applicationStatusUpdate({
       candidateName: candidate.name,
       selected: true,
-      withPayment: true,
-      invoiceUrl,
+      withPayment: false,
     });
 
     await sendTransactionalEmailSafe({
@@ -504,20 +507,25 @@ const selectedCandidate = async (req, res) => {
       relatedCandidateId: candidate._id,
     });
 
-    const invoiceMail = await buildInvoiceEmailForStage({
-      candidate,
-      invoice,
-      stage: PAYMENT_STAGES.FIRST_INSTALLMENT,
-    });
-    const invoiceAttachments = invoice?.pdfPath && fs.existsSync(invoice.pdfPath)
-      ? [{ filename: `${invoice.invoiceNumber}.pdf`, path: invoice.pdfPath, contentType: 'application/pdf' }]
-      : [];
+    const selectionText = `Dear ${candidate.name || 'Candidate'},
+
+Your profile has been selected for the next stage of the NextStep Talent process.
+
+You will receive the final payment request separately after the team completes the remaining operational steps.
+
+Regards,
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
 
     await sendTransactionalEmailSafe({
       to: candidate.email,
-      ...invoiceMail,
-      templateKey: EMAIL_TEMPLATE_KEYS.INVOICE_STAGE_1,
-      attachments: invoiceAttachments,
+      subject: 'NextStep Talent – Selection Result',
+      text: selectionText,
+      html: selectionText.replaceAll('\n', '<br/>'),
+      fromEmail: 'noreply@nextsteptalent.net',
+      fromName: 'NextStep Talent Team',
+      templateKey: 'selection_result_selected',
       relatedCandidateId: candidate._id,
     });
 
@@ -527,19 +535,16 @@ const selectedCandidate = async (req, res) => {
       actorId: req.user.email,
       actorRole: req.user.adminRole,
       candidateId: candidate._id,
-      action: 'candidate_selected_and_stage1_invoice_sent',
+      action: 'candidate_selected_result_published',
       previousValue: previous,
       newValue: {
         selectedStatus: candidate.selectedStatus,
         status: candidate.status,
-        invoiceId: invoice._id,
       },
-      metadata: {
-        invoiceNumber: invoice.invoiceNumber,
-      },
+      metadata: {},
     });
 
-    return res.json({ message: 'Candidate marked selected and payment instruction sent', candidate, invoice });
+    return res.json({ message: 'Candidate selection published', candidate });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -558,7 +563,7 @@ const notSelectedCandidate = async (req, res) => {
     candidate.selectedStatus = 'not_selected';
     candidate.selectedBy = req.user.email;
     candidate.selectedAt = new Date();
-    candidate.status = 'not_selected';
+    candidate.status = 'rejected';
     await candidate.save();
 
     const mail = applicationStatusUpdate({ candidateName: candidate.name, selected: false });
@@ -575,7 +580,7 @@ const notSelectedCandidate = async (req, res) => {
       actorId: req.user.email,
       actorRole: req.user.adminRole,
       candidateId: candidate._id,
-      action: 'candidate_not_selected_notified',
+      action: 'candidate_selection_rejected_notified',
       previousValue: previous,
       newValue: {
         selectedStatus: candidate.selectedStatus,

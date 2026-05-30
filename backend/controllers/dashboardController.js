@@ -145,6 +145,7 @@ const buildStages = ({ eligibility, profile, user, docs, interviews, payments, t
 };
 
 const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
+  const status = String(user?.status || '').toLowerCase();
   const hasInitial = payments.some((p) => p.type === 'initial' && p.status === 'completed');
   const hasProgram = payments.some((p) => p.type === 'program' && p.status === 'completed') || user.status === 'program_payment_complete';
   const hasProgramPending = payments.some((p) => p.type === 'program' && p.status === 'pending');
@@ -156,6 +157,10 @@ const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
   const eligibilityDone = hasPassedInitialEligibility({ eligibility, user, profile, payments, docs, interviews: [] });
   const progressionApproved = hasAdmin1ProgressionApproval(user);
   const documentationStageInitiated = hasDocumentationStageInitiated(user);
+  const evaluationApproved = String(user?.evaluationStatus || '').toLowerCase() === 'approved' || status === 'evaluation_approved' || Boolean(user?.admin2EvaluationApproved);
+  const operationsApproved = String(user?.operationsStatus || '').toLowerCase() === 'approved' || status === 'fully_approved' || Boolean(user?.admin3EvaluationApproved);
+  const accountCreated = ['created', 'email_verified'].includes(String(user?.accountStatus || '').toLowerCase()) || ['account_created', 'email_verified'].includes(status);
+  const accountInvited = String(user?.accountStatus || '').toLowerCase() === 'invited' || status === 'account_invited';
   const docsReceived =
     user.status === 'documents_received' ||
     hasFinal ||
@@ -170,6 +175,20 @@ const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
     user.status === 'onboarding_complete' ||
     user.status === 'documents_submitted' ||
     docsReceived;
+
+  if (!eligibility || (!eligibility.isEligible && status !== 'eligibility_approved')) return '/eligibility-check';
+  if (status === 'eligibility_approved' || status === 'profile_submitted' || status === 'awaiting_evaluation_review') return '/profile-submission';
+  if (status === 'evaluation_approved' || status === 'awaiting_operations_approval' || (evaluationApproved && !operationsApproved)) return '/candidate-dashboard';
+  if (accountInvited && operationsApproved) return '/signup';
+  if (accountCreated && operationsApproved && !user.emailVerified) return '/verify-email';
+  if (status === 'email_verified' && !hasInitial) return '/initial-payment';
+  if (status === 'onboarding_fee_paid' && !docsUploaded) return '/documents';
+  if ((status === 'documents_uploaded' || docsUploaded) && !hasProgram && !hasProgramPending && !hasProgramFailed) return '/payment/program-fee';
+  if (status === 'program_fee_requested' && !hasProgramPending && !hasProgram) return '/payment/program-fee';
+  if (status === 'program_fee_verified' && !user?.assignedHiringPartner) return '/candidate-dashboard';
+  if ((status === 'selected' || user.status === 'selected') && !hasFinal && !hasFinalPending) return '/payment/final-payment';
+  if ((status === 'final_payment_requested' || status === 'final_payment_pending') && !hasFinal) return '/payment/final-payment';
+  if ((status === 'final_payment_verified' || hasFinal) && !testimonial) return '/testimonial';
 
   if (!eligibilityDone) return '/eligibility-check';
   if (!profile || profile.status === 'draft') return '/profile-submission';

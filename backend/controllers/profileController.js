@@ -5,7 +5,8 @@ const User = require('../models/User');
 const Eligibility = require('../models/Eligibility');
 const generatePdf = require('../utils/generatePdf');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
-const { getWorkflowConfig, sendAdminNotification } = require('../utils/workflowEmailer');
+const { sendAdminNotification } = require('../utils/workflowEmailer');
+const { getEvaluationAdminEmails, getSuperAdminEmails } = require('../utils/adminRoleEmails');
 const sendEmail = require('../utils/sendEmail');
 
 const clampSavedStep = (value, fallback = 1) => {
@@ -54,7 +55,7 @@ const createPlaceholderCandidateUser = async ({ email, name, eligibility }) => {
       email: normalizedEmail,
       passwordHash,
       role: 'candidate',
-      status: 'profile_submitted',
+      status: 'eligibility_approved',
       evaluationStatus: 'pending',
       operationsStatus: 'pending',
       accountStatus: 'not_invited',
@@ -202,10 +203,7 @@ This is an automated email. Please do not reply to this message.`;
 
   // Send notification to Super Admin and Evaluation Admin
   try {
-    const workflow = getWorkflowConfig();
-    const evaluationAdminEmail = process.env.EVALUATION_ADMIN_EMAIL || '';
-    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || '';
-    const notificationRecipients = [superAdminEmail, evaluationAdminEmail].filter(Boolean);
+    const notificationRecipients = [...new Set([...getSuperAdminEmails(), ...getEvaluationAdminEmails()])];
     
     if (notificationRecipients.length) {
       const positionOrCategory = String(

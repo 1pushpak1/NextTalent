@@ -120,7 +120,14 @@ const signup = async (req, res) => {
       return res.status(403).json({ message: 'Invalid or expired invitation token. Please contact support.' });
     }
 
-    if (invitedUser.accountStatus !== 'invited') {
+    const evaluationApproved = String(invitedUser.evaluationStatus || '').toLowerCase() === 'approved' || String(invitedUser.status || '').toLowerCase() === 'evaluation_approved' || Boolean(invitedUser.admin2EvaluationApproved);
+    const operationsApproved = String(invitedUser.operationsStatus || '').toLowerCase() === 'approved' || String(invitedUser.status || '').toLowerCase() === 'fully_approved' || Boolean(invitedUser.admin3EvaluationApproved);
+
+    if (!evaluationApproved || !operationsApproved) {
+      return res.status(403).json({ message: 'Account creation is not available until evaluation and operations approvals are complete.' });
+    }
+
+    if (invitedUser.accountStatus !== 'invited' || invitedUser.status !== 'account_invited') {
       return res.status(403).json({ message: 'This invitation has already been used or is no longer valid.' });
     }
 

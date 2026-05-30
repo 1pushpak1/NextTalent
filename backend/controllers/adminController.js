@@ -74,7 +74,7 @@ const stagePageLabelMap = {
 const normalizeDocumentAdminComment = (value = '') => String(value || '').trim().slice(0, 1000);
 
 const getFrontendBaseUrl = () => String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
-const isAdmin1Role = (role = '') => ['payment_admin', 'payments_admin', 'super_admin'].includes(String(role || '').trim().toLowerCase());
+const isAdmin1Role = (role = '') => ['evaluation_admin', 'operations_admin', 'super_admin'].includes(String(role || '').trim().toLowerCase());
 const PAYMENT_REQUEST_STAGE_BY_TYPE = {
   program: LEGACY_PAYMENT_TYPE_TO_STAGE.program,
   final: LEGACY_PAYMENT_TYPE_TO_STAGE.final,
@@ -549,7 +549,14 @@ const deriveAdminStageKey = (snapshot) => {
   if (status === 'sent_to_partners' || hiringDecision === 'accepted') return 'selection';
   if (!profile || profile.status === 'draft') return 'evaluation';
 
-  // Admin 2 approved but Admin 3 hasn't yet — still in evaluation queue
+  if ((candidate?.admin2EvaluationApproved || normalize(candidate?.evaluationStatus) === 'approved' || status === 'evaluation_approved') && !candidate?.admin3EvaluationApproved && normalize(candidate?.operationsStatus) !== 'approved') {
+    return 'operations_approval';
+  }
+
+  if (candidate?.admin3EvaluationApproved || normalize(candidate?.operationsStatus) === 'approved' || status === 'fully_approved' || status === 'account_invited') {
+    return 'account';
+  }
+
   if (!hasInitial) return 'evaluation';
   if (evaluationDecision !== 'accepted') return 'evaluation';
 
@@ -580,6 +587,8 @@ const stageMatcher = (stageKey, snapshot) => {
       return true;
     case 'evaluation':
       return derivedStage === 'evaluation';
+    case 'operations_approval':
+      return derivedStage === 'operations_approval';
     case 'declaration':
       return derivedStage === 'declaration';
     case 'documents':
@@ -810,46 +819,30 @@ const getDashboardSummary = async (req, res) => {
   try {
     const snapshots = await fetchAllSnapshots();
     const rows = snapshots.map(mapCandidateListRow);
+    const normalize = (value) => String(value || '').toLowerCase();
+    const latestPaymentStatus = (snapshot, type) => {
+      const payment = snapshot.payments.find((item) => normalize(item.type) === type) || null;
+      return normalize(payment?.status || '');
+    };
+    const hasAcceptedDocuments = (snapshot) => snapshot.documents.length > 0 && snapshot.documents.every((item) => normalize(item.status) === 'accepted');
+    const hasUnderReviewDocuments = (snapshot) => snapshot.documents.some((item) => normalize(item.status) === 'under review' || normalize(item.status) === 'under_review');
+    const hasNeedsRevisionDocuments = (snapshot) => snapshot.documents.some((item) => normalize(item.status) === 'needs revision' || normalize(item.status) === 'needs_revision');
 
     const totalApplications = rows.length;
-    const eligibleCandidates = snapshots.filter((s) => Boolean(s.eligibility?.isEligible)).length;
-    const profilesPendingReview = rows.filter((row) => ['submitted', 'under_review'].includes(row.profileStatus)).length;
-    const paymentsPendingVerification = rows.filter((row) =>
-      ['pending_verification'].includes(row.paymentStatus.initial) ||
-      ['pending_verification'].includes(row.paymentStatus.program) ||
-      ['pending_verification'].includes(row.paymentStatus.final)
-    ).length;
-    const paymentsPendingVerificationInitial = rows.filter(
-      (row) => row.paymentStatus?.initial === 'pending_verification'
-    ).length;
-    const paymentsPendingVerificationProgram = rows.filter(
-      (row) => row.paymentStatus?.program === 'pending_verification'
-    ).length;
-    const paymentsPendingVerificationFinal = rows.filter(
-      (row) => row.paymentStatus?.final === 'pending_verification'
-    ).length;
-    const paymentsPendingInstructionMail = rows.filter((row) => {
-      const hasProgramMailPending =
-        row.paymentStatus?.initial === 'verified' &&
-        row.paymentStatus?.program === 'not_started' &&
-        ['uploaded', 'under_review', 'needs_revision', 'verified'].includes(String(row.documentStatus || '').toLowerCase());
-      const hasFinalMailPending =
-        row.selectionStatus === 'selected' &&
-        row.paymentStatus?.program === 'verified' &&
-        row.paymentStatus?.final === 'not_started';
-      return hasProgramMailPending || hasFinalMailPending;
-    }).length;
-    const documentsPendingVerification = rows.filter(
-      (row) =>
-        row.paymentStatus?.program === 'verified' &&
-        ['uploaded', 'under_review', 'needs_revision'].includes(row.documentStatus)
-    ).length;
-    const hiringPendingAssignment = rows.filter((row) => row.currentStageKey === 'hiring' && row.pendingFrom === 'admin').length;
-    const interviewsPendingScheduled = rows.filter(
-      (row) => row.currentStageKey === 'selection' && row.pendingFrom === 'admin'
-    ).length;
-    const selectedCandidates = rows.filter((row) => row.selectionStatus === 'selected').length;
-    const rejectedCandidates = rows.filter((row) => row.selectionStatus === 'rejected').length;
+    const eligibleCandidates = snapshots.filter((snapshot) => Boolean(snapshot.eligibility?.isEligible) || normalize(snapshot.candidate.status) === 'eligibility_approved').length;
+    const awaitingEvaluationApproval = snapshots.filter((snapshot) => ['awaiting_evaluation_review', 'profile_submitted'].includes(normalize(snapshot.candidate.status)) || normalize(snapshot.candidate.evaluationStatus) === 'pending').length;
+    const awaitingOperationsApproval = snapshots.filter((snapshot) => normalize(snapshot.candidate.status) === 'evaluation_approved' || (normalize(snapshot.candidate.evaluationStatus) === 'approved' && normalize(snapshot.candidate.operationsStatus) === 'pending')).length;
+    const awaitingAccountCreation = snapshots.filter((snapshot) => normalize(snapshot.candidate.status) === 'fully_approved' && normalize(snapshot.candidate.accountStatus) === 'not_invited').length;
+    const awaitingEmailVerification = snapshots.filter((snapshot) => normalize(snapshot.candidate.accountStatus) === 'created' || normalize(snapshot.candidate.status) === 'account_created').length;
+    const awaiting500Payment = snapshots.filter((snapshot) => normalize(snapshot.candidate.accountStatus) === 'email_verified' && latestPaymentStatus(snapshot, 'initial') !== 'completed').length;
+    const awaitingDocumentUpload = snapshots.filter((snapshot) => latestPaymentStatus(snapshot, 'initial') === 'completed' && snapshot.documents.length === 0).length;
+    const awaitingProgramFeeVerification = snapshots.filter((snapshot) => snapshot.documents.length > 0 && !hasAcceptedDocuments(snapshot) && latestPaymentStatus(snapshot, 'program') !== 'completed' && latestPaymentStatus(snapshot, 'program') !== 'verified').length;
+    const awaitingDocumentVerification = snapshots.filter((snapshot) => latestPaymentStatus(snapshot, 'program') === 'completed' || latestPaymentStatus(snapshot, 'program') === 'verified').filter((snapshot) => !hasAcceptedDocuments(snapshot)).length;
+    const assignedToHiringPartner = snapshots.filter((snapshot) => Boolean(snapshot.candidate.assignedHiringPartner)).length;
+    const selectedCandidates = snapshots.filter((snapshot) => normalize(snapshot.candidate.status) === 'selected' || normalize(snapshot.candidate.selectionStatus) === 'selected').length;
+    const rejectedCandidates = snapshots.filter((snapshot) => ['rejected', 'evaluation_rejected', 'operations_rejected', 'not_selected'].includes(normalize(snapshot.candidate.status)) || normalize(snapshot.candidate.selectionStatus) === 'rejected').length;
+    const finalPaymentPending = snapshots.filter((snapshot) => normalize(snapshot.candidate.status) === 'selected' && latestPaymentStatus(snapshot, 'final') !== 'completed' && latestPaymentStatus(snapshot, 'final') !== 'verified').length;
+    const completedCandidates = snapshots.filter((snapshot) => normalize(snapshot.candidate.status) === 'completed' || (normalize(snapshot.candidate.status) === 'email_verified' && latestPaymentStatus(snapshot, 'final') === 'completed')).length;
     const totalRevenue = snapshots.reduce((sum, s) => {
       const paid = s.payments.filter((p) => p.status === 'completed').reduce((acc, p) => acc + (p.amount || 0), 0);
       return sum + paid;
@@ -880,17 +873,19 @@ const getDashboardSummary = async (req, res) => {
       cards: {
         totalApplications,
         eligibleCandidates,
-        profilesPendingReview,
-        paymentsPendingVerification,
-        paymentsPendingVerificationInitial,
-        paymentsPendingVerificationProgram,
-        paymentsPendingVerificationFinal,
-        paymentsPendingInstructionMail,
-        documentsPendingVerification,
-        hiringPendingAssignment,
-        interviewsPendingScheduled,
+        awaitingEvaluationApproval,
+        awaitingOperationsApproval,
+        awaitingAccountCreation,
+        awaitingEmailVerification,
+        awaiting500Payment,
+        awaitingDocumentUpload,
+        awaitingProgramFeeVerification,
+        awaitingDocumentVerification,
+        assignedToHiringPartner,
         selectedCandidates,
         rejectedCandidates,
+        finalPaymentPending,
+        completedCandidates,
         totalRevenue,
       },
       recentApplications,
@@ -1582,8 +1577,8 @@ const updateCandidateStageDecision = async (req, res) => {
     if (requiredPermission && !permissions.includes(requiredPermission)) {
       return res.status(403).json({ message: `Missing permission: ${requiredPermission}` });
     }
-    if (stageKey === 'selection' && !['super_admin', 'payment_admin', 'payments_admin'].includes(String(req.user?.adminRole || ''))) {
-      return res.status(403).json({ message: 'Only super admin or payment admin can publish final selection decisions.' });
+    if (stageKey === 'selection' && !(Array.isArray(req.user?.permissions) && req.user.permissions.includes('selection:publish'))) {
+      return res.status(403).json({ message: 'Only authorized admins can publish final selection decisions.' });
     }
 
     const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
@@ -1607,10 +1602,11 @@ const updateCandidateStageDecision = async (req, res) => {
       }
 
       if (isAdmin2Actor && status === 'accepted') {
-        // Admin 2 approves: keep profile under_review, mark admin2 approved, notify Admin 3
-        profile.status = 'under_review';
-        candidate.status = 'profile_submitted';
-        candidate.stageStatuses.set('evaluation', 'under_review');
+        // Admin 2 approves: move to operations approval, notify Admin 3
+        profile.status = 'accepted';
+        candidate.status = 'evaluation_approved';
+        candidate.evaluationStatus = 'approved';
+        candidate.stageStatuses.set('evaluation', 'accepted');
         candidate.admin2EvaluationApproved = true;
         candidate.admin2EvaluationApprovedAt = new Date();
         candidate.admin2EvaluationApprovedBy = req.user?.email || '';
@@ -1633,19 +1629,33 @@ const updateCandidateStageDecision = async (req, res) => {
           console.error('Admin 3 notification failed:', notifyErr.message);
         }
       } else if (isAdmin3Actor && status === 'accepted') {
-        // Admin 3 approves: finalize profile, send account creation invite
+        if (!candidate.admin2EvaluationApproved && normalize(candidate.evaluationStatus) !== 'approved' && normalize(candidate.status) !== 'evaluation_approved') {
+          return res.status(409).json({ message: 'Evaluation approval must be completed before operations approval.' });
+        }
+        // Admin 3 approves: finalize profile and send account creation invite
         profile.status = 'accepted';
-        candidate.status = 'accepted';
+        candidate.status = 'fully_approved';
+        candidate.evaluationStatus = 'approved';
+        candidate.operationsStatus = 'approved';
+        candidate.accountStatus = 'invited';
         candidate.stageStatuses.set('evaluation', 'accepted');
         candidate.admin3EvaluationApproved = true;
         candidate.admin3EvaluationApprovedAt = new Date();
         candidate.admin3EvaluationApprovedBy = req.user?.email || '';
         await profile.save();
       } else if (status === 'rejected') {
-        profile.status = 'rejected';
-        candidate.status = 'rejected';
-        candidate.stageStatuses.set('evaluation', 'rejected');
-        await profile.save();
+        if (isAdmin3Actor) {
+          profile.status = 'rejected';
+          candidate.status = 'operations_rejected';
+          candidate.operationsStatus = 'rejected';
+          candidate.stageStatuses.set('evaluation', 'rejected');
+          await profile.save();
+        } else {
+          profile.status = 'rejected';
+          candidate.status = 'rejected';
+          candidate.stageStatuses.set('evaluation', 'rejected');
+          await profile.save();
+        }
       } else if (status === 'under_review') {
         profile.status = 'under_review';
         candidate.status = 'profile_submitted';
@@ -1663,6 +1673,9 @@ const updateCandidateStageDecision = async (req, res) => {
     let initialAssessmentMailSent = false;
 
     if (stageKey === 'evaluation' && status === 'accepted' && isAdmin3Actor) {
+      if (!candidate.admin2EvaluationApproved && normalize(candidate.evaluationStatus) !== 'approved' && normalize(candidate.status) !== 'evaluation_approved') {
+        return res.status(409).json({ message: 'Evaluation approval must be completed before operations approval.' });
+      }
       // Admin 3 final approval: send account creation invite to candidate
       const shouldSend = !candidate.admin3EvaluationApproved || !candidate.accountCreationInviteSent;
       candidate.accountCreationInviteSent = true;

@@ -8,64 +8,30 @@ export default function Footer() {
   const isAdminRoute = location.pathname.startsWith('/admin');
   const compactFooterRoutes = new Set(['/payment-history', '/candidate-dashboard', '/profile-submission']);
   const isCompactFooter = compactFooterRoutes.has(location.pathname);
-  const candidatePortalRoutes = [
-    '/candidate-dashboard',
-    '/profile-submission',
-    '/payment-history',
-    '/documents',
-    '/declaration',
-    '/onboarding',
-    '/testimonial',
-    '/initial-payment',
-    '/payment/program-fee',
-    '/payment/final-payment',
-  ];
-  const isCandidatePortalRoute = candidatePortalRoutes.some((route) => location.pathname.startsWith(route));
-  const headerNavLinks = [
-    { to: '/', label: 'Home' },
-    { to: '/evaluation-program', label: 'Evaluation Program' },
-    { to: '/eligibility-check', label: 'Eligibility Check' },
-  ];
 
   return (
     <footer className={`mt-auto w-full border-t ${isCompactFooter ? 'py-7' : 'py-12'} ${isHome || !isAdminRoute ? 'border-[rgba(200,169,107,0.14)] bg-[#050505] text-white' : 'border-slate-100 bg-white text-[#101218]'}`}>
       <div className="mx-auto max-w-[1240px] px-6 md:px-8">
         <div className="flex justify-center">
           <Link to="/" className="inline-flex">
-            <img src="/logo.png" alt="NextStep Talent logo" className="nst-logo-image h-[4.5rem] w-auto object-contain md:h-[5.5rem]" />
+            <img src="/logo.png" alt="NextStep Talent logo" className="nst-logo-image h-[5.25rem] w-auto object-contain md:h-[6.75rem]" />
           </Link>
         </div>
 
-        <div className="mt-10 grid grid-cols-1 gap-10 text-center md:grid-cols-2">
+        <div className="mt-10 flex flex-col items-center gap-8 text-center">
           <div>
-            <h4 className={`mb-4 text-xs font-semibold uppercase tracking-[0.24em] ${isHome || !isAdminRoute ? 'text-[#c8a96b]' : 'text-[#7a6d53]'}`}>
-              Navigation
-            </h4>
-            <div className={`space-y-3 text-sm ${isHome || !isAdminRoute ? 'text-[#bdbdc3]' : 'text-slate-500'}`}>
-              {isCandidatePortalRoute ? (
-                <p><Link className="transition hover:text-[#c8a96b]" to="/candidate-dashboard">Candidate Portal</Link></p>
-              ) : (
-                <>
-                  {headerNavLinks.map((item) => (
-                    <p key={item.to}>
-                      <Link className="transition hover:text-[#c8a96b]" to={item.to}>{item.label}</Link>
-                    </p>
-                  ))}
-                </>
-              )}
-            </div>
-          </div>
-          <div>
-            <h4 className={`mb-4 text-xs font-semibold uppercase tracking-[0.24em] ${isHome || !isAdminRoute ? 'text-[#c8a96b]' : 'text-[#7a6d53]'}`}>
-              Legal & Support
-            </h4>
-            <div className={`space-y-3 text-sm ${isHome || !isAdminRoute ? 'text-[#bdbdc3]' : 'text-slate-500'}`}>
-              <p><Link className="transition hover:text-[#c8a96b]" to="/privacy-policy">Privacy Policy</Link></p>
-              <p><Link className="transition hover:text-[#c8a96b]" to="/payment-refund-policy">Payment & Refund Policy</Link></p>
-              <p><Link className="transition hover:text-[#c8a96b]" to="/terms-of-service">Terms and Conditions</Link></p>
-              <p><Link className="transition hover:text-[#c8a96b]" to="/cookie-policy">Cookie Policy</Link></p>
-              <p><Link className="transition hover:text-[#c8a96b]" to="/support">Support</Link></p>
-              <p><Link className="transition hover:text-[#c8a96b]" to="/contact">Contact</Link></p>
+            <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm ${isHome || !isAdminRoute ? 'text-[#bdbdc3]' : 'text-slate-500'}`}>
+              <Link className="transition hover:text-[#c8a96b]" to="/privacy-policy">Privacy Policy</Link>
+              <span className="opacity-50">|</span>
+              <Link className="transition hover:text-[#c8a96b]" to="/payment-refund-policy">Payment & Refund Policy</Link>
+              <span className="opacity-50">|</span>
+              <Link className="transition hover:text-[#c8a96b]" to="/terms-of-service">Terms and Conditions</Link>
+              <span className="opacity-50">|</span>
+              <Link className="transition hover:text-[#c8a96b]" to="/cookie-policy">Cookie Policy</Link>
+              <span className="opacity-50">|</span>
+              <Link className="transition hover:text-[#c8a96b]" to="/support">Support</Link>
+              <span className="opacity-50">|</span>
+              <Link className="transition hover:text-[#c8a96b]" to="/contact">Contact</Link>
             </div>
           </div>
         </div>

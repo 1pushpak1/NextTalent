@@ -6,7 +6,6 @@ import api from '../api/axios';
 const defaultLinks = [
   { href: '/', label: 'Home' },
   { href: '/evaluation-program', label: 'Evaluation Program' },
-  { href: '/eligibility-check', label: 'Eligibility Check' },
 ];
 
 export default function Navbar({ navigationLinks = defaultLinks }) {
@@ -110,7 +109,7 @@ export default function Navbar({ navigationLinks = defaultLinks }) {
           <img
             src="/logo.png"
             alt="NextStep Talent logo"
-            className="nst-logo-image h-14 w-auto object-contain md:h-16"
+            className="nst-logo-image h-16 w-auto object-contain md:h-[4.75rem]"
           />
         </Link>
 

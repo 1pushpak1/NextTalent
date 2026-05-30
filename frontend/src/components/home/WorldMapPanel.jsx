@@ -17,7 +17,7 @@ const REGION_DATA = [
   },
   {
     id: 'uk',
-    label: 'UK',
+    label: 'UNITED KINGDOM',
     x: 465,
     y: 140,
     labelX: 452,
@@ -30,7 +30,7 @@ const REGION_DATA = [
   },
   {
     id: 'us',
-    label: 'US',
+    label: 'UNITED STATES',
     x: 155,
     y: 168,
     labelX: 130,
@@ -112,7 +112,7 @@ export default function WorldMapPanel() {
             <svg
               viewBox="0 0 1000 620"
               role="img"
-              aria-label="Abstract global focus map showing US, UK, Europe, and Australia"
+              aria-label="Abstract global focus map showing United States, United Kingdom, Europe, and Australia"
               className="relative z-10 mx-auto block aspect-[1000/620] w-[90%]"
               onMouseLeave={handleLeave}
             >

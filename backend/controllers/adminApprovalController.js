@@ -5,13 +5,14 @@ const Eligibility = require('../models/Eligibility');
 const ApprovalAuditLog = require('../models/ApprovalAuditLog');
 const sendEmail = require('../utils/sendEmail');
 const { sendAdminNotification } = require('../utils/workflowEmailer');
+const { getOperationsAdminEmails } = require('../utils/adminRoleEmails');
 const { createApprovalAuditLog } = require('../utils/approvalAudit');
 
 const getFrontendBaseUrl = () => String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
 /**
  * Evaluation Admin approves candidate profile
- * Status: awaiting_evaluation_review -> awaiting_operations_review
+ * Status: awaiting_evaluation_review -> evaluation_approved
  * Sends notification to Operations Admin
  */
 const evaluationApprove = async (req, res) => {
@@ -33,32 +34,66 @@ const evaluationApprove = async (req, res) => {
     }
 
     const previousStatus = candidate.status;
+    const profile = await Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 });
     candidate.evaluationStatus = 'approved';
     candidate.evaluationApprovedBy = req.user?.email || '';
     candidate.evaluationApprovedAt = new Date();
-    candidate.status = 'awaiting_operations_review';
+    candidate.admin2EvaluationApproved = true;
+    candidate.admin2EvaluationApprovedAt = new Date();
+    candidate.admin2EvaluationApprovedBy = req.user?.email || '';
+    candidate.status = 'evaluation_approved';
+    candidate.operationsStatus = 'pending';
+    candidate.accountStatus = 'not_invited';
+    candidate.accountInviteToken = '';
+    candidate.accountInviteExpiresAt = null;
+    candidate.accountCreationInviteSent = false;
+    candidate.accountCreationInviteSentAt = null;
+    if (profile) profile.status = 'accepted';
     await candidate.save();
+    if (profile) await profile.save();
 
-    // Notify Operations Admin
-    const operationsAdminEmail = process.env.OPERATIONS_ADMIN_EMAIL || '';
-    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || '';
-    const notificationRecipients = [superAdminEmail, operationsAdminEmail].filter(Boolean);
+    // Notify Operations Admins
+    const notificationRecipients = getOperationsAdminEmails();
+    if (!notificationRecipients.length) {
+      const operationsAdminEmail = process.env.OPERATIONS_ADMIN_EMAIL || '';
+      const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || '';
+      notificationRecipients.push(superAdminEmail, operationsAdminEmail);
+    }
 
     if (notificationRecipients.length) {
-      await sendAdminNotification({
+      const reviewUrl = `${getFrontendBaseUrl()}/admin/candidates/${String(candidate._id)}`;
+      const notificationResult = await sendAdminNotification({
         to: notificationRecipients,
-        subject: `Candidate Awaiting Operational Approval`,
+        subject: 'Candidate Awaiting Operations Approval',
         lines: [
-          `Candidate: ${candidate.name || candidate.email}`,
+          `Candidate Name: ${candidate.name || 'N/A'}`,
+          `Candidate ID: ${candidate.candidateId || String(candidate._id)}`,
           `Email: ${candidate.email}`,
           `Evaluation Admin: ${req.user?.email || 'N/A'}`,
           `Evaluation Approved At: ${candidate.evaluationApprovedAt.toISOString()}`,
           ``,
           `Action Required: Operations Admin must review and approve/reject this candidate.`,
-          `Review Link: ${getFrontendBaseUrl()}/admin/candidates/${String(candidate._id)}`,
+          `Review Link: ${reviewUrl}`,
         ],
+        html: `
+          <p>Candidate: ${candidate.name || candidate.email}</p>
+          <p>Candidate ID: ${candidate.candidateId || String(candidate._id)}</p>
+          <p>Email: ${candidate.email}</p>
+          <p>Evaluation Admin: ${req.user?.email || 'N/A'}</p>
+          <p>Evaluation Approved At: ${candidate.evaluationApprovedAt.toISOString()}</p>
+          <p>Action Required: Operations Admin must review and approve/reject this candidate.</p>
+          <p><a href="${reviewUrl}" style="display:inline-block;background:#002147;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700">Open Candidate Review</a></p>
+          <p>If the button does not open, use this link: <a href="${reviewUrl}">${reviewUrl}</a></p>
+        `,
         fromType: 'noreply',
         templateKey: 'operations_approval_required',
+      });
+      console.info('[approval] operations review notification queued', {
+        candidateId: String(candidate._id),
+        candidateEmail: candidate.email,
+        recipientCount: notificationRecipients.length,
+        recipients: notificationRecipients,
+        sendResult: notificationResult,
       });
     }
 
@@ -68,7 +103,7 @@ const evaluationApprove = async (req, res) => {
       approvalType: 'profile_evaluation',
       sectionRecordId: String(candidate._id),
       previousStatus,
-      newStatus: 'awaiting_operations_review',
+      newStatus: 'evaluation_approved',
       reasonNote,
       sourcePage: req.body?.sourcePage || '/admin/evaluation',
     });
@@ -153,7 +188,7 @@ const evaluationReject = async (req, res) => {
 
 /**
  * Operations Admin approves candidate
- * Status: awaiting_operations_review -> operations_approved -> fully_approved
+ * Status: evaluation_approved -> operations_approved -> fully_approved -> account_invited
  * Sends account creation invitation email to candidate
  */
 const operationsApprove = async (req, res) => {
@@ -170,8 +205,8 @@ const operationsApprove = async (req, res) => {
       return res.status(404).json({ message: 'Candidate not found' });
     }
 
-    if (candidate.evaluationStatus !== 'approved') {
-      return res.status(409).json({ message: 'Evaluation Admin must approve first' });
+    if (candidate.evaluationStatus !== 'approved' || candidate.status !== 'evaluation_approved') {
+      return res.status(409).json({ message: 'Evaluation approval must be completed first' });
     }
 
     if (candidate.operationsStatus === 'approved') {
@@ -196,7 +231,7 @@ const operationsApprove = async (req, res) => {
 
     // Send account creation invitation email
     const inviteUrl = `${getFrontendBaseUrl()}/create-account?token=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(candidate.email)}`;
-    const inviteText = `Dear ${candidate.name || 'Candidate'},\r\n\r\nCongratulations! Your profile has been reviewed and approved by our team.\r\n\r\nYou are now invited to create your candidate account to continue with the onboarding process.\r\n\r\nEmail: ${candidate.email}\r\n\r\nPlease use the link below to create your account:\r\n${inviteUrl}\r\n\r\nThis invitation link will expire in 7 days.\r\n\r\nImportant:\r\n- You must use the email address: ${candidate.email}\r\n- The link is for one-time use only\r\n- After creating your account, you will need to verify your email\r\n\r\nRegards,  \r\nNextStep Talent Team\r\n\r\nThis is an automated email. Please do not reply to this message.`;
+    const inviteText = `Dear ${candidate.name || 'Candidate'},\r\n\r\nCongratulations! Your profile has been approved by both review stages.\r\n\r\nYou are now invited to create your candidate account using the same email address that was used for eligibility and profile submission.\r\n\r\nEmail: ${candidate.email}\r\n\r\nPlease use the link below to create your account:\r\n${inviteUrl}\r\n\r\nThis invitation link will expire in 7 days and can be used only once.\r\n\r\nImportant:\r\n- You must use the email address: ${candidate.email}\r\n- The link is for one-time use only\r\n- After creating your account, you will need to verify your email\r\n\r\nRegards,  \r\nNextStep Talent Team\r\n\r\nThis is an automated email. Please do not reply to this message.`;
 
     await sendEmail({
       to: candidate.email,
@@ -209,13 +244,16 @@ const operationsApprove = async (req, res) => {
       relatedCandidateId: candidate._id,
     });
 
+    candidate.status = 'account_invited';
+    await candidate.save();
+
     await createApprovalAuditLog(req, {
       candidateId: candidate._id,
       candidateEmail: candidate.email,
       approvalType: 'operations_approval',
       sectionRecordId: String(candidate._id),
       previousStatus,
-      newStatus: 'fully_approved',
+      newStatus: 'account_invited',
       reasonNote,
       sourcePage: req.body?.sourcePage || '/admin/operations',
     });

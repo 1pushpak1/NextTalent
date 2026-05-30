@@ -52,6 +52,7 @@ const stepCatalog = {
 };
 
 const suppressedStepStatusEmails = new Set([
+  'profile:pending',
   'account:pending',
   'profile:submitted',
   'declaration:completed',

@@ -70,8 +70,8 @@ router.post('/candidates/:id/operations/reject', protect, adminOnly, requireAdmi
 // Legacy routes (kept for backward compatibility)
 router.post('/candidates/:id/operations/decision', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.OPERATIONS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), operationsDecision);
 router.post('/candidates/:id/sterling/initiate', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.OPERATIONS_ADMIN, ADMIN_ROLES.SUPER_ADMIN]), initiateSterlingForCandidate);
-router.post('/candidates/:id/selected', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.SUPER_ADMIN]), selectedCandidate);
-router.post('/candidates/:id/not-selected', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.SUPER_ADMIN]), sendNotSelectedEmailFromAdmin);
+router.post('/candidates/:id/selected', protect, adminOnly, requireAdminPermission('selection:publish'), selectedCandidate);
+router.post('/candidates/:id/not-selected', protect, adminOnly, requireAdminPermission('selection:publish'), sendNotSelectedEmailFromAdmin);
 router.post('/candidates/:id/invoices/generate', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.EVALUATION_ADMIN, ADMIN_ROLES.OPERATIONS_ADMIN]), generateInvoiceForCandidate);
 router.post('/candidates/:id/payments/:paymentId/verify', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.EVALUATION_ADMIN, ADMIN_ROLES.OPERATIONS_ADMIN]), verifyCandidatePayment);
 router.post('/candidates/:id/documents/initiate', protect, adminOnly, requireAdminRoles([ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.EVALUATION_ADMIN, ADMIN_ROLES.OPERATIONS_ADMIN]), initiateDocumentationStage);

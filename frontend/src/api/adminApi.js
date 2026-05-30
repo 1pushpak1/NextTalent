@@ -12,6 +12,8 @@ export const updateCandidateNotes = (candidateId, payload) => api.put(`/admin/ca
 export const scheduleCandidateInterview = (candidateId, payload) => api.post(`/admin/candidates/${candidateId}/interviews`, payload);
 export const approveCandidateEvaluation = (candidateId, payload = {}) => api.post(`/admin/candidates/${candidateId}/evaluation/approve`, payload);
 export const rejectCandidateEvaluation = (candidateId, payload = {}) => api.post(`/admin/candidates/${candidateId}/evaluation/reject`, payload);
+export const approveCandidateOperations = (candidateId, payload = {}) => api.post(`/admin/candidates/${candidateId}/operations/approve`, payload);
+export const rejectCandidateOperations = (candidateId, payload = {}) => api.post(`/admin/candidates/${candidateId}/operations/reject`, payload);
 export const applyOperationsDecision = (candidateId, payload) => api.post(`/admin/candidates/${candidateId}/operations/decision`, payload);
 export const initiateSterlingCheck = (candidateId, payload = {}) => api.post(`/admin/candidates/${candidateId}/sterling/initiate`, payload);
 export const sendCandidatePaymentInstruction = (candidateId, payload) => api.post(`/admin/candidates/${candidateId}/payments/instructions`, payload);

@@ -33,12 +33,6 @@ const processSteps = [
   },
 ];
 
-const stats = [
-  { value: '40+', label: 'Years of collective experience' },
-  { value: '4', label: 'Global regions supported' },
-  { value: '100%', label: 'Structured process approach' },
-];
-
 const navigationLinks = [
   { href: '/', label: 'Home' },
   { href: '/evaluation-program', label: 'Evaluation Program' },
@@ -58,10 +52,10 @@ export default function HomePage() {
 
           <div className="relative mx-auto flex w-full max-w-[1180px] justify-center">
             <Reveal className="mx-auto max-w-[860px] text-center">
-              <span className="nst-kicker">Global Platform</span>
-              <h1 className="mt-8 nst-display text-[4.2rem] leading-[0.88] tracking-[-0.05em] text-white sm:text-[5.4rem] md:text-[7.4rem]">
-                <span className="block">NextStep</span>
-                <span className="nst-display italic text-[#c8a96b]">Talent</span>
+              {/* <span className="nst-kicker">Global Platform</span> */}
+              <h1 className="mt-4 whitespace-nowrap nst-display text-[3.6rem] leading-[0.92] tracking-[-0.05em] text-white sm:text-[4.8rem] md:text-[6.8rem]">
+                <span className="inline-block">NextStep </span>
+                <span className="inline-block nst-display italic text-[#c8a96b]">Talent</span>
               </h1>
               <p className="mt-7 nst-display text-[1.5rem] italic text-[#c8a96b] sm:text-[1.8rem] md:text-[2.25rem]">
                 Building Global Career Pathways
@@ -75,16 +69,16 @@ export default function HomePage() {
                 <Link to="/evaluation-program" className="nst-outline-button min-w-[280px] text-center">
                   Explore Current Opportunities
                 </Link>
-                <Link to="/eligibility-check" className="nst-ghost-button min-w-[240px] text-center">
+                {/* <Link to="/eligibility-check" className="nst-ghost-button min-w-[240px] text-center">
                   Check Eligibility
-                </Link>
+                </Link> */}
               </div>
             </Reveal>
           </div>
         </section>
 
         <section id="who-we-are" className="nst-home-section px-6 py-20 md:px-10 md:py-28">
-          <div className="mx-auto grid max-w-[1180px] gap-14 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+          <div className="mx-auto max-w-[1180px]">
             <Reveal>
               <span className="nst-kicker">Who We Are</span>
               <h2 className="mt-6 nst-display max-w-[820px] text-[2.9rem] leading-[0.98] tracking-[-0.04em] text-white sm:text-[3.6rem] md:text-[4.55rem]">
@@ -102,20 +96,6 @@ export default function HomePage() {
                 </p>
               </div>
             </Reveal>
-
-            <div className="grid gap-4">
-              {stats.map((stat, index) => (
-                <Reveal
-                  key={stat.label}
-                  delay={index * 90}
-                  className="nst-glass-card nst-hover-gold rounded-[1.8rem] border border-[rgba(200,169,107,0.2)] p-7 md:p-8"
-                >
-                  <div className="mb-6 h-px w-14 bg-[linear-gradient(90deg,#c8a96b,transparent)]" />
-                  <div className="nst-display text-[3.3rem] leading-none text-[#c8a96b]">{stat.value}</div>
-                  <p className="mt-3 text-[0.8rem] uppercase tracking-[0.28em] text-[#cfc2a0]">{stat.label}</p>
-                </Reveal>
-              ))}
-            </div>
           </div>
         </section>
 
@@ -169,9 +149,9 @@ export default function HomePage() {
           <Reveal className="mx-auto max-w-[1180px]">
             <div className="relative overflow-hidden rounded-[1.25rem] border border-[rgba(200,169,107,0.32)] bg-[linear-gradient(140deg,rgba(17,18,21,0.9),rgba(12,13,16,0.92))] px-6 py-5 text-center shadow-[0_0_30px_rgba(200,169,107,0.12)] backdrop-blur-xl md:px-10 md:py-6">
               <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(200,169,107,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(200,169,107,0.06)_1px,transparent_1px)] bg-[size:30px_30px] opacity-25" />
-              <div className="relative z-10 flex items-center justify-center gap-3">
-                <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#d8bd86] shadow-[0_0_14px_rgba(216,189,134,0.9)]" />
-                <p className="text-sm leading-7 text-[#e7dcc4] md:text-[1.02rem]">
+              <div className="relative z-10 mx-auto max-w-[860px]">
+                <p className="text-sm leading-7 text-[#f2e6c9] md:text-[1.02rem]">
+                  {/* <span className="font-semibold uppercase tracking-[0.24em] text-[#d8bd86]">Important:</span>{' '} */}
                   Due to the structured and selective nature of our process, only a limited number of candidates are onboarded for each cycle.
                 </p>
               </div>
@@ -189,16 +169,9 @@ export default function HomePage() {
             <p className="mx-auto mt-8 max-w-[760px] text-base leading-8 text-[#d1d2d7] sm:text-lg">
               Check if you meet the criteria to begin your international career journey with NextStep Talent.
             </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs font-semibold uppercase tracking-[0.22em] text-[#d3bc8c]">
-              <Link to="/#who-we-are" className="transition hover:text-white">Who We Are</Link>
-              <span className="text-[rgba(200,169,107,0.55)]">|</span>
-              <Link to="/#process" className="transition hover:text-white">Process</Link>
-              <span className="text-[rgba(200,169,107,0.55)]">|</span>
-              <Link to="/#regions" className="transition hover:text-white">Regions</Link>
-            </div>
             <div className="mt-10">
-              <Link to="/eligibility-check" className="nst-outline-button inline-flex min-w-[280px] justify-center">
-                Check Your Eligibility
+              <Link to="/evaluation-program" className="nst-outline-button inline-flex min-w-[280px] justify-center">
+                Explore Current Opportunities
               </Link>
             </div>
           </Reveal>

@@ -4,12 +4,9 @@ const { runEligibilityCheck } = require('../utils/eligibilityRules');
 
 const checkEligibility = async (req, res) => {
   try {
-    const fullName = String(req.body?.fullName || '').trim();
     const email = String(req.body?.email || '').toLowerCase().trim();
+    const fullName = String(req.body?.fullName || email.split('@')[0] || 'Candidate').trim();
     
-    if (!fullName) {
-      return res.status(400).json({ message: 'Full name is required.' });
-    }
     if (!email) {
       return res.status(400).json({ message: 'Email is required.' });
     }
