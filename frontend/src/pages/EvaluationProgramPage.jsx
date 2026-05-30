@@ -145,39 +145,39 @@ export default function EvaluationProgramPage() {
         </section>
 
         <section className="nst-home-section py-12">
-          <div className="mx-auto max-w-[1000px] px-6">
+          <div className="mx-auto w-full max-w-[1180px] px-6 md:px-10">
             <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8">
               <h3 className="mb-4 nst-display text-2xl font-semibold text-white">Country-specific Eligibility Criteria</h3>
-              <p className="mb-4 text-base text-[#d1d2d7]">Below are example eligibility factors for select countries. These are indicative — final requirements depend on role and current regulations.</p>
+              <p className="mb-6 text-base leading-8 text-[#d1d2d7]">Below are eligibility factors for select countries.</p>
 
               <div className="mt-6 grid gap-6 sm:grid-cols-2">
-                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-4">
-                  <h4 className="font-semibold text-white">Germany</h4>
-                  <ul className="mt-3 list-disc pl-5 text-sm text-[#d1d2d7]">
+                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5">
+                  <h4 className="text-lg font-semibold text-white">Germany</h4>
+                  <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe, Outside Europe</li>
                     <li><strong>Language requirement:</strong> German proficiency</li>
                   </ul>
                 </div>
 
-                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-4">
-                  <h4 className="font-semibold text-white">Switzerland</h4>
-                  <ul className="mt-3 list-disc pl-5 text-sm text-[#d1d2d7]">
+                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5">
+                  <h4 className="text-lg font-semibold text-white">Switzerland</h4>
+                  <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe</li>
                     <li><strong>Language requirement:</strong> B2 Certified or above in German, French, or Italian</li>
                   </ul>
                 </div>
 
-                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-4">
-                  <h4 className="font-semibold text-white">Austria</h4>
-                  <ul className="mt-3 list-disc pl-5 text-sm text-[#d1d2d7]">
+                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5">
+                  <h4 className="text-lg font-semibold text-white">Austria</h4>
+                  <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe</li>
                     <li><strong>Language requirement:</strong> B2 certified or above in German </li>
                   </ul>
                 </div>
 
-                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-4">
-                  <h4 className="font-semibold text-white">Poland</h4>
-                  <ul className="mt-3 list-disc pl-5 text-sm text-[#d1d2d7]">
+                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5">
+                  <h4 className="text-lg font-semibold text-white">Poland</h4>
+                  <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe</li>
                     <li><strong>Language requirement:</strong> Professional level in English </li>
                   </ul>

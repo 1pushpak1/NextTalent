@@ -162,13 +162,13 @@ export default function HomePage() {
                       <span className="material-symbols-outlined">verified</span>
                     </div>
                     <div className="text-center md:text-left">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-[#f4dfb2]">Selective Intake</p>
+                      {/* <p className="text-xs font-semibold uppercase tracking-wider text-[#f4dfb2]">Selective Intake</p> */}
                       <h3 className="mt-2 text-2xl md:text-3xl font-extrabold text-white leading-tight">
                         Due to our structured and selective process, only a limited number of candidates are onboarded each cycle.
                       </h3>
-                      <p className="mt-2 max-w-[56ch] text-sm text-[#d1d2d7]">
+                      {/* <p className="mt-2 max-w-[56ch] text-sm text-[#d1d2d7]">
                         We prioritise quality over quantity — apply early or join the waiting list to reserve consideration in the next intake.
-                      </p>
+                      </p> */}
                     </div>
                   </div>
                 </div>
