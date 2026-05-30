@@ -78,68 +78,7 @@ const sendTransactionalEmail = async ({
   relatedCandidateId = null,
   relatedAdminActionId = '',
 }) => {
-  const allowedTemplateKeys = new Set([
-    // Email 1
-    'email_verification_code',
-    // Email 2
-    'application_submission_confirmation',
-    // Email 3
-    'internal_candidate_submission_admin12',
-    'internal_admin3_review_request',
-    'interview_availability_request',
-    // Email 4
-    'internal_interview_booked_admin_loop',
-    'internal_admin3_review_completed',
-    'initial_assessment_approved',
-    'admin3_rejection_candidate',
-    // Email 5
-    'payment_500_received',
-    // Email 6
-    'documentation_upload_required',
-    // Email 7
-    'invoice_generated_payment_request_stage1',
-    'invoice_stage_1',
-    'invoice_stage_2',
-    'program_fee_instruction_sent',
-    // Email 8
-    'payment_first_installment_received',
-    // Email 9
-    'sterling_verification_initiated_admin_notice',
-    // Email 10
-    'sterling_verification_completed_admin_notice',
-    'sterling_verification_completed_candidate_notice',
-    // Email 11
-    'final_payment_request',
-    'final_payment_instruction_sent',
-    // Email 12
-    'final_payment_received',
-    'receipt_initial',
-    'receipt_first',
-    'receipt_final',
-    // Email 13
-    'process_completion_best_wishes',
-    // Email 14
-    'refund_initiated',
-  ]);
-
-  if (!allowedTemplateKeys.has(String(templateKey || '').trim())) {
-    const suppressedLog = await EmailLog.create({
-      to: normalizeAddressList(to),
-      cc: normalizeAddressList(cc),
-      bcc: normalizeAddressList(bcc),
-      subject: String(subject || ''),
-      templateKey: String(templateKey || ''),
-      relatedCandidateId,
-      relatedAdminActionId: String(relatedAdminActionId || ''),
-      status: 'suppressed',
-      sentAt: null,
-      errorMessage: 'Suppressed by allowlist policy',
-    });
-    return {
-      info: { messageId: `suppressed-${String(suppressedLog?._id || Date.now())}` },
-      log: suppressedLog,
-    };
-  }
+  // No allowlist restriction — all template keys are permitted for internal transactional use.
 
   const toList = normalizeAddressList(to);
   const ccList = normalizeAddressList(cc);
@@ -165,33 +104,52 @@ const sendTransactionalEmail = async ({
       attachments,
     });
 
-    const log = await EmailLog.create({
-      to: toList,
-      cc: ccList,
-      bcc: bccList,
-      subject: String(subject || ''),
-      templateKey,
-      relatedCandidateId,
-      relatedAdminActionId: String(relatedAdminActionId || ''),
-      status: 'sent',
-      sentAt: new Date(),
-      errorMessage: '',
-    });
+    let log = null;
+    try {
+      log = await EmailLog.create({
+        to: toList,
+        cc: ccList,
+        bcc: bccList,
+        subject: String(subject || ''),
+        templateKey,
+        relatedCandidateId,
+        relatedAdminActionId: String(relatedAdminActionId || ''),
+        status: 'sent',
+        sentAt: new Date(),
+        errorMessage: '',
+      });
+    } catch (logErr) {
+      const shouldLog = String(process.env.EMAIL_LOG_ERRORS || 'false').toLowerCase() === 'true';
+      if (shouldLog) {
+        console.error('[EmailLog Create Failed]', { error: logErr?.message || logErr });
+      }
+      // Don't fail the send if logging the email fails (e.g., Mongo down). Return send info without a log.
+      log = null;
+    }
 
     return { info, log };
   } catch (error) {
-    const log = await EmailLog.create({
-      to: toList,
-      cc: ccList,
-      bcc: bccList,
-      subject: String(subject || ''),
-      templateKey,
-      relatedCandidateId,
-      relatedAdminActionId: String(relatedAdminActionId || ''),
-      status: 'failed',
-      sentAt: null,
-      errorMessage: String(error?.message || 'Unknown email error'),
-    });
+    let log = null;
+    try {
+      log = await EmailLog.create({
+        to: toList,
+        cc: ccList,
+        bcc: bccList,
+        subject: String(subject || ''),
+        templateKey,
+        relatedCandidateId,
+        relatedAdminActionId: String(relatedAdminActionId || ''),
+        status: 'failed',
+        sentAt: null,
+        errorMessage: String(error?.message || 'Unknown email error'),
+      });
+    } catch (logErr) {
+      const shouldLog = String(process.env.EMAIL_LOG_ERRORS || 'false').toLowerCase() === 'true';
+      if (shouldLog) {
+        console.error('[EmailLog Create Failed After Send Error]', { error: logErr?.message || logErr });
+      }
+      log = null;
+    }
 
     const shouldLog = String(process.env.EMAIL_LOG_ERRORS || 'false').toLowerCase() === 'true';
     if (shouldLog) {

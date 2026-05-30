@@ -7,30 +7,30 @@ const REGION_DATA = [
     label: 'EUROPE',
     x: 505,
     y: 160,
-    labelX: 505,
-    labelY: 214,
-    labelAnchor: 'middle',
-    labelSize: 19,
-    tracking: '0.32em',
-    halo: 30,
-    radius: 14,
-  },
-  {
-    id: 'uk',
-    label: 'UK',
-    x: 465,
-    y: 140,
-    labelX: 452,
-    labelY: 177,
+    labelX: 535,
+    labelY: 160,
     labelAnchor: 'start',
-    labelSize: 16,
+    labelSize: 18,
     tracking: '0.18em',
     halo: 28,
     radius: 12,
   },
   {
+    id: 'uk',
+    label: 'UNITED KINGDOM',
+    x: 465,
+    y: 140,
+    labelX: 465,
+    labelY: 98,
+    labelAnchor: 'middle',
+    labelSize: 15,
+    tracking: '0.14em',
+    halo: 26,
+    radius: 11,
+  },
+  {
     id: 'us',
-    label: 'US',
+    label: 'UNITED STATES',
     x: 155,
     y: 168,
     labelX: 130,
@@ -41,19 +41,19 @@ const REGION_DATA = [
     halo: 27,
     radius: 12,
   },
-  {
-    id: 'australia',
-    label: 'AUSTRALIA',
-    x: 840,
-    y: 505,
-    labelX: 812,
-    labelY: 548,
-    labelAnchor: 'start',
-    labelSize: 16,
-    tracking: '0.25em',
-    halo: 27,
-    radius: 12,
-  },
+  // {
+  //   id: 'australia',
+  //   label: '',
+  //   x: 840,
+  //   y: 505,
+  //   labelX: 812,
+  //   labelY: 548,
+  //   labelAnchor: 'start',
+  //   labelSize: 16,
+  //   tracking: '0.25em',
+  //   halo: 27,
+  //   radius: 12,
+  // },
 ];
 
 const MAP_SHAPES = [
@@ -112,7 +112,7 @@ export default function WorldMapPanel() {
             <svg
               viewBox="0 0 1000 620"
               role="img"
-              aria-label="Abstract global focus map showing US, UK, Europe, and Australia"
+              aria-label="Abstract global focus map showing United States, United Kingdom, Europe, and Australia"
               className="relative z-10 mx-auto block aspect-[1000/620] w-[90%]"
               onMouseLeave={handleLeave}
             >

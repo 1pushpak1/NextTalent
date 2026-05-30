@@ -20,20 +20,24 @@ export default function SignupPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = params.get('next') || '/profile-submission';
+  const inviteEmail = String(params.get('email') || '').toLowerCase().trim();
+  const isInviteFlow = params.get('invite') === '1' || Boolean(inviteEmail);
   const { isAuthenticated, setAuth } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated) return;
-    if (localStorage.getItem('nst_eligible') === 'true') return;
+    if (localStorage.getItem('nst_eligible') === 'true' || isInviteFlow) return;
     navigate('/eligibility-check', { replace: true });
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isInviteFlow, navigate]);
 
   useEffect(() => {
     const emailFromEligibility = String(localStorage.getItem('nst_eligibility_email') || '').toLowerCase().trim();
-    if (!emailFromEligibility) return;
-    setLockedEligibilityEmail(emailFromEligibility);
-    setForm((prev) => ({ ...prev, email: emailFromEligibility }));
-  }, []);
+    const emailFromInvite = inviteEmail;
+    const resolvedEmail = emailFromInvite || emailFromEligibility;
+    if (!resolvedEmail) return;
+    setLockedEligibilityEmail(resolvedEmail);
+    setForm((prev) => ({ ...prev, email: resolvedEmail }));
+  }, [inviteEmail]);
 
   useEffect(() => {
     if (!isPasswordFocused) return;

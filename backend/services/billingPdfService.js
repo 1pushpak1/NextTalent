@@ -4,7 +4,7 @@ const PDFDocument = require('pdfkit');
 const Invoice = require('../models/Invoice');
 const Receipt = require('../models/Receipt');
 const Profile = require('../models/Profile');
-const { COMPANY_DETAILS, PAYMENT_STAGES } = require('../constants/workflow');
+const { COMPANY_DETAILS, PAYMENT_STAGES, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 const { nextInvoiceNumber, nextReceiptNumber, nextPdfReference } = require('./documentNumberService');
 
 const ensureDir = (dirPath) => fs.mkdirSync(dirPath, { recursive: true });
@@ -34,8 +34,8 @@ const getInvoiceTitle = (stage) =>
     : 'INVOICE - CAREER DEVELOPMENT SERVICES (Part II)';
 
 const getDefaultAmountForStage = (stage) => {
-  if (stage === PAYMENT_STAGES.INITIAL_ONBOARDING_FEE) return 500;
-  return 3100;
+  const cfg = PAYMENT_STAGE_CONFIG[stage];
+  return cfg ? Number(cfg.amount || 0) : 0;
 };
 
 const getPaymentReference = (payment, stage) => {
@@ -175,6 +175,9 @@ const buildInvoiceText = ({ candidate, details, invoice, stage, amountReceived =
   const isStage1 = stage === PAYMENT_STAGES.FIRST_INSTALLMENT;
   const invoiceNumber = invoice?.invoiceNumber || '';
   const issueDate = invoice?.issueDate || new Date();
+  const totalProgramFee = Object.values(PAYMENT_STAGE_CONFIG).reduce((s, c) => s + Number(c.amount || 0), 0);
+  const firstAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0);
+  const finalAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0);
 
   return renderLines([
     getInvoiceTitle(stage),
@@ -203,20 +206,20 @@ const buildInvoiceText = ({ candidate, details, invoice, stage, amountReceived =
     '',
     'PAYMENT SUMMARY',
     '',
-    'Total Program Fee: USD $6,200',
+    `Total Program Fee: ${formatUsd(totalProgramFee)}`,
     '',
     ...(isStage1
       ? [
-          'Amount Due (Stage 1 Payment): USD $3,100',
+          `Amount Due (Stage 1 Payment): ${formatUsd(firstAmount)}`,
           '',
           'Payment Status: DUE',
           '',
-          'Remaining Balance After Payment: USD $3,100',
+          `Remaining Balance After Payment: ${formatUsd(finalAmount)}`,
         ]
       : [
-          `Amount Received: ${formatUsd(amountReceived || invoice?.amountReceived || 3100)}`,
+          `Amount Received: ${formatUsd(amountReceived || invoice?.amountReceived || finalAmount)}`,
           '',
-          'Amount Due (Final Payment): USD $3,100',
+          `Amount Due (Final Payment): ${formatUsd(finalAmount)}`,
           '',
           'Payment Status: FINAL PAYMENT DUE',
         ]),
@@ -384,14 +387,14 @@ const generateInvoiceForStage = async ({ candidate, stage, amountReceived = 0 })
       doc.moveDown();
 
       doc.fontSize(12).text('PAYMENT SUMMARY');
-      doc.fontSize(11).text('Total Program Fee: USD $6,200');
+      doc.fontSize(11).text(`Total Program Fee: ${formatUsd(Object.values(PAYMENT_STAGE_CONFIG).reduce((s, c) => s + Number(c.amount || 0), 0))}`);
       if (isStage1) {
-        doc.text('Amount Due (Stage 1 Payment): USD $3,100');
+        doc.text(`Amount Due (Stage 1 Payment): ${formatUsd(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount)}`);
         doc.text('Payment Status: DUE');
-        doc.text('Remaining Balance After Payment: USD $3,100');
+        doc.text(`Remaining Balance After Payment: ${formatUsd(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount)}`);
       } else {
-        doc.text(`Amount Received: USD $${Number(amountReceived || 3100).toLocaleString('en-US')}`);
-        doc.text('Amount Due (Final Payment): USD $3,100');
+        doc.text(`Amount Received: ${formatUsd(Number(amountReceived || PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0))}`);
+        doc.text(`Amount Due (Final Payment): ${formatUsd(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount)}`);
         doc.text('Payment Status: FINAL PAYMENT DUE');
       }
       doc.moveDown();
@@ -431,9 +434,9 @@ const generateInvoiceForStage = async ({ candidate, stage, amountReceived = 0 })
     candidateName: details.name,
     candidateEmail: details.email,
     candidateCountry: details.country,
-    totalProgramFee: 6200,
-    amountReceived: isStage1 ? 0 : Number(amountReceived || 3100),
-    amountDue: 3100,
+    totalProgramFee: Object.values(PAYMENT_STAGE_CONFIG).reduce((s, c) => s + Number(c.amount || 0), 0),
+    amountReceived: isStage1 ? 0 : Number(amountReceived || PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0),
+    amountDue: PAYMENT_STAGE_CONFIG[stage] ? Number(PAYMENT_STAGE_CONFIG[stage].amount || 0) : 0,
     paymentStatus: isStage1 ? 'DUE' : 'FINAL PAYMENT DUE',
     pdfUrl: `/uploads/invoices/system/${fileName}`,
     pdfPath: filePath,

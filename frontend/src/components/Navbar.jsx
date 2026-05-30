@@ -5,8 +5,7 @@ import api from '../api/axios';
 
 const defaultLinks = [
   { href: '/', label: 'Home' },
-  { href: '/evaluation-program', label: 'Evaluation Program' },
-  { href: '/eligibility-check', label: 'Eligibility Check' },
+  { href: '/evaluation-program', label: 'Evaluation' },
 ];
 
 export default function Navbar({ navigationLinks = defaultLinks }) {
@@ -105,16 +104,13 @@ export default function Navbar({ navigationLinks = defaultLinks }) {
 
   return (
     <header className={`fixed top-0 z-50 w-full border-b transition-all duration-300 ${headerClass}`}>
-      <div className="mx-auto flex h-[5.5rem] w-full max-w-[1240px] items-center justify-between px-6 md:px-8">
-        <Link to="/" className="flex items-center">
-          <img
-            src="/logo.png"
-            alt="NextStep Talent logo"
-            className="nst-logo-image h-14 w-auto object-contain md:h-16"
-          />
+      <div className="relative mx-auto flex h-[5.5rem] w-full max-w-[1240px] items-center justify-between px-6 md:px-8">
+        <Link to="/" className="flex items-center" aria-hidden>
+          {/* Logo intentionally removed from header */}
+          <span className="sr-only">NextStep Talent</span>
         </Link>
 
-        <nav className="hidden items-center gap-8 lg:flex">
+        <nav className="hidden lg:flex absolute left-1/2 transform -translate-x-1/2 items-center gap-8">
           {navigationLinks.map((item) => (
             <Link key={item.label} className={navLinkClass} to={resolveHref(item.href)}>
               {item.label}
@@ -179,12 +175,12 @@ export default function Navbar({ navigationLinks = defaultLinks }) {
             </div>
           ) : (
             <>
-              <Link className={navLinkClass} to="/login">
-                Login
-              </Link>
-              <Link to="/eligibility-check" className={isHome || !isAdminRoute ? 'nst-outline-button' : 'nst-inline-cta'}>
-                Check Eligibility
-              </Link>
+              {/* Only show eligibility button when not already on the eligibility page */}
+              {location.pathname !== '/eligibility-check' && (
+                <Link to="/eligibility-check" className={isHome || !isAdminRoute ? 'nst-outline-button' : 'nst-inline-cta'}>
+                  Check Eligibility
+                </Link>
+              )}
             </>
           )}
         </div>

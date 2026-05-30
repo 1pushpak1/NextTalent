@@ -6,7 +6,8 @@ import AuditHistoryPanel from '../../components/admin/AuditHistoryPanel';
 import Button from '../../components/Button';
 import Modal from '../../components/Modal';
 import {
-  applyOperationsDecision,
+  approveCandidateOperations,
+  rejectCandidateOperations,
   fetchAdminCandidateProfile,
   sendCandidatePaymentInstruction,
   reviewCandidateDocument,
@@ -42,6 +43,7 @@ const stageSequence = [
   'eligibility',
   'profile_submitted',
   'profile_review',
+  'operations_approval',
   'initial_payment',
   'documents_upload',
   'program_payment',
@@ -153,7 +155,7 @@ export default function AdminCandidateProfilePage() {
   const activeTabParam = searchParams.get('tab');
   const activeTab = visibleTabs.includes(activeTabParam) ? activeTabParam : 'profile';
   const reviewParam = searchParams.get('review');
-  const canReviewSelection = ['super_admin', 'payments_admin'].includes(String(role || ''));
+  const canReviewSelection = can('selection:publish');
 
   useEffect(() => {
     if (activeTabParam && visibleTabs.includes(activeTabParam)) return;
@@ -206,6 +208,13 @@ export default function AdminCandidateProfilePage() {
   const selectionAnnounced =
     ['accepted', 'rejected'].includes(selectionDecision) ||
     ['selected', 'rejected'].includes(String(progress?.selectionStatus || '').toLowerCase());
+  // Admin 3 (operations_admin) can approve evaluation as the final approver
+  const isAdmin3PendingEvaluation =
+    String(role || '') === 'operations_admin' &&
+    Boolean(candidate?.admin2EvaluationApproved) &&
+    !candidate?.admin3EvaluationApproved &&
+    readStageDecision(candidate, 'evaluation') !== 'accepted' &&
+    readStageDecision(candidate, 'evaluation') !== 'rejected';
 
   const filteredHistory = (types) => approvalHistory.filter((item) => types.includes(item.approvalType));
   const isInlineProfileReview =
@@ -213,7 +222,7 @@ export default function AdminCandidateProfilePage() {
     reviewParam === 'evaluation' &&
     Boolean(profile) &&
     can('evaluation:approve') &&
-    (profile?.status !== 'accepted' && profile?.status !== 'rejected' ? true : allowReviewedProfileEditor);
+    (profile?.status !== 'rejected' ? true : allowReviewedProfileEditor);
   const profileReviewHistory = filteredHistory(['profile_evaluation']);
   const lastProfileReview = profileReviewHistory[0] || null;
   const profileAlreadyReviewed =
@@ -474,17 +483,31 @@ export default function AdminCandidateProfilePage() {
     }
   };
 
-  const submitOperationsDecision = async (decision) => {
-    setOperationsSaving(decision);
+  const submitOperationsApproval = async () => {
+    setOperationsSaving('approved');
     setError('');
     try {
-      await applyOperationsDecision(id, {
-        decision,
-        reasonNote: `Operations admin decision: ${decision}`,
+      await approveCandidateOperations(id, {
+        reasonNote: 'Operations approval granted after evaluation review',
       });
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to apply operations decision');
+      setError(err.response?.data?.message || 'Failed to approve candidate');
+    } finally {
+      setOperationsSaving('');
+    }
+  };
+
+  const submitOperationsRejection = async () => {
+    setOperationsSaving('rejected');
+    setError('');
+    try {
+      await rejectCandidateOperations(id, {
+        reasonNote: 'Operations rejection issued after review',
+      });
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to reject candidate');
     } finally {
       setOperationsSaving('');
     }
@@ -927,12 +950,17 @@ export default function AdminCandidateProfilePage() {
       helperText: '',
     };
 
-    if (can('evaluation:approve') && profile && currentStageKey === 'profile_review') {
+    if (can('evaluation:approve') && profile && (currentStageKey === 'profile_review' || currentStageKey === 'operations_approval' || isAdmin3PendingEvaluation)) {
+      const isOperationsApproval = currentStageKey === 'operations_approval' || isAdmin3PendingEvaluation;
       return {
         ...base,
-        buttonLabel: profileAlreadyReviewed ? 'Edit Response' : 'Review Internal Evaluation',
-        onClick: openProfileReview,
-        helperText: 'Profile review is the current required admin action.',
+        buttonLabel: isOperationsApproval ? 'Open Operations Approval' : profileAlreadyReviewed ? 'Edit Response' : 'Review Internal Evaluation',
+        onClick: isOperationsApproval ? () => setTab('hiring') : openProfileReview,
+        helperText: isAdmin3PendingEvaluation
+          ? 'Admin 2 has approved this candidate. Operations approval is required before account creation can begin.'
+          : currentStageKey === 'operations_approval'
+            ? 'Admin 2 has approved this candidate. Operations approval is required before account creation can begin.'
+            : 'Profile review is the current required admin action.',
       };
     }
 
@@ -975,10 +1003,13 @@ export default function AdminCandidateProfilePage() {
   }, [
     progress,
     candidate?.updatedAt,
+    candidate?.admin2EvaluationApproved,
+    candidate?.admin3EvaluationApproved,
     can,
     profile,
     profileAlreadyReviewed,
     openProfileReview,
+    isAdmin3PendingEvaluation,
     canReviewSelection,
     hiringAccepted,
     latestPendingReviewPayment,
@@ -998,7 +1029,7 @@ export default function AdminCandidateProfilePage() {
     if (stageKey === 'profile_review' && can('evaluation:approve')) counts.profile = 1;
     if (stageKey === 'document_verification' && can('documents:verify')) counts.documents = 1;
     if (stageKey === 'hiring' && can('candidates:update')) counts.hiring = 1;
-    if (stageKey === 'selection' && ['super_admin', 'payments_admin'].includes(normalizedRole)) counts.selection = 1;
+    if (stageKey === 'selection' && can('selection:publish')) counts.selection = 1;
     if (!counts.payments && ['initial_payment', 'program_payment', 'final_payment'].includes(stageKey) && can('payments:verify')) counts.payments = 1;
 
     return counts;
@@ -1511,20 +1542,18 @@ export default function AdminCandidateProfilePage() {
                 ) : null}
               </div>
 
-              {String(role || '') === 'operations_admin' && hiringAccepted ? (
+              {String(role || '') === 'operations_admin' && (currentStageKey === 'operations_approval' || (String(candidate?.evaluationStatus || '').toLowerCase() === 'approved' && String(candidate?.operationsStatus || '').toLowerCase() === 'pending')) ? (
                 <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-sm font-semibold text-slate-800">Operations Admin Actions</p>
                   <div className="flex flex-wrap gap-2">
-                    <Button variant="adminPrimary" onClick={() => submitOperationsDecision('interview_not_required')} disabled={Boolean(operationsSaving)}>
-                      {operationsSaving === 'interview_not_required' ? 'Saving...' : 'Approve Profile (Admin 3)'}
+                    <Button variant="adminPrimary" onClick={submitOperationsApproval} disabled={Boolean(operationsSaving)}>
+                      {operationsSaving === 'approved' ? 'Saving...' : 'Approve Candidate'}
                     </Button>
-                    <Button variant="adminSecondary" className="text-white" onClick={() => submitOperationsDecision('rejected')} disabled={Boolean(operationsSaving)}>
-                      {operationsSaving === 'rejected' ? 'Saving...' : 'Reject Profile (Admin 3)'}
-                    </Button>
-                    <Button variant="adminSecondary" className="text-white" onClick={() => submitOperationsDecision('cancelled')} disabled={Boolean(operationsSaving)}>
-                      {operationsSaving === 'cancelled' ? 'Saving...' : 'Cancel Application'}
+                    <Button variant="adminSecondary" className="text-white" onClick={submitOperationsRejection} disabled={Boolean(operationsSaving)}>
+                      {operationsSaving === 'rejected' ? 'Saving...' : 'Reject Candidate'}
                     </Button>
                   </div>
+                  <p className="text-xs text-slate-500">This decision is only available after evaluation approval and before account creation.</p>
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <input

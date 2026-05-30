@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const eligibilitySchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-    email: { type: String, default: '' },
+    fullName: { type: String, default: '' },
+    email: { type: String, required: true },
     destination: { type: String, required: true },
     country: { type: String, required: true },
     hasITBackground: { type: Boolean, required: true },
@@ -12,6 +13,9 @@ const eligibilitySchema = new mongoose.Schema(
     currentLocation: { type: String, required: true },
     willingToRelocate: { type: Boolean, default: null },
     comfortableWithFees: { type: Boolean, default: null },
+    profileSubmittedAt: { type: Date, default: null },
+    accountCreationInviteSent: { type: Boolean, default: false },
+    accountCreationInviteSentAt: { type: Date, default: null },
     isEligible: { type: Boolean, required: true },
     rejectionReason: { type: String, default: '' },
     failedConditions: { type: [String], default: [] },

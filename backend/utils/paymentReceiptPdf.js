@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
+const { PAYMENT_STAGES, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 
 const getFrontendBaseUrl = () =>
   String(process.env.FRONTEND_BASE_URL || process.env.FRONTEND_URL || 'https://nextsteptalent.net').replace(/\/+$/, '');
@@ -112,7 +113,8 @@ const generateInitialPaymentReceiptPdf = async ({ payment, candidate, profile })
     y += 26;
     doc.fontSize(12).fillColor('#002147').text('PAYMENT DETAILS', contentX, y, { width: contentWidth });
     y += 18;
-    doc.fontSize(11).fillColor('#111827').text('Amount Received: USD $500', contentX, y, { width: contentWidth });
+    const initialAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.INITIAL_ONBOARDING_FEE].amount || 0);
+    doc.fontSize(11).fillColor('#111827').text(`Amount Received: USD $${initialAmount.toLocaleString('en-US')}`, contentX, y, { width: contentWidth });
     y += 18;
     doc.text('Purpose of Payment:', contentX, y, { width: contentWidth });
     y += 16;

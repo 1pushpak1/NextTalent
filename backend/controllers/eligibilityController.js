@@ -5,6 +5,8 @@ const { runEligibilityCheck } = require('../utils/eligibilityRules');
 const checkEligibility = async (req, res) => {
   try {
     const email = String(req.body?.email || '').toLowerCase().trim();
+    const fullName = String(req.body?.fullName || email.split('@')[0] || 'Candidate').trim();
+    
     if (!email) {
       return res.status(400).json({ message: 'Email is required.' });
     }
@@ -26,6 +28,7 @@ const checkEligibility = async (req, res) => {
 
     const record = await Eligibility.create({
       userId: req.user?._id || null,
+      fullName,
       email,
       destination: payload.destination,
       country: payload.country,
@@ -40,29 +43,39 @@ const checkEligibility = async (req, res) => {
       failedConditions: result.failedConditions,
     });
 
-    await sendStepUpdateEmail({
-      to: email,
-      candidateName: email.split('@')[0],
-      stepKey: 'eligibility',
-      subjectOverride: result.isEligible ? 'Congratulations! Your initial eligibility has been approved.' : '',
-      heading: result.isEligible ? 'Congratulations! Your initial eligibility has been approved.' : 'Eligibility result: not eligible right now',
-      message: result.isEligible
-        ? 'Great news. You have successfully passed the initial eligibility screening. You can now continue with account creation using this same email, then complete verification, submit your profile, and follow the next dashboard milestones through evaluation, documents, payments, and final result updates.'
-        : 'Your current profile does not meet the active criteria at this time. You can try again later if your profile changes.',
-      status: result.isEligible ? 'accepted' : 'rejected',
-      details: [
-        { label: 'Destination', value: payload.destination },
-        { label: 'Country', value: payload.country },
-        { label: 'Reason', value: result.rejectionReason || 'Passed all active checks' },
-        ...(result.isEligible
-          ? [
-              { label: 'What Happens Next', value: 'Create account, verify details, submit profile, and track progress in dashboard' },
-              { label: 'Important', value: 'Use the same email for signup to continue your pathway without interruption' },
-            ]
-          : []),
-      ],
-      cta: result.isEligible ? { label: 'Continue to Signup', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/signup?next=/profile-submission` } : null,
-    });
+    if (result.isEligible) {
+      await sendStepUpdateEmail({
+        to: email,
+        candidateName: fullName || email.split('@')[0],
+        stepKey: 'eligibility',
+        subjectOverride: 'Congratulations! You are eligible to proceed',
+        heading: 'Eligibility Approved',
+        message: 'You have successfully passed the initial eligibility screening. Please proceed to complete your profile submission.',
+        status: 'accepted',
+        details: [
+          { label: 'Destination', value: payload.destination },
+          { label: 'Country', value: payload.country },
+          { label: 'Next Step', value: 'Complete your profile submission' },
+        ],
+        cta: { label: 'Submit Profile', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/profile-submission?eligibilityId=${record._id}` },
+      });
+    } else {
+      await sendStepUpdateEmail({
+        to: email,
+        candidateName: fullName || email.split('@')[0],
+        stepKey: 'eligibility',
+        subjectOverride: 'Eligibility Result',
+        heading: 'Not Eligible',
+        message: result.rejectionReason || 'Your current profile does not meet the eligibility criteria at this time.',
+        status: 'rejected',
+        details: [
+          { label: 'Destination', value: payload.destination },
+          { label: 'Country', value: payload.country },
+          { label: 'Reason', value: result.rejectionReason || 'Does not meet criteria' },
+        ],
+        cta: null,
+      });
+    }
 
     res.status(201).json(record);
   } catch (error) {

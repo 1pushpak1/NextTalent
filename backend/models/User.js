@@ -9,7 +9,36 @@ const userSchema = new mongoose.Schema(
     emailVerified: { type: Boolean, default: false },
     phoneVerified: { type: Boolean, default: false },
     role: { type: String, enum: ['candidate', 'admin'], default: 'candidate' },
-    status: { type: String, default: 'account_created' },
+    status: { type: String, default: 'eligibility_approved' },
+    
+    // New workflow fields
+    evaluationStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    evaluationApprovedBy: { type: String, default: '' },
+    evaluationApprovedAt: { type: Date, default: null },
+    evaluationRejectedBy: { type: String, default: '' },
+    evaluationRejectedAt: { type: Date, default: null },
+    
+    operationsStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    operationsApprovedBy: { type: String, default: '' },
+    operationsApprovedAt: { type: Date, default: null },
+    operationsRejectedBy: { type: String, default: '' },
+    operationsRejectedAt: { type: Date, default: null },
+    
+    accountStatus: { type: String, enum: ['not_invited', 'invited', 'created', 'email_verified'], default: 'not_invited' },
+    accountInviteToken: { type: String, default: '' },
+    accountInviteExpiresAt: { type: Date, default: null },
+    accountCreationInviteSent: { type: Boolean, default: false },
+    accountCreationInviteSentAt: { type: Date, default: null },
+    
+    paymentStatus: {
+      onboarding: { type: String, enum: ['pending', 'paid'], default: 'pending' },
+      program: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+      final: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+    },
+    
+    documentStatus: { type: String, enum: ['not_uploaded', 'uploaded', 'under_review', 'accepted', 'needs_revision'], default: 'not_uploaded' },
+    selectionStatus: { type: String, enum: ['pending', 'selected', 'rejected'], default: 'pending' },
+    
     stageStatuses: { type: Map, of: String, default: {} },
     assignedHiringPartner: { type: String, default: '' },
     adminNotes: { type: String, default: '' },
@@ -17,12 +46,7 @@ const userSchema = new mongoose.Schema(
 
     candidateId: { type: String, default: '' },
     applicationSubmittedAt: { type: Date, default: null },
-    evaluationStatus: { type: String, default: 'pending' },
-    evaluationApprovedBy: { type: String, default: '' },
-    evaluationApprovedAt: { type: Date, default: null },
-    operationsStatus: { type: String, default: 'pending' },
     operationsDecision: { type: String, default: '' },
-    operationsApprovedBy: { type: String, default: '' },
     operationsCompletedAt: { type: Date, default: null },
     selectedStatus: { type: String, default: 'pending' },
     selectedBy: { type: String, default: '' },
@@ -30,6 +54,12 @@ const userSchema = new mongoose.Schema(
     admin1ProgressionApproved: { type: Boolean, default: false },
     admin1ProgressionApprovedAt: { type: Date, default: null },
     admin1ProgressionApprovedBy: { type: String, default: '' },
+    admin2EvaluationApproved: { type: Boolean, default: false },
+    admin2EvaluationApprovedAt: { type: Date, default: null },
+    admin2EvaluationApprovedBy: { type: String, default: '' },
+    admin3EvaluationApproved: { type: Boolean, default: false },
+    admin3EvaluationApprovedAt: { type: Date, default: null },
+    admin3EvaluationApprovedBy: { type: String, default: '' },
     documentationStageInitiated: { type: Boolean, default: false },
     documentationStageInitiatedAt: { type: Date, default: null },
     documentationStageInitiatedBy: { type: String, default: '' },

@@ -9,7 +9,7 @@ const Receipt = require('../models/Receipt');
 const AgreementConsent = require('../models/AgreementConsent');
 const InterviewSlot = require('../models/InterviewSlot');
 const InterviewBooking = require('../models/InterviewBooking');
-const { PAYMENT_STAGES, LEGACY_PAYMENT_TYPE_TO_STAGE, EMAIL_TEMPLATE_KEYS } = require('../constants/workflow');
+const { PAYMENT_STAGES, LEGACY_PAYMENT_TYPE_TO_STAGE, EMAIL_TEMPLATE_KEYS, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
 const { sendTransactionalEmailSafe } = require('../services/emailService');
 const { initiateBackgroundCheck } = require('../services/sterlingService');
@@ -238,17 +238,17 @@ const getCandidatePayments = async (req, res) => {
     });
 
     const stageSummary = [
-      {
-        stage: PAYMENT_STAGES.INITIAL_ONBOARDING_FEE,
-        amount: 500,
-        currency: 'USD',
-        method: 'stripe',
-        refundable: false,
-        status: enrichedPayments.find((p) => getStageFromPayment(p) === PAYMENT_STAGES.INITIAL_ONBOARDING_FEE && ['completed', 'paid', 'verified'].includes(String(p.status).toLowerCase())) ? 'paid' : 'pending',
-      },
+        {
+          stage: PAYMENT_STAGES.INITIAL_ONBOARDING_FEE,
+          amount: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.INITIAL_ONBOARDING_FEE].amount || 0),
+          currency: 'USD',
+          method: 'stripe',
+          refundable: false,
+          status: enrichedPayments.find((p) => getStageFromPayment(p) === PAYMENT_STAGES.INITIAL_ONBOARDING_FEE && ['completed', 'paid', 'verified'].includes(String(p.status).toLowerCase())) ? 'paid' : 'pending',
+        },
       {
         stage: PAYMENT_STAGES.FIRST_INSTALLMENT,
-        amount: 3100,
+        amount: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0),
         currency: 'USD',
         method: 'bank_transfer',
         refundable: 'conditional',
@@ -256,13 +256,13 @@ const getCandidatePayments = async (req, res) => {
           enrichedPayments.find((p) => getStageFromPayment(p) === PAYMENT_STAGES.FIRST_INSTALLMENT)?.status ||
           (candidate.selectedStatus === 'selected' ? 'due' : 'pending'),
         refundInfo: {
-          notSelectedAfterInterview: { deduction: 200, refundable: 2900 },
+          notSelectedAfterInterview: { deduction: 200, refundable: Number((PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0) - 200) },
           selectedAndDeclined: { refundable: 0 },
         },
       },
       {
         stage: PAYMENT_STAGES.FINAL_PAYMENT,
-        amount: 3100,
+        amount: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0),
         currency: 'USD',
         method: 'bank_transfer',
         refundable: 'according_to_policy',

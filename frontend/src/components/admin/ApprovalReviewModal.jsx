@@ -27,6 +27,7 @@ export default function ApprovalReviewModal({
   const [confirmed, setConfirmed] = useState(false);
   const [viewedEvidence, setViewedEvidence] = useState({});
   const [submittingDecision, setSubmittingDecision] = useState('');
+  const initialViewedEvidenceSignature = initialViewedEvidenceKeys.join('|');
 
   useEffect(() => {
     if (!isOpen) {
@@ -38,14 +39,18 @@ export default function ApprovalReviewModal({
     }
 
     if (initialViewedEvidenceKeys.length) {
-      setViewedEvidence(
-        initialViewedEvidenceKeys.reduce((accumulator, key) => {
+      setViewedEvidence((current) => {
+        const next = initialViewedEvidenceKeys.reduce((accumulator, key) => {
           accumulator[key] = true;
           return accumulator;
-        }, {}),
-      );
+        }, {});
+        const currentKeys = Object.keys(current);
+        const nextKeys = Object.keys(next);
+        const isSame = currentKeys.length === nextKeys.length && nextKeys.every((key) => current[key] === true);
+        return isSame ? current : next;
+      });
     }
-  }, [initialViewedEvidenceKeys, isOpen]);
+  }, [initialViewedEvidenceSignature, isOpen]);
 
   const requiredEvidence = evidenceItems.filter((item) => item.required !== false);
   const evidenceViewed = requiredEvidence.length

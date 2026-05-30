@@ -87,7 +87,7 @@ This is an automated email. Please do not reply to this message.`;
 
 const signup = async (req, res) => {
   try {
-    const { email, password, confirmPassword } = req.body;
+    const { email, password, confirmPassword, inviteToken } = req.body;
 
     if (!email || !password || !confirmPassword) {
       return res.status(400).json({ message: 'Email and password fields are required' });
@@ -102,38 +102,58 @@ const signup = async (req, res) => {
       return res.status(400).json({ message: 'Passwords do not match' });
     }
 
-    const existing = await User.findOne({ email: normalizedEmail });
-    if (existing) {
-      return res.status(400).json({ message: 'User already exists' });
+    // Check if invitation token is required and valid
+    if (!inviteToken) {
+      return res.status(403).json({ message: 'Account creation requires an invitation. Please check your email for the invitation link.' });
     }
 
-    const latestEligibilityForEmail = await Eligibility.findOne({ email: normalizedEmail }).sort({ createdAt: -1 });
-    if (!latestEligibilityForEmail || !latestEligibilityForEmail.isEligible) {
-      return res.status(403).json({ message: 'Please complete and pass initial eligibility using this email before signup.' });
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({
-      name: email.split('@')[0],
-      email,
-      passwordHash,
+    // Verify invitation token
+    const tokenHash = crypto.createHash('sha256').update(String(inviteToken).trim()).digest('hex');
+    const invitedUser = await User.findOne({
+      email: normalizedEmail,
+      accountInviteToken: tokenHash,
+      accountInviteExpiresAt: { $gt: new Date() },
       role: 'candidate',
-      status: 'account_created',
     });
 
-    await sendVerificationEmail(user);
+    if (!invitedUser) {
+      return res.status(403).json({ message: 'Invalid or expired invitation token. Please contact support.' });
+    }
+
+    const evaluationApproved = String(invitedUser.evaluationStatus || '').toLowerCase() === 'approved' || String(invitedUser.status || '').toLowerCase() === 'evaluation_approved' || Boolean(invitedUser.admin2EvaluationApproved);
+    const operationsApproved = String(invitedUser.operationsStatus || '').toLowerCase() === 'approved' || String(invitedUser.status || '').toLowerCase() === 'fully_approved' || Boolean(invitedUser.admin3EvaluationApproved);
+
+    if (!evaluationApproved || !operationsApproved) {
+      return res.status(403).json({ message: 'Account creation is not available until evaluation and operations approvals are complete.' });
+    }
+
+    if (invitedUser.accountStatus !== 'invited' || invitedUser.status !== 'account_invited') {
+      return res.status(403).json({ message: 'This invitation has already been used or is no longer valid.' });
+    }
+
+    // Create account
+    const passwordHash = await bcrypt.hash(password, 10);
+    invitedUser.passwordHash = passwordHash;
+    invitedUser.accountStatus = 'created';
+    invitedUser.status = 'account_created';
+    invitedUser.accountInviteToken = ''; // Clear token after use
+    invitedUser.emailVerified = false;
+    invitedUser.phoneVerified = false;
+    await invitedUser.save();
+
+    await sendVerificationEmail(invitedUser);
 
     res.status(201).json({
-      message: 'Signup successful',
-      token: tokenFor({ id: String(user._id) }),
+      message: 'Account created successfully',
+      token: tokenFor({ id: String(invitedUser._id) }),
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        emailVerified: user.emailVerified,
-        phoneVerified: user.phoneVerified,
-        role: user.role,
-        status: user.status,
+        id: invitedUser._id,
+        name: invitedUser.name,
+        email: invitedUser.email,
+        emailVerified: invitedUser.emailVerified,
+        phoneVerified: invitedUser.phoneVerified,
+        role: invitedUser.role,
+        status: invitedUser.status,
       },
     });
   } catch (error) {
@@ -229,7 +249,8 @@ const verifyEmail = async (req, res) => {
     user.emailVerified = true;
     user.emailVerificationTokenHash = '';
     user.emailVerificationExpiresAt = null;
-    user.status = user.phoneVerified ? user.status : 'email_verified';
+    user.accountStatus = 'email_verified';
+    user.status = 'email_verified';
     await user.save();
 
     res.json({ message: 'Email verified', user });

@@ -12,9 +12,9 @@ export default function Select({ label, options = [], error, required = false, .
         required={required}
         {...props}
       >
-        <option value="">Select</option>
+        <option value="" className="text-[#9ca3af]">Select</option>
         {options.map((option) => (
-          <option key={option} value={option}>
+          <option key={option} value={option} className="text-black">
             {option}
           </option>
         ))}

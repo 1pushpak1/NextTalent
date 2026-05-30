@@ -48,7 +48,7 @@ export default function AdminPage() {
     <div className="nst-shell min-h-screen">
       <header className="w-full border-b border-[rgba(200,169,107,0.24)] bg-[rgba(8,8,9,0.92)] px-4 py-4 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4">
-          <img src="/logo.png" alt="NextStep Talent logo" className="nst-logo-image h-12 w-auto object-contain" />
+          {/* Logo removed from header */}
           <div className="text-right">
             <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#c8a96b]">NextStep Talent</p>
             <p className="text-lg font-bold text-[#f7f3ea]">Admin Panel</p>

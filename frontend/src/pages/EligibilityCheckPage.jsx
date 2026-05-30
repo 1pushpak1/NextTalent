@@ -78,6 +78,8 @@ export default function EligibilityCheckPage() {
       answers.hasITBackground,
       answers.languageAnswer,
       answers.currentLocation,
+      answers.willingToRelocate,
+      answers.comfortableWithFees,
     ];
 
     if (country === 'Germany') baseRequired.push(answers.qualification);
@@ -88,6 +90,17 @@ export default function EligibilityCheckPage() {
     if (checkingEligibility) return;
     setCheckingEligibility(true);
     const normalizedEmail = String(email || '').toLowerCase().trim();
+    // If either of these critical checks is not a Yes, short-circuit as not eligible
+    if (answers.willingToRelocate !== 'Yes' || answers.comfortableWithFees !== 'Yes') {
+      setResult({
+        isEligible: false,
+        rejectionReason: 'You must be willing to relocate and accept program/service fees to be eligible.',
+      });
+      setStep(5);
+      setCheckingEligibility(false);
+      return;
+    }
+
     const payload = {
       email: normalizedEmail,
       destination,
@@ -201,13 +214,13 @@ export default function EligibilityCheckPage() {
           )}
 
           {step === 2 && (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+            <div className="grid grid-cols-1 gap-6">
               <button
                 onClick={() => {
                   setDestination('Europe Active');
                   setStep(3);
                 }}
-                className="relative overflow-hidden rounded-xl border border-[rgba(200,169,107,0.28)] bg-[rgba(255,255,255,0.04)] text-left shadow-sm transition hover:shadow-[0_0_26px_rgba(200,169,107,0.18)] md:col-span-8"
+                className="relative overflow-hidden rounded-xl border border-[rgba(200,169,107,0.28)] bg-[rgba(255,255,255,0.04)] text-left shadow-sm transition hover:shadow-[0_0_26px_rgba(200,169,107,0.18)] w-full"
               >
                 <div className="h-80">
                   <img
@@ -218,25 +231,27 @@ export default function EligibilityCheckPage() {
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-[#002147]/80 via-transparent to-transparent" />
                 <div className="absolute bottom-6 left-6 right-6 text-white">
-                  <p className="text-xs uppercase tracking-widest text-[#f4dfb2]">Active Corridor</p>
+                  <p className="text-xs uppercase tracking-widest text-[#f4dfb2]">Currently Serving</p>
                   <h2 className="nst-display text-3xl font-bold">Europe</h2>
                   <p className="mt-1 text-sm text-[#f4dfb2]">Germany, Switzerland, Austria, and Poland</p>
                 </div>
               </button>
 
-              <div className="space-y-4 md:col-span-4">
-                {destinations
-                  .filter((d) => d !== 'Europe Active')
-                  .map((item) => (
-                    <button
-                      key={item}
-                      onClick={() => handleDestination(item)}
-                      className="w-full rounded-xl border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.03)] p-4 text-left text-[#d8d9de] transition hover:bg-[rgba(255,255,255,0.06)]"
-                    >
-                      <h3 className="nst-display text-xl font-semibold text-white">{item.replace(' Coming Soon', '').replace(' Upcoming', '')}</h3>
-                      <p className="text-xs uppercase tracking-[0.2em] text-[#c8a96b]">Upcoming Corridor</p>
-                    </button>
-                  ))}
+              <div>
+                <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-[#c8a96b]">Upcoming</h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {destinations
+                    .filter((d) => d !== 'Europe Active')
+                    .map((item) => (
+                      <button
+                        key={item}
+                        onClick={() => handleDestination(item)}
+                        className="w-full rounded-xl border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.03)] p-4 text-left text-[#d8d9de] transition hover:bg-[rgba(255,255,255,0.06)]"
+                      >
+                        <h3 className="nst-display text-xl font-semibold text-white">{item.replace(' Coming Soon', '').replace(' Upcoming', '')}</h3>
+                      </button>
+                    ))}
+                </div>
               </div>
             </div>
           )}
@@ -311,8 +326,8 @@ export default function EligibilityCheckPage() {
                   />
                 )}
                 <Select required label="Current location" options={['Europe', 'Outside Europe']} value={answers.currentLocation} onChange={(e) => setAnswers({ ...answers, currentLocation: e.target.value })} />
-                <Select label="Are you willing to relocate to the selected country?" options={['Yes', 'No']} value={answers.willingToRelocate} onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })} />
-                <Select label="Are you comfortable with program/service fees for processing?" options={['Yes', 'No']} value={answers.comfortableWithFees} onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })} />
+                <Select required label="Are you willing to relocate to the selected country?" options={['Yes', 'No']} value={answers.willingToRelocate} onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })} />
+                <Select required label="Are you comfortable with program/service fees for processing?" options={['Yes', 'No']} value={answers.comfortableWithFees} onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })} />
               </div>
               <div className="mt-6 flex gap-2">
                 <Button
@@ -376,10 +391,10 @@ export default function EligibilityCheckPage() {
                   <Button
                     className="border-[#c8a96b] bg-[#c8a96b] text-black hover:bg-[#d4b87e]"
                     onClick={() =>
-                      navigate(isAuthenticated ? '/profile-submission' : '/signup?next=/profile-submission')
+                      navigate('/profile-submission')
                     }
                   >
-                    {isAuthenticated ? 'Continue to Profile Submission' : 'Create Candidate Account'}
+                    Continue
                   </Button>
                 </>
               ) : (

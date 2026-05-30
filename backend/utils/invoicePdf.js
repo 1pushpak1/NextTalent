@@ -4,6 +4,7 @@ const PDFDocument = require('pdfkit');
 
 const getFrontendBaseUrl = () =>
   String(process.env.FRONTEND_BASE_URL || process.env.FRONTEND_URL || 'https://nextsteptalent.net').replace(/\/+$/, '');
+const { PAYMENT_STAGES, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 
 const getLogoPath = () =>
   process.env.BRAND_LOGO_PATH || path.resolve(__dirname, '../../frontend/public/logo.png');
@@ -71,12 +72,15 @@ const generateStage1InvoicePdf = async ({ candidate, profile }) => {
     );
     doc.moveDown();
 
+    const totalProgramFee = Object.values(PAYMENT_STAGE_CONFIG).reduce((s, c) => s + Number(c.amount || 0), 0);
+    const firstAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0);
+    const finalAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0);
     doc.fontSize(12).text('PAYMENT SUMMARY');
     doc.moveDown(0.2);
-    doc.fontSize(11).text('Total Program Fee: USD $6,200');
-    doc.text('Amount Due (Stage 1 Payment): USD $3,100');
+    doc.fontSize(11).text(`Total Program Fee: USD $${totalProgramFee.toLocaleString('en-US')}`);
+    doc.text(`Amount Due (Stage 1 Payment): USD $${firstAmount.toLocaleString('en-US')}`);
     doc.text('Payment Status: DUE');
-    doc.text('Remaining Balance After Payment: USD $3,100');
+    doc.text(`Remaining Balance After Payment: USD $${finalAmount.toLocaleString('en-US')}`);
     doc.moveDown();
 
     doc.fontSize(12).text('NOTES');
@@ -174,11 +178,13 @@ module.exports = {
       );
       doc.moveDown();
 
+      const totalProgramFee2 = Object.values(PAYMENT_STAGE_CONFIG).reduce((s, c) => s + Number(c.amount || 0), 0);
+      const finalAmount2 = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0);
       doc.fontSize(12).text('PAYMENT SUMMARY');
       doc.moveDown(0.2);
-      doc.fontSize(11).text('Total Program Fee: USD $6,200');
-      doc.text('Amount Received: USD $3,100');
-      doc.text('Amount Due (Final Payment): USD $3,100');
+      doc.fontSize(11).text(`Total Program Fee: USD $${totalProgramFee2.toLocaleString('en-US')}`);
+      doc.text(`Amount Received: USD $${finalAmount2.toLocaleString('en-US')}`);
+      doc.text(`Amount Due (Final Payment): USD $${finalAmount2.toLocaleString('en-US')}`);
       doc.text('Payment Status: FINAL PAYMENT DUE');
       doc.moveDown();
 

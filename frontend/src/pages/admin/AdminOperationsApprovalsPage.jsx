@@ -1,6 +1,6 @@
 import AdminCandidatesPage from './AdminCandidatesPage';
 
-const APPROVALS_FILTERS = Object.freeze({ stage: 'hiring', pendingFrom: 'admin' });
+const APPROVALS_FILTERS = Object.freeze({ stage: 'operations_approval', pendingFrom: 'admin' });
 
 export default function AdminOperationsApprovalsPage() {
   return (

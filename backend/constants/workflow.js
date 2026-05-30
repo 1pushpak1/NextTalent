@@ -1,13 +1,10 @@
 const ADMIN_ROLES = Object.freeze({
   SUPER_ADMIN: 'super_admin',
-  PAYMENTS_ADMIN: 'payments_admin',
   EVALUATION_ADMIN: 'evaluation_admin',
   OPERATIONS_ADMIN: 'operations_admin',
 });
 
 const ADMIN_ROLE_ALIASES = Object.freeze({
-  payment_admin: ADMIN_ROLES.PAYMENTS_ADMIN,
-  payments_admin: ADMIN_ROLES.PAYMENTS_ADMIN,
   evaluation_admin: ADMIN_ROLES.EVALUATION_ADMIN,
   operations_admin: ADMIN_ROLES.OPERATIONS_ADMIN,
   super_admin: ADMIN_ROLES.SUPER_ADMIN,
@@ -53,6 +50,34 @@ const PAYMENT_STAGE_CONFIG = Object.freeze({
   },
 });
 
+const CANDIDATE_STATUSES = Object.freeze({
+  ELIGIBILITY_APPROVED: 'eligibility_approved',
+  PROFILE_SUBMITTED: 'profile_submitted',
+  AWAITING_EVALUATION_REVIEW: 'awaiting_evaluation_review',
+  EVALUATION_APPROVED: 'evaluation_approved',
+  EVALUATION_REJECTED: 'evaluation_rejected',
+  AWAITING_OPERATIONS_APPROVAL: 'awaiting_operations_approval',
+  OPERATIONS_APPROVED: 'operations_approved',
+  OPERATIONS_REJECTED: 'operations_rejected',
+  FULLY_APPROVED: 'fully_approved',
+  ACCOUNT_INVITED: 'account_invited',
+  ACCOUNT_CREATED: 'account_created',
+  EMAIL_VERIFIED: 'email_verified',
+  ONBOARDING_FEE_PAID: 'onboarding_fee_paid',
+  DOCUMENTS_UPLOADED: 'documents_uploaded',
+  PROGRAM_FEE_REQUESTED: 'program_fee_requested',
+  PROGRAM_FEE_VERIFIED: 'program_fee_verified',
+  PROGRAM_FEE_REJECTED: 'program_fee_rejected',
+  DOCUMENTS_VERIFIED: 'documents_verified',
+  ASSIGNED_TO_HIRING_PARTNER: 'assigned_to_hiring_partner',
+  SELECTED: 'selected',
+  REJECTED: 'rejected',
+  FINAL_PAYMENT_REQUESTED: 'final_payment_requested',
+  FINAL_PAYMENT_VERIFIED: 'final_payment_verified',
+  FINAL_PAYMENT_PENDING: 'final_payment_pending',
+  COMPLETED: 'completed',
+});
+
 const LEGACY_PAYMENT_TYPE_TO_STAGE = Object.freeze({
   initial: PAYMENT_STAGES.INITIAL_ONBOARDING_FEE,
   program: PAYMENT_STAGES.FIRST_INSTALLMENT,
@@ -71,6 +96,7 @@ const COMPANY_DETAILS = Object.freeze({
 const EMAIL_TEMPLATE_KEYS = Object.freeze({
   CANDIDATE_SUBMISSION_ADMIN_NOTICE: 'candidate_submission_admin_notice',
   CANDIDATE_SUBMISSION_CONFIRMATION: 'candidate_submission_confirmation',
+  PROFILE_ACCOUNT_INVITE: 'profile_account_creation_invite',
   EVALUATION_APPROVED_NOTIFY_OPERATIONS: 'evaluation_approved_notify_operations',
   OPERATIONS_DECISION_COMPLETED: 'operations_decision_completed',
   CANDIDATE_REJECTION: 'candidate_rejection',
@@ -90,6 +116,7 @@ const EMAIL_TEMPLATE_KEYS = Object.freeze({
 module.exports = {
   ADMIN_ROLES,
   normalizeAdminRole,
+  CANDIDATE_STATUSES,
   PAYMENT_STAGES,
   PAYMENT_STAGE_CONFIG,
   LEGACY_PAYMENT_TYPE_TO_STAGE,

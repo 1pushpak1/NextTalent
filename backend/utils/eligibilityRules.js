@@ -79,8 +79,14 @@ const runEligibilityCheck = (payload) => {
   if (!SUPPORTED_COUNTRIES.includes(country)) {
     return { isEligible: false, rejectionReason: 'Unsupported country.', failedConditions: ['Unsupported country.'] };
   }
+  const failedConditions = [];
 
-  const failedConditions = COUNTRY_VALIDATORS[country](payload);
+  // Global checks: candidate must be willing to relocate and accept fees
+  pushIf(failedConditions, payload.willingToRelocate === true, 'Willingness to relocate must be Yes');
+  pushIf(failedConditions, payload.comfortableWithFees === true, 'Acceptance of program/service fees must be Yes');
+
+  // Country-specific checks
+  failedConditions.push(...COUNTRY_VALIDATORS[country](payload));
   return {
     isEligible: failedConditions.length === 0,
     rejectionReason: failedConditions.length ? failedConditions.join('. ') : '',

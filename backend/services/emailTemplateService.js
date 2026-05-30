@@ -1,4 +1,4 @@
-const { COMPANY_DETAILS } = require('../constants/workflow');
+const { COMPANY_DETAILS, PAYMENT_STAGES, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 
 const websiteUrl = () => String(process.env.WEBSITE_URL || process.env.FRONTEND_URL || 'https://nextsteptalent.net').replace(/\/+$/, '');
 
@@ -44,19 +44,20 @@ const candidateSubmissionConfirmation = ({ candidateName }) => {
 const applicationStatusUpdate = ({ candidateName, selected = false, withPayment = false, invoiceUrl = '' }) => {
   if (selected && withPayment) {
     const subject = 'NextStep Talent Selection Update and Payment Instructions';
+    const firstAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0);
     const lines = [
       `Dear ${candidateName || 'Candidate'},`,
       '',
       'You are selected to proceed to the next stage.',
-      'Payment Due: USD $3,100',
+      `Payment Due: USD $${firstAmount.toLocaleString('en-US')}`,
       'Payment Method: Bank Transfer / Wire Transfer',
       invoiceUrl ? `Invoice: ${invoiceUrl}` : '',
       'Final outcomes remain subject to verification, employer decisions, and payment completion.',
       `For support, contact ${COMPANY_DETAILS.contactEmail}.`,
     ];
-    const html = wrapHtml({
+      const html = wrapHtml({
       title: subject,
-      bodyHtml: `<p>Dear ${candidateName || 'Candidate'},</p><p>You are selected to proceed to the next stage.</p><p><b>Payment Due:</b> USD $3,100<br/><b>Payment Method:</b> Bank Transfer / Wire Transfer${invoiceUrl ? `<br/><b>Invoice:</b> <a href="${invoiceUrl}">${invoiceUrl}</a>` : ''}</p><p>Final outcomes remain subject to verification, employer decisions, and payment completion.</p><p>For support, contact ${COMPANY_DETAILS.contactEmail}.</p>`,
+        bodyHtml: `<p>Dear ${candidateName || 'Candidate'},</p><p>You are selected to proceed to the next stage.</p><p><b>Payment Due:</b> USD $${firstAmount.toLocaleString('en-US')}<br/><b>Payment Method:</b> Bank Transfer / Wire Transfer${invoiceUrl ? `<br/><b>Invoice:</b> <a href="${invoiceUrl}">${invoiceUrl}</a>` : ''}</p><p>Final outcomes remain subject to verification, employer decisions, and payment completion.</p><p>For support, contact ${COMPANY_DETAILS.contactEmail}.</p>`,
     });
     return { subject, text: toMultiline(lines), html };
   }

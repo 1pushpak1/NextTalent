@@ -1,13 +1,15 @@
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const User = require('../models/User');
+const Eligibility = require('../models/Eligibility');
 const Profile = require('../models/Profile');
 const Payment = require('../models/Payment');
 const Invoice = require('../models/Invoice');
 const Receipt = require('../models/Receipt');
 const InterviewSlot = require('../models/InterviewSlot');
 const InterviewBooking = require('../models/InterviewBooking');
-const { ADMIN_ROLES, PAYMENT_STAGES, EMAIL_TEMPLATE_KEYS, LEGACY_PAYMENT_TYPE_TO_STAGE } = require('../constants/workflow');
+const { ADMIN_ROLES, PAYMENT_STAGES, EMAIL_TEMPLATE_KEYS, LEGACY_PAYMENT_TYPE_TO_STAGE, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 const { normalizeAdminRole } = require('../constants/workflow');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
 const { sendTransactionalEmailSafe } = require('../services/emailService');
@@ -24,6 +26,8 @@ const { candidateInterviewEligible } = require('./candidateController');
 
 const FRONTEND_BASE = String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
 const adminCandidateLink = (candidateId) => `${FRONTEND_BASE}/admin/candidates/${candidateId}`;
+const workflowFromEmail = String(process.env.SMTP_FROM_EMAIL || process.env.SMTP_USERNAME || 'noreply@nextsteptalent.net').trim();
+const workflowFromName = String(process.env.SMTP_FROM_NAME || 'NextStep Talent').trim();
 
 const resolveCandidate = async (candidateId) => {
   if (!mongoose.Types.ObjectId.isValid(candidateId)) return null;
@@ -63,7 +67,7 @@ const evaluationApprove = async (req, res) => {
       { sort: { createdAt: -1 } }
     );
 
-    const operationsAdmins = ['operations@example.com'];
+    const operationsAdmins = getOperationsAdminEmails();
     const profile = await Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 });
     const profileSummary = profile
       ? [
@@ -195,7 +199,7 @@ const operationsDecision = async (req, res) => {
       status: candidate.status,
     };
 
-    candidate.operationsStatus = 'completed';
+    candidate.operationsStatus = ['rejected', 'cancelled'].includes(normalizedDecision) ? 'rejected' : 'approved';
     candidate.operationsDecision = normalizedDecision;
     candidate.operationsApprovedBy = req.user.email;
     candidate.operationsCompletedAt = new Date();
@@ -284,6 +288,65 @@ This is an automated email. Please do not reply to this message.`;
         fromEmail: 'noreply@nextsteptalent.net',
         fromName: 'NextStep Talent Team',
         templateKey: 'admin3_rejection_candidate',
+        relatedCandidateId: candidate._id,
+      });
+    }
+
+    if (normalizedDecision === 'interview_not_required') {
+      const evaluationApproved = String(candidate.evaluationStatus || '').toLowerCase() === 'approved' || String(candidate.status || '').toLowerCase() === 'evaluation_approved' || Boolean(candidate.admin2EvaluationApproved);
+      if (!evaluationApproved) {
+        return res.status(409).json({ message: 'Evaluation approval must be completed before sending the account invitation' });
+      }
+
+      candidate.operationsStatus = 'approved';
+      candidate.status = 'account_invited';
+      candidate.accountStatus = 'invited';
+
+      const inviteToken = crypto.randomBytes(32).toString('hex');
+      candidate.accountInviteToken = crypto.createHash('sha256').update(inviteToken).digest('hex');
+      candidate.accountInviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      candidate.accountCreationInviteSent = true;
+      candidate.accountCreationInviteSentAt = new Date();
+      await candidate.save();
+
+      const eligibility = await Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 });
+      if (eligibility) {
+        eligibility.accountCreationInviteSent = true;
+        eligibility.accountCreationInviteSentAt = new Date();
+        await eligibility.save();
+      }
+
+      const inviteUrl = `${FRONTEND_BASE}/create-account?token=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(candidate.email)}`;
+      const inviteText = `Dear ${String(candidate.name || 'Candidate').trim()},
+
+Your application has been approved by both review stages.
+
+You may now create your candidate account using the same email address used for your application.
+
+Next steps:
+1. Create your account using the link below.
+2. Verify your email address after account creation.
+3. Verify your mobile number after email verification.
+4. Continue to your candidate dashboard for the next steps.
+
+Email: ${candidate.email}
+Create Account Link: ${inviteUrl}
+
+This invitation link expires in 7 days and can be used only once.
+
+Regards,
+NextStep Talent Team
+
+This is an official communication from NextStep Talent.`;
+
+      await sendTransactionalEmailSafe({
+        to: candidate.email,
+        subject: 'NextStep Talent – Account Creation Invitation',
+        text: inviteText,
+        html: inviteText.replaceAll('\n', '<br/>'),
+        fromEmail: workflowFromEmail,
+        fromName: workflowFromName,
+        templateKey: EMAIL_TEMPLATE_KEYS.PROFILE_ACCOUNT_INVITE,
         relatedCandidateId: candidate._id,
       });
     }
@@ -433,26 +496,10 @@ const selectedCandidate = async (req, res) => {
     candidate.status = 'selected';
     await candidate.save();
 
-    let invoice = await Invoice.findOne({
-      candidateId: candidate._id,
-      paymentStage: PAYMENT_STAGES.FIRST_INSTALLMENT,
-    }).sort({ createdAt: -1 });
-
-    if (!invoice) {
-      invoice = await generateInvoiceForStage({
-        candidate,
-        stage: PAYMENT_STAGES.FIRST_INSTALLMENT,
-      });
-      candidate.invoices = [...new Set([...(candidate.invoices || []).map(String), String(invoice._id)])];
-      await candidate.save();
-    }
-
-    const invoiceUrl = `${websiteUrl()}${invoice.pdfUrl}`;
     const mail = applicationStatusUpdate({
       candidateName: candidate.name,
       selected: true,
-      withPayment: true,
-      invoiceUrl,
+      withPayment: false,
     });
 
     await sendTransactionalEmailSafe({
@@ -462,20 +509,25 @@ const selectedCandidate = async (req, res) => {
       relatedCandidateId: candidate._id,
     });
 
-    const invoiceMail = await buildInvoiceEmailForStage({
-      candidate,
-      invoice,
-      stage: PAYMENT_STAGES.FIRST_INSTALLMENT,
-    });
-    const invoiceAttachments = invoice?.pdfPath && fs.existsSync(invoice.pdfPath)
-      ? [{ filename: `${invoice.invoiceNumber}.pdf`, path: invoice.pdfPath, contentType: 'application/pdf' }]
-      : [];
+    const selectionText = `Dear ${candidate.name || 'Candidate'},
+
+Your profile has been selected for the next stage of the NextStep Talent process.
+
+You will receive the final payment request separately after the team completes the remaining operational steps.
+
+Regards,
+NextStep Talent Team
+
+This is an automated email. Please do not reply to this message.`;
 
     await sendTransactionalEmailSafe({
       to: candidate.email,
-      ...invoiceMail,
-      templateKey: EMAIL_TEMPLATE_KEYS.INVOICE_STAGE_1,
-      attachments: invoiceAttachments,
+      subject: 'NextStep Talent – Selection Result',
+      text: selectionText,
+      html: selectionText.replaceAll('\n', '<br/>'),
+      fromEmail: 'noreply@nextsteptalent.net',
+      fromName: 'NextStep Talent Team',
+      templateKey: 'selection_result_selected',
       relatedCandidateId: candidate._id,
     });
 
@@ -485,19 +537,16 @@ const selectedCandidate = async (req, res) => {
       actorId: req.user.email,
       actorRole: req.user.adminRole,
       candidateId: candidate._id,
-      action: 'candidate_selected_and_stage1_invoice_sent',
+      action: 'candidate_selected_result_published',
       previousValue: previous,
       newValue: {
         selectedStatus: candidate.selectedStatus,
         status: candidate.status,
-        invoiceId: invoice._id,
       },
-      metadata: {
-        invoiceNumber: invoice.invoiceNumber,
-      },
+      metadata: {},
     });
 
-    return res.json({ message: 'Candidate marked selected and payment instruction sent', candidate, invoice });
+    return res.json({ message: 'Candidate selection published', candidate });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -516,7 +565,7 @@ const notSelectedCandidate = async (req, res) => {
     candidate.selectedStatus = 'not_selected';
     candidate.selectedBy = req.user.email;
     candidate.selectedAt = new Date();
-    candidate.status = 'not_selected';
+    candidate.status = 'rejected';
     await candidate.save();
 
     const mail = applicationStatusUpdate({ candidateName: candidate.name, selected: false });
@@ -533,7 +582,7 @@ const notSelectedCandidate = async (req, res) => {
       actorId: req.user.email,
       actorRole: req.user.adminRole,
       candidateId: candidate._id,
-      action: 'candidate_not_selected_notified',
+      action: 'candidate_selection_rejected_notified',
       previousValue: previous,
       newValue: {
         selectedStatus: candidate.selectedStatus,
@@ -563,7 +612,7 @@ const generateInvoiceForCandidate = async (req, res) => {
     const existing = await Invoice.findOne({ candidateId: candidate._id, paymentStage }).sort({ createdAt: -1 });
     if (existing) return res.json({ message: 'Invoice already exists', invoice: existing });
 
-    const amountReceived = paymentStage === PAYMENT_STAGES.FINAL_PAYMENT ? 3100 : 0;
+    const amountReceived = paymentStage === PAYMENT_STAGES.FINAL_PAYMENT ? Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0) : 0;
     const invoice = await generateInvoiceForStage({ candidate, stage: paymentStage, amountReceived });
     candidate.invoices = [...new Set([...(candidate.invoices || []).map(String), String(invoice._id)])];
     await candidate.save();
@@ -590,16 +639,8 @@ const generateInvoiceForCandidate = async (req, res) => {
     });
 
     if (paymentStage === PAYMENT_STAGES.FIRST_INSTALLMENT) {
-      const text = `Invoice available in portal
-Amount due: USD $3,100
-Payment details mentioned on invoice 
-Timeline of payment within 30 days of invoice date 
-Processing continues after payment confirmation
-
-Regards,  
-NextStep Talent Team
-
-This is an automated email. Please do not reply to this message.`;
+      const firstAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0);
+      const text = `Invoice available in portal\nAmount due: USD $${firstAmount.toLocaleString('en-US')}\nPayment details mentioned on invoice \nTimeline of payment within 30 days of invoice date \nProcessing continues after payment confirmation\n\nRegards,  \nNextStep Talent Team\n\nThis is an automated email. Please do not reply to this message.`;
       await sendTransactionalEmailSafe({
         to: candidate.email,
         subject: 'NextStep Talent – Invoice Generated & Payment Request',
@@ -613,28 +654,8 @@ This is an automated email. Please do not reply to this message.`;
     }
 
     if (paymentStage === PAYMENT_STAGES.FINAL_PAYMENT) {
-      const text = `Dear Candidate,
-
-We are pleased to inform you that your profile has successfully progressed through the evaluation and employer coordination stages, and your application has been approved to proceed to the final onboarding phase.
-
-As part of the final onboarding process, the remaining balance payment is now due.
-
-Final Payment Amount: USD $3,100
-
-Your invoice has been generated and is available within your candidate portal for review and download.
-
-Please complete the payment within the specified timeline to avoid delays in onboarding progression and employer-side processing.
-
-Upon successful receipt of payment, our team will continue with the final coordination, onboarding formalities, and process completion steps.
-
-If any additional documentation or actions are required from your end, the operations team will contact you separately.
-
-We appreciate your cooperation throughout the process and look forward to supporting you through the final onboarding stage.
-
-Regards,  
-NextStep Talent Team
-
-This is an automated email. Please do not reply to this message.`;
+      const finalAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0);
+      const text = `Dear Candidate,\n\nWe are pleased to inform you that your profile has successfully progressed through the evaluation and employer coordination stages, and your application has been approved to proceed to the final onboarding phase.\n\nAs part of the final onboarding process, the remaining balance payment is now due.\n\nFinal Payment Amount: USD $${finalAmount.toLocaleString('en-US')}\n\nYour invoice has been generated and is available within your candidate portal for review and download.\n\nPlease complete the payment within the specified timeline to avoid delays in onboarding progression and employer-side processing.\n\nUpon successful receipt of payment, our team will continue with the final coordination, onboarding formalities, and process completion steps.\n\nIf any additional documentation or actions are required from your end, the operations team will contact you separately.\n\nWe appreciate your cooperation throughout the process and look forward to supporting you through the final onboarding stage.\n\nRegards,  \nNextStep Talent Team\n\nThis is an automated email. Please do not reply to this message.`;
       await sendTransactionalEmailSafe({
         to: candidate.email,
         subject: 'NextStep Talent – Final Payment Request',
@@ -715,7 +736,7 @@ const verifyCandidatePayment = async (req, res) => {
         payment.refundableAmount = 2900;
         payment.refundStatus = 'partially_refundable';
       } else if (candidate.selectedStatus === 'selected') {
-        payment.nonRefundableAmount = 3100;
+        payment.nonRefundableAmount = Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FIRST_INSTALLMENT].amount || 0);
         payment.refundableAmount = 0;
         payment.refundStatus = 'non_refundable';
       } else {
@@ -731,7 +752,7 @@ const verifyCandidatePayment = async (req, res) => {
         invoice = await generateInvoiceForStage({
           candidate,
           stage,
-          amountReceived: stage === PAYMENT_STAGES.FINAL_PAYMENT ? 3100 : 0,
+          amountReceived: stage === PAYMENT_STAGES.FINAL_PAYMENT ? Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0) : 0,
         });
       }
       payment.invoiceId = invoice._id;

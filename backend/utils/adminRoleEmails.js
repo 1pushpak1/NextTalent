@@ -14,9 +14,7 @@ const emailsByRole = (role, envKeys = []) => {
 };
 
 const getPaymentsAdminEmails = () => {
-  const paymentAdmins = emailsByRole(ADMIN_ROLES.PAYMENTS_ADMIN, ['PAYMENT_ADMIN_EMAIL', 'PAYMENTS_ADMIN_EMAIL']);
-  const superAdmins = emailsByRole(ADMIN_ROLES.SUPER_ADMIN, ['SUPER_ADMIN_EMAIL', 'ADMIN_EMAIL']);
-  return unique([...paymentAdmins, ...superAdmins]);
+  return emailsByRole(ADMIN_ROLES.SUPER_ADMIN, ['SUPER_ADMIN_EMAIL', 'ADMIN_EMAIL']);
 };
 
 const getEvaluationAdminEmails = () => {

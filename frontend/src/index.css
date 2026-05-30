@@ -110,6 +110,11 @@ input[type='reset']:not(:disabled) {
     linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0));
 }
 
+/* Remove extra vertical gap when home sections sit next to each other */
+.nst-home-section + .nst-home-section {
+  padding-top: 0 !important;
+}
+
 .nst-glass-card {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
   box-shadow: 0 24px 70px -42px rgba(0, 0, 0, 0.7);
