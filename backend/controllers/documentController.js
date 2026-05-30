@@ -7,7 +7,7 @@ const Profile = require('../models/Profile');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 
 const uploadDir = path.join(__dirname, '..', 'uploads', 'documents');
-const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_DOCUMENT_SIZE_BYTES = 2 * 1024 * 1024; // limit each uploaded document to 2MB
 const ALLOWED_PDF_MIME_TYPES = new Set(['application/pdf']);
 const DOCUMENT_UPLOAD_OPEN_STATUSES = new Set([
   'onboarding_complete',

@@ -20,18 +20,12 @@ export default function Footer() {
 
         <div className="mt-10 flex flex-col items-center gap-8 text-center">
           <div>
-            <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm ${isHome || !isAdminRoute ? 'text-[#bdbdc3]' : 'text-slate-500'}`}>
-              <Link className="transition hover:text-[#c8a96b]" to="/privacy-policy">Privacy Policy</Link>
+              <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm ${isHome || !isAdminRoute ? 'text-[#bdbdc3]' : 'text-slate-500'}`}>
+              <Link className="transition hover:text-[#c8a96b]" to="/privacy-policy" state={{ from: location.pathname }}>Privacy Policy</Link>
               <span className="opacity-50">|</span>
-              <Link className="transition hover:text-[#c8a96b]" to="/payment-refund-policy">Payment & Refund Policy</Link>
+              <Link className="transition hover:text-[#c8a96b]" to="/payment-refund-policy" state={{ from: location.pathname }}>Payment & Refund Policy</Link>
               <span className="opacity-50">|</span>
-              <Link className="transition hover:text-[#c8a96b]" to="/terms-of-service">Terms and Conditions</Link>
-              <span className="opacity-50">|</span>
-              <Link className="transition hover:text-[#c8a96b]" to="/cookie-policy">Cookie Policy</Link>
-              <span className="opacity-50">|</span>
-              <Link className="transition hover:text-[#c8a96b]" to="/support">Support</Link>
-              <span className="opacity-50">|</span>
-              <Link className="transition hover:text-[#c8a96b]" to="/contact">Contact</Link>
+              <Link className="transition hover:text-[#c8a96b]" to="/terms-of-service" state={{ from: location.pathname }}>Terms and Conditions</Link>
             </div>
           </div>
         </div>

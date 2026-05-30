@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import Button from '../components/Button';
@@ -550,6 +550,7 @@ export default function ProfileSubmissionPage() {
   const [technicalSkillInput, setTechnicalSkillInput] = useState('');
   const [eligibilityDetails, setEligibilityDetails] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const publicEligibilityId = String(localStorage.getItem('nst_eligibility_id') || '').trim();
   const publicEligibilityEmail = String(localStorage.getItem('nst_eligibility_email') || '').toLowerCase().trim();
 
@@ -1839,6 +1840,9 @@ By signing below, you accept full responsibility for the authenticity of the det
           <div className="rounded-lg border border-slate-200 bg-white p-3">
             <p className="font-semibold text-slate-900">Initial Evaluation Fee</p>
             <p className="text-slate-700">USD 500 (non-refundable)</p>
+            <p className="mt-3 rounded-md bg-amber-50 p-2 text-white">
+              This fee supports evaluation and process coordination services. It does not promise employment outcomes.
+            </p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-3">
             <p className="font-semibold text-slate-900">Program Fee</p>
@@ -1850,13 +1854,19 @@ By signing below, you accept full responsibility for the authenticity of the det
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
           <p className="font-semibold text-slate-900">Post Initial Evaluation</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>USD 500 (non-refundable)</li>
+            {/* <li>USD 500 (non-refundable)</li> */}
             <li>First installment payment is USD 3,100 (includes bank fees), refundable minus USD 200 only if not selected post-interview or in valid visa rejection scenarios per agreement.</li>
             <li>USD 3,100 payable upon successful selection</li>
           </ul>
-          <p className="mt-3 rounded-md bg-amber-50 p-2 text-white">
-            This fee supports evaluation and process coordination services. It does not promise employment outcomes.
-          </p>
+          {/* explanatory note moved above, under Initial Evaluation Fee */}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm text-slate-500">
+          <Link to="/privacy-policy" state={{ from: location.pathname }} className="text-[#c8a96b] hover:underline">Privacy Policy</Link>
+          <span className="text-slate-500">|</span>
+          <Link to="/payment-refund-policy" state={{ from: location.pathname }} className="text-[#c8a96b] hover:underline">Payment & Refund Policy</Link>
+          <span className="text-slate-500">|</span>
+          <Link to="/terms-of-service" state={{ from: location.pathname }} className="text-[#c8a96b] hover:underline">Terms and Conditions</Link>
         </div>
 
         <label className="mt-4 flex items-start gap-2 text-sm text-slate-700">

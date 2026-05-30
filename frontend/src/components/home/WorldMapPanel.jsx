@@ -41,19 +41,19 @@ const REGION_DATA = [
     halo: 27,
     radius: 12,
   },
-  {
-    id: 'australia',
-    label: 'AUSTRALIA',
-    x: 840,
-    y: 505,
-    labelX: 812,
-    labelY: 548,
-    labelAnchor: 'start',
-    labelSize: 16,
-    tracking: '0.25em',
-    halo: 27,
-    radius: 12,
-  },
+  // {
+  //   id: 'australia',
+  //   label: '',
+  //   x: 840,
+  //   y: 505,
+  //   labelX: 812,
+  //   labelY: 548,
+  //   labelAnchor: 'start',
+  //   labelSize: 16,
+  //   tracking: '0.25em',
+  //   halo: 27,
+  //   radius: 12,
+  // },
 ];
 
 const MAP_SHAPES = [

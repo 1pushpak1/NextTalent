@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import Reveal from '../components/home/Reveal';
 
 export default function EvaluationProgramPage() {
   const evaluationCriteria = [
@@ -36,30 +37,39 @@ export default function EvaluationProgramPage() {
       <Navbar />
       <main className="pt-24">
         <section className="nst-home-section py-20">
-          <div className="mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-8 px-6 lg:grid-cols-2">
-            <div>
-              <h1 className="mb-6 nst-display text-4xl font-bold tracking-tight text-white lg:text-5xl">
-                International Career Eligibility & Evaluation Program
-              </h1>
-              <p className="text-lg leading-relaxed text-[#d1d2d7]">
-                Begin your application for global career opportunities across Europe, United States, and other
-                international markets.
-              </p>
-            </div>
-            <div className="relative h-[520px] overflow-hidden rounded-2xl border border-[rgba(200,169,107,0.34)] shadow-xl">
-              <img
-                className="h-full w-full object-cover"
-                src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80"
-                alt="Evaluation Program"
-              />
-              <div className="absolute inset-0 bg-gradient-to-tr from-black/55 via-black/10 to-transparent" />
-            </div>
+          <div className="grid w-full grid-cols-1 items-center gap-8 px-6 lg:grid-cols-2">
+            <Reveal>
+              <div>
+                <h1 className="mb-6 nst-display text-4xl font-bold tracking-tight text-white lg:text-5xl">
+                  International Career Eligibility & Evaluation
+                </h1>
+                <p className="text-lg leading-relaxed text-[#d1d2d7]">
+                  Begin your application for global career opportunities across Europe, United States, and other
+                  international markets.
+                </p>
+              </div>
+            </Reveal>
+            <Reveal>
+              <div className="relative h-[520px] overflow-hidden rounded-2xl border border-[rgba(200,169,107,0.34)] shadow-xl transition-transform duration-700 ease-out hover:scale-[1.02]">
+                <img
+                  className="h-full w-full object-cover transform-gpu will-change-transform"
+                  src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=80"
+                  alt="Evaluation"
+                />
+                <div className="absolute inset-0 bg-gradient-to-tr from-black/55 via-black/10 to-transparent" />
+              </div>
+            </Reveal>
           </div>
         </section>
 
+        {/* Country-specific eligibility section moved below 'Who This Is For' to improve page flow */}
+
+        {/* Country-specific eligibility section moved below 'Who This Is For' to improve page flow */}
+
         <section className="nst-home-section py-20">
-          <div className="mx-auto grid max-w-[1000px] gap-8 px-6">
-            <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8">
+          <div className="grid w-full gap-8 px-6">
+            <Reveal>
+              <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8">
               <h2 className="mb-6 nst-display text-3xl font-bold text-white">About the Evaluation Process</h2>
               <p className="text-base leading-8 text-[#d1d2d7]">
                 At NextStep Talent, we operate a structured International Career Evaluation &amp; Readiness Program designed to
@@ -82,8 +92,12 @@ export default function EvaluationProgramPage() {
                 Only candidates who meet the evaluation criteria will progress to the next stage.
               </p>
             </div>
+            </Reveal>
 
-            <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8 text-white">
+          {/* Country-specific eligibility moved to appear below 'Who This Is For' */}
+
+            <Reveal>
+              <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8 text-white">
               <h3 className="mb-5 nst-display text-2xl font-semibold">What This Step Includes</h3>
               <p className="mb-4 text-base text-[#d1d2d7]">By completing this evaluation process, you will receive:</p>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -98,8 +112,10 @@ export default function EvaluationProgramPage() {
                 ))}
               </div>
             </div>
+            </Reveal>
 
-            <div className="nst-card rounded-xl border-l-4 border-l-[#c8a96b] p-8">
+            <Reveal>
+              <div className="nst-card rounded-xl border-l-4 border-l-[#c8a96b] p-8">
               <h3 className="mb-4 nst-display text-2xl font-semibold text-white">Important Information</h3>
               <div className="grid gap-3 md:grid-cols-2">
                 {importantNotes.map((item) => (
@@ -109,8 +125,10 @@ export default function EvaluationProgramPage() {
                 ))}
               </div>
             </div>
+            </Reveal>
 
-            <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8">
+            <Reveal>
+              <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8">
               <h3 className="mb-4 nst-display text-2xl font-semibold text-white">Who This Is For</h3>
               <p className="mb-4 text-base text-[#d1d2d7]">This program is suitable for individuals who:</p>
               <div className="space-y-3">
@@ -120,6 +138,50 @@ export default function EvaluationProgramPage() {
                     <p className="text-sm leading-6 text-[#d1d2d7]">{item}</p>
                   </div>
                 ))}
+              </div>
+            </div>
+            </Reveal>
+          </div>
+        </section>
+
+        <section className="nst-home-section py-12">
+          <div className="mx-auto max-w-[1000px] px-6">
+            <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8">
+              <h3 className="mb-4 nst-display text-2xl font-semibold text-white">Country-specific Eligibility Criteria</h3>
+              <p className="mb-4 text-base text-[#d1d2d7]">Below are example eligibility factors for select countries. These are indicative — final requirements depend on role and current regulations.</p>
+
+              <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-4">
+                  <h4 className="font-semibold text-white">Germany</h4>
+                  <ul className="mt-3 list-disc pl-5 text-sm text-[#d1d2d7]">
+                    <li><strong>Location requirement:</strong> Europe, Outside Europe</li>
+                    <li><strong>Language requirement:</strong> German proficiency</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-4">
+                  <h4 className="font-semibold text-white">Switzerland</h4>
+                  <ul className="mt-3 list-disc pl-5 text-sm text-[#d1d2d7]">
+                    <li><strong>Location requirement:</strong> Europe</li>
+                    <li><strong>Language requirement:</strong> B2 Certified or above in German, French, or Italian</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-4">
+                  <h4 className="font-semibold text-white">Austria</h4>
+                  <ul className="mt-3 list-disc pl-5 text-sm text-[#d1d2d7]">
+                    <li><strong>Location requirement:</strong> Europe</li>
+                    <li><strong>Language requirement:</strong> B2 certified or above in German </li>
+                  </ul>
+                </div>
+
+                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-4">
+                  <h4 className="font-semibold text-white">Poland</h4>
+                  <ul className="mt-3 list-disc pl-5 text-sm text-[#d1d2d7]">
+                    <li><strong>Location requirement:</strong> Europe</li>
+                    <li><strong>Language requirement:</strong> Professional level in English </li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -136,9 +198,9 @@ export default function EvaluationProgramPage() {
             <p className="mb-8 max-w-2xl text-base leading-8 text-[#d1d2d7]">
               Before proceeding further, you will complete a short eligibility check based on current requirements.
             </p>
-            <p className="mb-10 max-w-2xl text-base leading-8 text-[#d1d2d7]">
+            {/* <p className="mb-10 max-w-2xl text-base leading-8 text-[#d1d2d7]">
               This helps determine if you qualify to enter the evaluation stage.
-            </p>
+            </p> */}
             <Link
               to="/eligibility-check"
               className="inline-flex items-center gap-2 rounded-lg border border-[#c8a96b] bg-[#c8a96b] px-8 py-4 text-sm font-semibold text-black transition hover:bg-[#d4b87e]"

@@ -3,7 +3,7 @@ import api from '../api/axios';
 import Button from './Button';
 import StatusBadge from './StatusBadge';
 
-const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_DOCUMENT_SIZE_BYTES = 2 * 1024 * 1024; // 2MB per document
 
 const isPdfFile = (file) => {
   if (!file) return false;
@@ -29,7 +29,7 @@ export default function FileUpload({ label, status = 'Pending', hasUploadedFile 
       return;
     }
     if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
-      alert('Each document must be 10MB or smaller.');
+      alert('Each document must be 2MB or smaller.');
       event.target.value = '';
       return;
     }

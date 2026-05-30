@@ -35,7 +35,7 @@ const processSteps = [
 
 const navigationLinks = [
   { href: '/', label: 'Home' },
-  { href: '/evaluation-program', label: 'Evaluation Program' },
+  { href: '/evaluation-program', label: 'Evaluation' },
 ];
 
 export default function HomePage() {
@@ -51,14 +51,12 @@ export default function HomePage() {
 
           <div className="relative mx-auto flex w-full max-w-[1180px] justify-center">
             <Reveal className="mx-auto max-w-[860px] text-center">
-              {/* <span className="nst-kicker">Global Platform</span> */}
-              <h1 className="mt-4 whitespace-nowrap nst-display text-[3.6rem] leading-[0.92] tracking-[-0.05em] text-white sm:text-[4.8rem] md:text-[6.8rem]">
-                <span className="inline-block">NextStep </span>
-                <span className="inline-block nst-display italic text-[#c8a96b]">Talent</span>
-              </h1>
-              <p className="mt-7 nst-display text-[1.5rem] italic text-[#c8a96b] sm:text-[1.8rem] md:text-[2.25rem]">
-                Building Global Career Pathways
-              </p>
+              {/* Replace heading text with logo (same visual size) */}
+              <img
+                src="/logo.png"
+                alt="NextStep Talent"
+                className="mx-auto mt-4 h-[7.2rem] sm:h-[9.6rem] md:h-[13.6rem] w-auto object-contain"
+              />
               <div className="mx-auto mt-8 h-px w-[4.5rem] bg-[linear-gradient(90deg,transparent,#c8a96b,transparent)]" />
               <p className="mx-auto mt-8 max-w-[760px] text-base leading-8 text-[#d2d2d6] sm:text-lg">
                 Structured pathways for individuals seeking international career opportunities through profile
@@ -95,12 +93,26 @@ export default function HomePage() {
         <section id="process" className="nst-home-section relative overflow-hidden px-6 py-20 md:px-10 md:py-28">
           <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(200,169,107,0.35),transparent)]" />
           <div className="mx-auto max-w-[1180px]">
-            <Reveal className="max-w-[780px]">
-              <span className="nst-kicker">What We Do</span>
-              <h2 className="mt-6 nst-display text-[2.9rem] leading-[1] tracking-[-0.04em] text-white sm:text-[3.6rem] md:text-[4.55rem]">
-                A structured process, at every stage.
-              </h2>
-              <p className="mt-8 max-w-[700px] text-base leading-8 text-[#cfd0d4] sm:text-lg">We offer a structured and selective process designed to support candidates at every stage of their international career journey:</p>
+            <Reveal>
+              <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2 md:items-center">
+                <div className="order-1 md:order-1">
+                  <span className="nst-kicker">What We Do</span>
+                  <h2 className="mt-6 nst-display text-[2.9rem] leading-[1] tracking-[-0.04em] text-white sm:text-[3.6rem] md:text-[4.55rem]">
+                    A structured process, at every stage.
+                  </h2>
+                  <p className="mt-4 max-w-[700px] text-base leading-8 text-[#cfd0d4] sm:text-lg">
+                    We offer a structured and selective process designed to support candidates at every stage of their international career journey:
+                  </p>
+                </div>
+                <div className="order-2 mt-2 flex justify-start md:justify-end">
+                  <img
+                    src="https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=1200&q=80"
+                    alt="Illustration showing a structured process and workflow"
+                    loading="lazy"
+                    className="w-[220px] md:w-[280px] rounded-lg border border-[rgba(200,169,107,0.06)] shadow-lg object-cover"
+                  />
+                </div>
+              </div>
             </Reveal>
 
             <div className="mt-14 grid grid-cols-1 border-t border-[rgba(200,169,107,0.18)] md:grid-cols-2 xl:grid-cols-5">
@@ -138,11 +150,28 @@ export default function HomePage() {
 
         <section id="notice" className="nst-home-section px-6 pb-8 pt-2 md:px-10 md:pb-12 md:pt-3">
           <Reveal className="mx-auto max-w-[1180px]">
-            <div className="px-6 py-4 md:px-10 md:py-6">
-              <div className="relative z-10 mx-auto max-w-[860px]">
-                <p className="mx-auto text-center nst-display text-[1.15rem] leading-[1.15] tracking-[-0.03em] text-[#c8a96b] sm:text-[1.4rem] md:text-[1.6rem] font-semibold">
-                  Due to the structured and selective nature of our process, only a limited number of candidates are onboarded for each cycle.
-                </p>
+            <div className="px-6 py-6 md:px-10 md:py-8">
+              <div className="mx-auto max-w-[900px]">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="rounded-2xl border border-[#c8a96b] bg-gradient-to-r from-[#071018] via-transparent to-transparent p-6 shadow-xl"
+                >
+                  <div className="flex flex-col items-center gap-4 md:flex-row md:items-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#c8a96b] text-black text-2xl font-semibold">
+                      <span className="material-symbols-outlined">verified</span>
+                    </div>
+                    <div className="text-center md:text-left">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-[#f4dfb2]">Selective Intake</p>
+                      <h3 className="mt-2 text-2xl md:text-3xl font-extrabold text-white leading-tight">
+                        Due to our structured and selective process, only a limited number of candidates are onboarded each cycle.
+                      </h3>
+                      <p className="mt-2 max-w-[56ch] text-sm text-[#d1d2d7]">
+                        We prioritise quality over quantity — apply early or join the waiting list to reserve consideration in the next intake.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </Reveal>
@@ -160,7 +189,7 @@ export default function HomePage() {
             </p>
             <div className="mt-10">
               <Link to="/evaluation-program" className="nst-outline-button inline-flex min-w-[280px] justify-center">
-                Explore Current Opportunities
+                Check Eligibility
               </Link>
             </div>
           </Reveal>
