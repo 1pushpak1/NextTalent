@@ -1,4 +1,4 @@
-# NextStep Talent (MERN)
+# NextStep Talent
 
 Complete MERN prototype for a structured international career pathway platform.
 
