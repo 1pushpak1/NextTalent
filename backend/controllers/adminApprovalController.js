@@ -221,6 +221,9 @@ const operationsApprove = async (req, res) => {
     candidate.operationsApprovedAt = new Date();
     candidate.status = 'fully_approved';
     candidate.accountStatus = 'invited';
+    candidate.admin1ProgressionApproved = true;
+    candidate.admin1ProgressionApprovedAt = new Date();
+    candidate.admin1ProgressionApprovedBy = req.user?.email || '';
     
     // Generate account invitation token
     const inviteToken = crypto.randomBytes(32).toString('hex');

@@ -1114,6 +1114,9 @@ const updateCandidateProfileStatus = async (req, res) => {
       candidate.operationsStatus = 'approved';
       candidate.status = 'fully_approved';
       candidate.accountStatus = 'invited';
+      candidate.admin1ProgressionApproved = true;
+      candidate.admin1ProgressionApprovedAt = new Date();
+      candidate.admin1ProgressionApprovedBy = req.user?.email || '';
       candidate.admin3EvaluationApproved = true;
       candidate.admin3EvaluationApprovedAt = new Date();
       candidate.admin3EvaluationApprovedBy = req.user?.email || '';

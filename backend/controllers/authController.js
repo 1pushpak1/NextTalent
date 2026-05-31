@@ -129,7 +129,10 @@ const signup = async (req, res) => {
       return res.status(403).json({ message: 'Account creation is not available until evaluation and operations approvals are complete.' });
     }
 
-    if (invitedUser.passwordHash) {
+    const accountStatus = String(invitedUser.accountStatus || '').toLowerCase();
+    const workflowStatus = String(invitedUser.status || '').toLowerCase();
+    const accountAlreadyCreated = ['created', 'email_verified'].includes(accountStatus) || ['account_created', 'email_verified'].includes(workflowStatus);
+    if (accountAlreadyCreated) {
       return res.status(409).json({ message: 'An account with this email already exists. Please log in instead.' });
     }
 
