@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -14,7 +14,50 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { countries } from 'countries-list';
 
-const formSteps = ['Personal', 'Education', 'Certifications', 'Experience', 'Skills', 'Languages', 'Additional', 'Review'];
+const journeySteps = [
+  { label: 'Personal' },
+  { label: 'Education' },
+  { label: 'Certifications' },
+  { label: 'Experience' },
+  { label: 'Skills' },
+  { label: 'Languages' },
+  { label: 'Additional' },
+  { label: 'Review' },
+];
+
+const getJourneyClipPath = (index, total) => {
+  if (total <= 1) {
+    return 'polygon(0 0, 100% 0, 100% 100%, 0 100%)';
+  }
+
+  if (index === 0) {
+    return 'polygon(0 0, calc(100% - 1.1rem) 0, 100% 50%, calc(100% - 1.1rem) 100%, 0 100%, 0.9rem 50%)';
+  }
+
+  if (index === total - 1) {
+    return 'polygon(1.1rem 0, 100% 0, 100% 100%, 1.1rem 100%, 0 50%)';
+  }
+
+  return 'polygon(1.1rem 0, calc(100% - 1.1rem) 0, 100% 50%, calc(100% - 1.1rem) 100%, 1.1rem 100%, 0 50%)';
+};
+
+const formatCapturedPlace = (address = {}, fallback = '') => {
+  const placeParts = [
+    address.city,
+    address.town,
+    address.village,
+    address.suburb,
+    address.county,
+    address.state,
+    address.country,
+  ].filter(Boolean);
+
+  if (placeParts.length) {
+    return placeParts.slice(0, 2).join(', ');
+  }
+
+  return fallback || 'Location captured';
+};
 const monthYearRegex = /^(0[1-9]|1[0-2])\/\d{4}$/;
 const formatMonthYearInput = (value) => {
   const digits = value.replace(/\D/g, '').slice(0, 6);
@@ -195,6 +238,10 @@ const getStepValidation = (step, form, { requireVisa, technicalSkills, financial
       addError(errors, 'personalDetails.currentVisaStatus', 'Current visa status is required when country of birth and current country of residence differ.');
       summary ||= 'Current visa status is required when country of birth and current country of residence differ.';
     }
+    if (p.currentVisaStatus === 'Other' && !hasValue(p.currentVisaStatusDetails)) {
+      addError(errors, 'personalDetails.currentVisaStatusDetails', 'Please provide your visa status details when Other is selected.');
+      summary ||= 'Please provide your visa status details when Other is selected.';
+    }
   }
 
   if (step === 2) {
@@ -211,6 +258,9 @@ const getStepValidation = (step, form, { requireVisa, technicalSkills, financial
     }
     if (!hasValue(e.highSchool.track)) {
       addError(errors, 'education.highSchool.track', 'Academic track is required.');
+      highSchoolMissing.push('track');
+    } else if (!academicTrackOptions.includes(e.highSchool.track) && !legacyAcademicTrackOptions.includes(e.highSchool.track)) {
+      addError(errors, 'education.highSchool.track', 'Please select a valid academic track.');
       highSchoolMissing.push('track');
     }
     if (!hasValue(e.highSchool.country)) {
@@ -477,6 +527,98 @@ const clampStep = (value, fallback = 1) => {
 const countryOptions = Object.values(countries)
   .map((country) => country.name)
   .sort((left, right) => left.localeCompare(right));
+const academicTrackGroups = [
+  {
+    label: 'STEM',
+    options: [
+      'Computer Science – Software Engineering Track',
+      'Computer Science – Artificial Intelligence & Machine Learning Track',
+      'Computer Science – Data Science Track',
+      'Computer Science – Cybersecurity Track',
+      'Information Technology Track',
+      'Software Engineering Track',
+      'Electrical Engineering Track',
+      'Electronics & Communication Engineering Track',
+      'Mechanical Engineering Track',
+      'Civil Engineering Track',
+      'Chemical Engineering Track',
+      'Aerospace Engineering Track',
+      'Biomedical Engineering Track',
+      'Industrial Engineering Track',
+      'Environmental Engineering Track',
+      'Biotechnology Track',
+      'Biology – Medical Track',
+      'Biology – Research Track',
+      'Physics Track',
+      'Applied Physics Track',
+      'Chemistry Track',
+      'Applied Chemistry Track',
+      'Mathematics Track',
+      'Applied Mathematics Track',
+      'Statistics Track',
+      'Data Analytics Track',
+    ],
+  },
+  {
+    label: 'Business',
+    options: [
+      'Bachelor of Business Administration – Corporate Finance Track',
+      'Bachelor of Business Administration – Entrepreneurship Track',
+      'Bachelor of Business Administration – Operations Management Track',
+      'Marketing – Digital Media Analytics Track',
+      'Marketing – Brand Management Track',
+      'Marketing – Sales & Business Development Track',
+      'Finance Track',
+      'Accounting Track',
+      'Economics Track',
+      'Human Resources Track',
+      'International Business Track',
+      'Supply Chain Management Track',
+      'Business Analytics Track',
+      'Management Information Systems Track',
+    ],
+  },
+  {
+    label: 'Humanities & Arts',
+    options: [
+      'English – Creative Writing Track',
+      'English Literature Track',
+      'Journalism & Mass Communication Track',
+      'Media Studies Track',
+      'History Track',
+      'Philosophy Track',
+      'Linguistics Track',
+      'Fine Arts – Design Track',
+      'Fine Arts – Visual Arts Track',
+      'Graphic Design Track',
+      'Fashion Design Track',
+      'Interior Design Track',
+      'Performing Arts Track',
+      'Music Track',
+      'Theatre & Drama Track',
+      'Film & Media Production Track',
+    ],
+  },
+  {
+    label: 'Social Sciences',
+    options: [
+      'Psychology – Clinical & Counseling Track',
+      'Psychology – Organizational Behavior Track',
+      'Political Science – International Relations Track',
+      'Political Science – Public Policy Track',
+      'Sociology Track',
+      'Anthropology Track',
+      'Criminology Track',
+      'Public Administration Track',
+      'International Relations Track',
+      'Social Work Track',
+      'Geography Track',
+      'Development Studies Track',
+    ],
+  },
+];
+const academicTrackOptions = academicTrackGroups.flatMap((group) => group.options);
+const legacyAcademicTrackOptions = ['Science', 'Commerce', 'Arts', 'Other'];
 const createDefaultForm = () => ({
   personalDetails: {
     firstName: '',
@@ -487,6 +629,7 @@ const createDefaultForm = () => ({
     citizenship: '',
     currentCountryOfResidence: '',
     currentVisaStatus: '',
+    currentVisaStatusDetails: '',
   },
   education: {
     highSchool: { startDate: '', endDate: '', track: '', country: '' },
@@ -543,12 +686,16 @@ export default function ProfileSubmissionPage() {
   const [financialAccepted, setFinancialAccepted] = useState(false);
   const [showAckModal, setShowAckModal] = useState(false);
   const [signature, setSignature] = useState(null);
+  const [capturedLocation, setCapturedLocation] = useState('');
+  const [isCapturingLocation, setIsCapturingLocation] = useState(false);
+  const [locationCaptureError, setLocationCaptureError] = useState('');
   const [hasExistingProfile, setHasExistingProfile] = useState(false);
   const [isApprovedProfileView, setIsApprovedProfileView] = useState(false);
   const [loading, setLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [technicalSkillInput, setTechnicalSkillInput] = useState('');
   const [eligibilityDetails, setEligibilityDetails] = useState(null);
+  const activeJourneyStepRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const publicEligibilityId = String(localStorage.getItem('nst_eligibility_id') || '').trim();
@@ -655,12 +802,15 @@ export default function ProfileSubmissionPage() {
       updateSection('personalDetails', {
         ...form.personalDetails,
         currentVisaStatus: '',
+        currentVisaStatusDetails: '',
       });
     }
   }, [form.personalDetails, requireVisa]);
 
   const fullName = `${form.personalDetails.firstName} ${form.personalDetails.lastName}`.trim();
   const signedDateTime = new Date().toLocaleString();
+  const journeyCompletionPercent = Math.min(100, Math.max(0, Math.round(((currentStep - 1) / journeySteps.length) * 100)));
+  const activeJourneyStep = journeySteps[Math.min(currentStep, journeySteps.length) - 1] ?? journeySteps[0];
   const allowedLanguageOptions = useMemo(
     () => getLanguageOptionsByEligibilityCountry(eligibilityDetails?.country),
     [eligibilityDetails?.country],
@@ -691,6 +841,85 @@ By signing below, you accept full responsibility for the authenticity of the det
       return { ...prev, languages: withAtLeastOne };
     });
   }, [allowedLanguageOptions]);
+
+  useEffect(() => {
+    if (!showAckModal) {
+      setIsCapturingLocation(false);
+      setLocationCaptureError('');
+      setCapturedLocation('');
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setIsCapturingLocation(false);
+      setLocationCaptureError('Location access is required to sign and continue. Please use a browser that supports geolocation.');
+      return;
+    }
+
+    let cancelled = false;
+    setIsCapturingLocation(true);
+    setLocationCaptureError('');
+    setCapturedLocation('');
+
+    const lookupPlace = async (latitude, longitude) => {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+        {
+          headers: {
+            Accept: 'application/json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error('Reverse geocoding failed');
+      }
+
+      return response.json();
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        if (cancelled) return;
+
+        try {
+          const latitude = position.coords.latitude.toFixed(5);
+          const longitude = position.coords.longitude.toFixed(5);
+          const placeData = await lookupPlace(latitude, longitude);
+          if (cancelled) return;
+
+          const placeLabel = formatCapturedPlace(placeData?.address, placeData?.display_name || 'Location captured');
+          setCapturedLocation(placeLabel);
+        } catch {
+          if (cancelled) return;
+          setLocationCaptureError('Unable to resolve your place name. Please try again with location permission enabled.');
+        } finally {
+          if (!cancelled) {
+            setIsCapturingLocation(false);
+          }
+        }
+      },
+      (error) => {
+        if (cancelled) return;
+        const message =
+          error.code === 1
+            ? 'Location access is required to sign and continue. Please allow location permission and try again.'
+            : 'Unable to capture your location. Please try again.';
+        setLocationCaptureError(message);
+        setIsCapturingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showAckModal]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.innerWidth >= 1024) return;
+    activeJourneyStepRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, [currentStep]);
 
   const technicalSkills = useMemo(
     () => form.skills.technical.split(',').map((skill) => skill.trim()).filter(Boolean),
@@ -815,6 +1044,10 @@ By signing below, you accept full responsibility for the authenticity of the det
   };
 
   const submitProfile = async (providedSignature = signature) => {
+    if (!capturedLocation) {
+      return alert(locationCaptureError || 'Location permission is required to sign and continue.');
+    }
+
     const validation = getSubmissionValidation(providedSignature);
     if (validation) {
       if (validation.step !== currentStep) {
@@ -840,7 +1073,7 @@ By signing below, you accept full responsibility for the authenticity of the det
           ...(providedSignature || {}),
           fullName,
           signedAt: new Date().toISOString(),
-          location: 'Auto-captured',
+          location: capturedLocation,
         },
       };
 
@@ -888,22 +1121,65 @@ By signing below, you accept full responsibility for the authenticity of the det
           <div className="flex flex-col gap-6">
             {!isApprovedProfileView && (
               <div className="w-full">
-                <div className="nst-card rounded-xl border border-slate-200 p-4">
-                  <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-700">Application Progress</h3>
-                  <div className="grid gap-2 md:grid-cols-4">
-                    {formSteps.map((stepName, idx) => {
-                      const stepNo = idx + 1;
-                      const active = stepNo === currentStep;
-                      const done = stepNo < currentStep;
-                      return (
-                        <div key={stepName} className="flex items-center gap-2">
-                          <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${done ? 'bg-green-600 text-white' : active ? 'bg-blue-100 text-[#002147]' : 'bg-slate-200 text-slate-600'}`}>
-                            {stepNo}
-                          </span>
-                          <span className={`text-xs ${active ? 'font-semibold text-[#002147]' : 'text-slate-600'}`}>{stepName}</span>
-                        </div>
-                      );
-                    })}
+                <div className="nst-card rounded-[1.35rem] border border-[#d4af37]/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.065),rgba(255,255,255,0.02))] p-4 shadow-[0_28px_90px_-48px_rgba(212,175,55,0.38)] backdrop-blur-xl">
+                  <div className="flex flex-col gap-3 border-b border-white/5 pb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+                    <div>
+                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.38em] text-[#d4af37]">Application Progress</p>
+                      {/* <p className="mt-1 text-sm text-slate-300">Executive review path</p> */}
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <div className="flex items-baseline gap-2 sm:justify-end">
+                        <span className="text-2xl font-semibold text-white">{journeyCompletionPercent}%</span>
+                        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[#b8860b]">Complete</span>
+                      </div>
+                      {/* <p className="text-xs text-slate-400">Current focus: {activeJourneyStep.label}</p> */}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pb-1">
+                    <ol className="grid w-full grid-cols-2 gap-2 md:grid-cols-4 md:gap-3 lg:grid-cols-8 lg:gap-0" aria-label="Application Progress stages">
+                      {journeySteps.map((step, idx) => {
+                        const stepNo = idx + 1;
+                        const completed = stepNo < currentStep;
+                        const active = stepNo === currentStep;
+                        const segmentClasses = [
+                          'relative isolate flex h-[4.5rem] w-full min-w-0 items-center justify-center overflow-hidden px-4 py-3 text-center transition-colors duration-300 ease-out motion-reduce:transition-none lg:-ml-3 lg:first:ml-0',
+                          completed
+                            ? 'border border-[#d4af37]/35 bg-gradient-to-br from-[#f4dfb2] via-[#d4af37] to-[#8a6714] text-white shadow-[0_0_24px_rgba(212,175,55,0.18)]'
+                            : active
+                              ? 'border border-[#f4dfb2]/70 bg-gradient-to-br from-[#f8eabf] via-[#d4af37] to-[#b8860b] text-[#111111] shadow-[0_0_30px_rgba(212,175,55,0.3)] scale-[1.01]'
+                              : 'border border-white/10 bg-[#151515] text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]',
+                        ]
+                          .filter(Boolean)
+                          .join(' ');
+
+                        return (
+                          <li
+                            key={step.label}
+                            ref={active ? activeJourneyStepRef : null}
+                            className={segmentClasses}
+                            style={{ clipPath: getJourneyClipPath(idx, journeySteps.length) }}
+                            aria-current={active ? 'step' : undefined}
+                            aria-label={`${step.label} ${completed ? 'completed' : active ? 'current step' : 'upcoming step'}`}
+                          >
+                            <span className="relative z-10 flex min-h-[3.5rem] w-full flex-col items-center justify-center gap-1">
+                              <span className={`flex h-6 w-6 items-center justify-center rounded-full border text-[13px] font-semibold ${completed ? 'border-white/25 bg-white/18 text-white' : active ? 'border-[#111111]/10 bg-white text-[#111111]' : 'border-white/10 bg-white/5 text-slate-400'}`}>
+                                {completed ? <span className="material-symbols-outlined text-[15px] leading-none">check</span> : active ? <span className="h-2.5 w-2.5 rounded-full bg-[#111111] shadow-[0_0_0_6px_rgba(17,17,17,0.12)]" /> : <span className="h-2 w-2 rounded-full bg-[#6b6b6b]" />}
+                              </span>
+                              <span className={`text-[0.72rem] uppercase tracking-[0.24em] ${active ? 'font-semibold text-[#111111]' : completed ? 'font-semibold text-white' : 'text-slate-400'}`}>
+                                {step.label}
+                              </span>
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </div>
+
+                  <div className="mt-4" role="progressbar" aria-label="Application Progress progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={journeyCompletionPercent}>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                      <div className="h-full rounded-full bg-gradient-to-r from-[#8a6714] via-[#d4af37] to-[#f4dfb2] transition-[width] duration-700 ease-out" style={{ width: `${journeyCompletionPercent}%` }} />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -944,14 +1220,36 @@ By signing below, you accept full responsibility for the authenticity of the det
               <Input required label="Citizenship" error={getFieldError('personalDetails.citizenship')} value={form.personalDetails.citizenship} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, citizenship: e.target.value })} />
               <CountrySearchSelect required label="Current Country of Residence" error={getFieldError('personalDetails.currentCountryOfResidence')} options={countryOptions} value={form.personalDetails.currentCountryOfResidence} onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, currentCountryOfResidence: e.target.value })} />
                             {requireVisa && (
-                <Select
-                  required
-                  label="Current Visa Status"
-                  error={getFieldError('personalDetails.currentVisaStatus')}
-                  options={['Applied', 'Approved', 'Rejected']}
-                  value={form.personalDetails.currentVisaStatus}
-                  onChange={(e) => updateSection('personalDetails', { ...form.personalDetails, currentVisaStatus: e.target.value })}
-                />
+                <div className="space-y-3">
+                  <Select
+                    required
+                    label="Current Visa Status"
+                    error={getFieldError('personalDetails.currentVisaStatus')}
+                    options={['Citizen', 'Resident', 'Work Permint', 'Student', 'Other']}
+                    value={form.personalDetails.currentVisaStatus}
+                    onChange={(e) =>
+                      updateSection('personalDetails', {
+                        ...form.personalDetails,
+                        currentVisaStatus: e.target.value,
+                        currentVisaStatusDetails: e.target.value === 'Other' ? form.personalDetails.currentVisaStatusDetails : '',
+                      })
+                    }
+                  />
+                  {form.personalDetails.currentVisaStatus === 'Other' && (
+                    <Input
+                      required
+                      label="Please specify your visa status"
+                      error={getFieldError('personalDetails.currentVisaStatusDetails')}
+                      value={form.personalDetails.currentVisaStatusDetails}
+                      onChange={(e) =>
+                        updateSection('personalDetails', {
+                          ...form.personalDetails,
+                          currentVisaStatusDetails: e.target.value,
+                        })
+                      }
+                    />
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -961,7 +1259,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               <div className="grid gap-3 md:grid-cols-2">
                 <Input required label="High School Start (MM/YYYY)" error={getFieldError('education.highSchool.startDate')} value={form.education.highSchool.startDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, startDate: formatMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
                 <Input required label="High School End (MM/YYYY)" error={getFieldError('education.highSchool.endDate')} value={form.education.highSchool.endDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, endDate: formatEndMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
-                <Select required label="Academic Track" error={getFieldError('education.highSchool.track')} value={form.education.highSchool.track} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, track: e.target.value } })} options={['Science', 'Commerce', 'Arts', 'Other']} />
+                <Select required label="Academic Track" error={getFieldError('education.highSchool.track')} value={form.education.highSchool.track} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, track: e.target.value } })} options={academicTrackGroups} />
                 <CountrySearchSelect required label="High School Country" error={getFieldError('education.highSchool.country')} options={countryOptions} value={form.education.highSchool.country} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, country: e.target.value } })} />
               </div>
 
@@ -1610,7 +1908,12 @@ By signing below, you accept full responsibility for the authenticity of the det
                   <div className="rounded-lg bg-white p-3"><p className="text-slate-500">Citizenship</p><p className="font-medium text-slate-900">{reviewValue(form.personalDetails.citizenship)}</p></div>
                   <div className="rounded-lg bg-white p-3"><p className="text-slate-500">Current Country of Residence</p><p className="font-medium text-slate-900">{reviewValue(form.personalDetails.currentCountryOfResidence)}</p></div>
                   {requireVisa && (
-                    <div className="rounded-lg bg-white p-3"><p className="text-slate-500">Current Visa Status</p><p className="font-medium text-slate-900">{reviewValue(form.personalDetails.currentVisaStatus)}</p></div>
+                    <>
+                      <div className="rounded-lg bg-white p-3"><p className="text-slate-500">Current Visa Status</p><p className="font-medium text-slate-900">{reviewValue(form.personalDetails.currentVisaStatus)}</p></div>
+                      {form.personalDetails.currentVisaStatus === 'Other' && (
+                        <div className="rounded-lg bg-white p-3"><p className="text-slate-500">Visa Status Details</p><p className="font-medium text-slate-900">{reviewValue(form.personalDetails.currentVisaStatusDetails)}</p></div>
+                      )}
+                    </>
                   )}
                                   </div>
               </Card>
@@ -1855,7 +2158,7 @@ By signing below, you accept full responsibility for the authenticity of the det
           <p className="font-semibold text-slate-900">Post Initial Evaluation</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {/* <li>USD 500 (non-refundable)</li> */}
-            <li>First installment payment is USD 3,100 (includes bank fees), refundable minus USD 200 only if not selected post-interview or in valid visa rejection scenarios per agreement.</li>
+            <li>First installment payment is USD 3,100 (includes bank fees), refundable minus USD 200 only if not selected post-interview or invalid visa rejections per agreement.</li>
             <li>USD 3,100 payable upon successful selection</li>
           </ul>
           {/* explanatory note moved above, under Initial Evaluation Fee */}
@@ -1882,11 +2185,13 @@ By signing below, you accept full responsibility for the authenticity of the det
         title="Digital Acknowledgement"
         description={acknowledgementText}
         loading={loading}
+        confirmDisabled={isCapturingLocation || !capturedLocation || Boolean(locationCaptureError)}
         metaFields={{
           fullName: fullName || 'Not available',
           dateTime: signedDateTime,
-          location: 'Auto-captured',
+          location: capturedLocation || (isCapturingLocation ? 'Resolving place name...' : 'Location not captured'),
         }}
+        statusMessage={locationCaptureError || (isCapturingLocation ? 'Allow location access so the signature can be completed.' : '')}
         onConfirm={(sig) => {
           setSignature(sig);
           submitProfile(sig);

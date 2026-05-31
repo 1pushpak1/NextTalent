@@ -225,13 +225,13 @@ export default function EligibilityCheckPage() {
                 <div className="h-80">
                   <img
                     className="h-full w-full object-cover"
-                    src="/europe.jpg"
+                    src="/europe.png"
                     alt="Europe"
                   />
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-[#002147]/80 via-transparent to-transparent" />
                 <div className="absolute bottom-6 left-6 right-6 text-white">
-                  <p className="text-xs uppercase tracking-widest text-[#f4dfb2]">Currently Serving</p>
+                  <p className="text-xs uppercase tracking-widest text-[#f4dfb2]">Currently Serviciing</p>
                   <h2 className="nst-display text-3xl font-bold">Europe</h2>
                   <p className="mt-1 text-sm text-[#f4dfb2]">Germany, Switzerland, Austria, and Poland</p>
                 </div>
@@ -429,8 +429,7 @@ export default function EligibilityCheckPage() {
             <div className="w-full max-w-md rounded-xl border border-[rgba(200,169,107,0.32)] bg-[#071225] p-6 text-white shadow-2xl">
               <h3 className="nst-display text-2xl font-semibold">{inactiveCorridor}</h3>
               <p className="mt-3 text-sm leading-6 text-[#d1d2d7]">
-                This corridor is not currently active. Please check back later.
-              </p>
+                Opening soon. Please check back later.              </p>
               <div className="mt-6 flex justify-end">
                 <Button
                   className="border-[#c8a96b] bg-[#c8a96b] text-black hover:bg-[#d4b87e]"

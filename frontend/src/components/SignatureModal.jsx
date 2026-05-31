@@ -8,9 +8,11 @@ export default function SignatureModal({
   onClose,
   onConfirm,
   loading = false,
+  confirmDisabled = false,
   title = 'Sign Document',
   description,
   metaFields = null,
+  statusMessage = '',
 }) {
   const canvasRef = useRef(null);
   const isDrawingRef = useRef(false);
@@ -122,6 +124,12 @@ export default function SignatureModal({
         </div>
       )}
 
+      {statusMessage && (
+        <p className="mb-3 rounded-xl border border-[#d4af37]/18 bg-[rgba(212,175,55,0.08)] px-3 py-2 text-sm text-[#f7e7ba]">
+          {statusMessage}
+        </p>
+      )}
+
       <div className="mb-3 flex gap-2">
         <Button
           type="button"
@@ -159,7 +167,7 @@ export default function SignatureModal({
             Clear
           </Button>
         )}
-        <Button type="button" onClick={submit} disabled={loading}>
+        <Button type="button" onClick={submit} disabled={loading || confirmDisabled}>
           {loading ? 'Continuing....' : 'Sign & Continue'}
         </Button>
       </div>

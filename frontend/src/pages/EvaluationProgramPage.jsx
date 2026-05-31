@@ -148,14 +148,14 @@ export default function EvaluationProgramPage() {
           <div className="mx-auto w-full max-w-[1180px] px-6 md:px-10">
             <div className="nst-card rounded-xl border border-[rgba(200,169,107,0.22)] p-8">
               <h3 className="mb-4 nst-display text-2xl font-semibold text-white">Country-specific Eligibility Criteria</h3>
-              <p className="mb-6 text-base leading-8 text-[#d1d2d7]">Below are eligibility factors for select countries.</p>
+              <p className="mb-6 text-base leading-8 text-[#d1d2d7]">Minimum Eligibility</p>
 
               <div className="mt-6 grid gap-6 sm:grid-cols-2">
                 <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5">
                   <h4 className="text-lg font-semibold text-white">Germany</h4>
                   <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe, Outside Europe</li>
-                    <li><strong>Language requirement:</strong> German proficiency</li>
+                    <li><strong>Language requirement:</strong>  B2 Certified or above in German</li>
                   </ul>
                 </div>
 
@@ -179,7 +179,7 @@ export default function EvaluationProgramPage() {
                   <h4 className="text-lg font-semibold text-white">Poland</h4>
                   <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe</li>
-                    <li><strong>Language requirement:</strong> Professional level in English </li>
+                    <li><strong>Language requirement:</strong> Certified level of English; Certified German language proficiency is a plus </li>
                   </ul>
                 </div>
               </div>
@@ -201,13 +201,15 @@ export default function EvaluationProgramPage() {
             {/* <p className="mb-10 max-w-2xl text-base leading-8 text-[#d1d2d7]">
               This helps determine if you qualify to enter the evaluation stage.
             </p> */}
-            <Link
-              to="/eligibility-check"
-              className="inline-flex items-center gap-2 rounded-lg border border-[#c8a96b] bg-[#c8a96b] px-8 py-4 text-sm font-semibold text-black transition hover:bg-[#d4b87e]"
-            >
-              Check Your Eligibility
-              <span className="material-symbols-outlined text-base">arrow_forward</span>
-            </Link>
+            <div className="flex justify-center">
+              <Link
+                to="/eligibility-check"
+                className="inline-flex items-center gap-2 rounded-lg border border-[#c8a96b] bg-[#c8a96b] px-8 py-4 text-sm font-semibold text-black transition hover:bg-[#d4b87e]"
+              >
+                Check Your Eligibility
+                <span className="material-symbols-outlined text-base">arrow_forward</span>
+              </Link>
+            </div>
           </div>
         </section>
       </main>

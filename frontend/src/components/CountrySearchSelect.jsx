@@ -41,7 +41,7 @@ export default function CountrySearchSelect({
   };
 
   return (
-    <label className="block" ref={wrapperRef}>
+    <div className="block" ref={wrapperRef}>
       {label && (
         <span className="mb-1.5 block text-sm font-medium text-[#d3d3d8]">
           {label}
@@ -69,6 +69,7 @@ export default function CountrySearchSelect({
                   key={option}
                   type="button"
                   className="block w-full px-3 py-2 text-left text-sm text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.14)]"
+                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectOption(option)}
                 >
                   {option}
@@ -81,6 +82,6 @@ export default function CountrySearchSelect({
         )}
       </div>
       {error && <span className="mt-1 block text-xs text-rose-600">{error}</span>}
-    </label>
+    </div>
   );
 }

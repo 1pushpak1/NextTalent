@@ -174,25 +174,38 @@ const finalizeSubmission = async ({ req, profile, body, userId, isNewProfile }) 
   // Send confirmation to candidate
   const applicationConfirmationText = `Dear ${candidateDisplayName},
 
-Your profile has been successfully submitted to NextStep Talent for evaluation.
+Thank you for submitting your profile to NextStep Talent.
 
-Our evaluation team will review your submitted profile, qualifications, experience, certifications, and language skills.
+We confirm that your application has been successfully received and is currently under review by our internal assessment team.
 
-Please note:
-- Profile submission does not guarantee approval.
-- Only approved candidates will receive account creation invitations.
-- You will be notified via email once your profile has been reviewed.
+What happens next:
 
-Thank you for your interest in NextStep Talent.
+Your profile will be evaluated for eligibility and role alignment
+If shortlisted, you will receive an email invitation to create your secure candidate login
+You will then be guided through the next steps of the process
 
-Regards,  
+At this stage, no further action is required from your side.
+
+If our team requires any clarification or additional information, we will contact you directly.
+
+Support & Communication:
+
+If you need to inquire about your application status (if not heard from us beyond 2 weeks), you may contact us at:
+
+contact@nextsteptalent.net
+
+Please include your full name and registered email address in your message for faster response.
+
+We appreciate your interest in NextStep Talent and will update you as your application progresses.
+
+Regards,
 NextStep Talent Team
 
-This is an automated email. Please do not reply to this message.`;
+This is an automated email. Please do not reply to this email.`;
   
   await sendEmail({
     to: recipientEmail,
-    subject: 'NextStep Talent – Profile Submitted for Evaluation',
+    subject: 'NextStep Talent – Profile Received for Review',
     text: applicationConfirmationText,
     html: applicationConfirmationText.replaceAll('\n', '<br/>'),
     fromEmail: 'noreply@nextsteptalent.net',

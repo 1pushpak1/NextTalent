@@ -1,4 +1,36 @@
+const isOptionGroup = (option) => Boolean(option && typeof option === 'object' && Array.isArray(option.options));
+
 export default function Select({ label, options = [], error, required = false, ...props }) {
+  const normalizedOptions = options.map((option) => {
+    if (typeof option === 'string') {
+      return { type: 'option', value: option, label: option };
+    }
+
+    if (isOptionGroup(option)) {
+      return {
+        type: 'group',
+        label: option.label,
+        options: option.options.map((groupOption) =>
+          typeof groupOption === 'string'
+            ? { value: groupOption, label: groupOption }
+            : { value: groupOption.value, label: groupOption.label ?? groupOption.value },
+        ),
+      };
+    }
+
+    return {
+      type: 'option',
+      value: option.value,
+      label: option.label ?? option.value,
+    };
+  });
+  const currentValue = typeof props.value === 'string' ? props.value : '';
+  const hasCurrentValue = !currentValue || normalizedOptions.some((option) =>
+    option.type === 'group'
+      ? option.options.some((groupOption) => groupOption.value === currentValue)
+      : option.value === currentValue,
+  );
+
   return (
     <label className="block">
       {label && (
@@ -13,11 +45,26 @@ export default function Select({ label, options = [], error, required = false, .
         {...props}
       >
         <option value="" className="text-[#9ca3af]">Select</option>
-        {options.map((option) => (
-          <option key={option} value={option} className="text-black">
-            {option}
+        {!hasCurrentValue && currentValue && (
+          <option value={currentValue} disabled className="text-black">
+            {currentValue}
           </option>
-        ))}
+        )}
+        {normalizedOptions.map((option) =>
+          option.type === 'group' ? (
+            <optgroup key={option.label} label={option.label}>
+              {option.options.map((groupOption) => (
+                <option key={groupOption.value} value={groupOption.value} className="text-black">
+                  {groupOption.label}
+                </option>
+              ))}
+            </optgroup>
+          ) : (
+            <option key={option.value} value={option.value} className="text-black">
+              {option.label}
+            </option>
+          ),
+        )}
       </select>
       {error && <span className="mt-1 block text-xs text-rose-600">{error}</span>}
     </label>

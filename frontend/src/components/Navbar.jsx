@@ -212,9 +212,6 @@ export default function Navbar({ navigationLinks = defaultLinks }) {
                 {item.label}
               </Link>
             ))}
-            <Link className={navLinkClass} to="/login" onClick={() => setMobileOpen(false)}>
-              Login
-            </Link>
             <Link to="/eligibility-check" className={isHome || !isAdminRoute ? 'nst-outline-button mt-2 text-center' : 'nst-inline-cta mt-2 text-center'}>
               Check Eligibility
             </Link>
