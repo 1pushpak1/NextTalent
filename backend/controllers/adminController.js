@@ -1,4 +1,5 @@
 const fs = require('fs');
+const crypto = require('crypto');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Document = require('../models/Document');
@@ -1067,6 +1068,10 @@ const updateCandidateProfileStatus = async (req, res) => {
       return res.status(400).json({ message: 'Invalid profile status' });
     }
 
+    const actorRoleNormalized = String(req.user?.adminRole || '').trim().toLowerCase();
+    const isAdmin2Actor = actorRoleNormalized === 'evaluation_admin';
+    const isAdmin3Actor = actorRoleNormalized === 'operations_admin';
+
     const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
@@ -1094,6 +1099,24 @@ const updateCandidateProfileStatus = async (req, res) => {
     if (status === 'under_review' || status === 'submitted') {
       candidate.stageStatuses.set('evaluation', 'under_review');
       candidate.status = 'profile_submitted';
+    }
+
+    if (status === 'accepted' && isAdmin2Actor) {
+      candidate.evaluationStatus = 'approved';
+      candidate.status = 'evaluation_approved';
+      candidate.admin2EvaluationApproved = true;
+      candidate.admin2EvaluationApprovedAt = new Date();
+      candidate.admin2EvaluationApprovedBy = req.user?.email || '';
+    }
+
+    if (status === 'accepted' && isAdmin3Actor) {
+      candidate.evaluationStatus = 'approved';
+      candidate.operationsStatus = 'approved';
+      candidate.status = 'fully_approved';
+      candidate.accountStatus = 'invited';
+      candidate.admin3EvaluationApproved = true;
+      candidate.admin3EvaluationApprovedAt = new Date();
+      candidate.admin3EvaluationApprovedBy = req.user?.email || '';
     }
 
     let initialAssessmentMailSent = false;
@@ -1126,35 +1149,71 @@ const updateCandidateProfileStatus = async (req, res) => {
     }
 
     if (status === 'accepted' && isAdmin3Actor) {
+      const frontendBaseUrl = String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+      const candidateEmail = String(candidate.email || '').toLowerCase().trim();
+      let inviteToken = '';
+      if (candidate.accountInviteToken && candidate.accountInviteExpiresAt && candidate.accountInviteExpiresAt > new Date()) {
+        inviteToken = candidate.accountInviteToken;
+      } else {
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        inviteToken = rawToken;
+        candidate.accountInviteToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+        candidate.accountInviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        candidate.accountCreationInviteSent = true;
+        candidate.accountCreationInviteSentAt = new Date();
+        await candidate.save();
+      }
+      const signupUrl = `${frontendBaseUrl}/signup?invite=1&email=${encodeURIComponent(candidateEmail)}&token=${encodeURIComponent(inviteToken)}&next=${encodeURIComponent('/candidate-dashboard')}`;
+      const loginUrl = `${frontendBaseUrl}/login?next=${encodeURIComponent('/candidate-dashboard')}`;
       await sendStepUpdateEmail({
         to: candidate.email,
         candidateName: candidate.name || candidate.email?.split('@')[0],
         stepKey: 'evaluation',
-        heading: 'Profile approved',
-        message: 'Your profile has been approved. Please complete the next steps from your dashboard.',
+        subjectOverride: 'NextStep Talent - Create your candidate account',
+        heading: 'Profile approved - create your account',
+        message: `Your profile has been approved. Please create your candidate account using the same email (${candidateEmail}). Once created, you can log in and access your dashboard.`,
         status,
         details: [
           { label: 'Profile Status', value: status },
-          { label: 'Next Step', value: 'Complete the next dashboard step' },
+          { label: 'Create Account', value: signupUrl },
+          { label: 'Login', value: loginUrl },
         ],
-        cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+        cta: { label: 'Create Account', url: signupUrl },
       });
       initialAssessmentMailSent = true;
     }
 
     if (status === 'accepted' && isAdmin1Role(req.user?.adminRole) && !isAdmin2Actor && !isAdmin3Actor) {
+      const frontendBaseUrl = String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
+      const candidateEmail = String(candidate.email || '').toLowerCase().trim();
+      let inviteToken = '';
+      if (candidate.accountInviteToken && candidate.accountInviteExpiresAt && candidate.accountInviteExpiresAt > new Date()) {
+        inviteToken = candidate.accountInviteToken;
+      } else {
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        inviteToken = rawToken;
+        candidate.accountInviteToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+        candidate.accountInviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        candidate.accountCreationInviteSent = true;
+        candidate.accountCreationInviteSentAt = new Date();
+        await candidate.save();
+      }
+      const signupUrl = `${frontendBaseUrl}/signup?invite=1&email=${encodeURIComponent(candidateEmail)}&token=${encodeURIComponent(inviteToken)}&next=${encodeURIComponent('/candidate-dashboard')}`;
+      const loginUrl = `${frontendBaseUrl}/login?next=${encodeURIComponent('/candidate-dashboard')}`;
       await sendStepUpdateEmail({
         to: candidate.email,
         candidateName: candidate.name || candidate.email?.split('@')[0],
         stepKey: 'evaluation',
-        heading: 'Profile approved',
-        message: 'Your profile has been approved. Please complete the next steps from your dashboard.',
+        subjectOverride: 'NextStep Talent - Create your candidate account',
+        heading: 'Profile approved - create your account',
+        message: `Your profile has been approved. Please create your candidate account using the same email (${candidateEmail}). Once created, you can log in and access your dashboard.`,
         status,
         details: [
           { label: 'Profile Status', value: status },
-          { label: 'Next Step', value: 'Complete the next dashboard step' },
+          { label: 'Create Account', value: signupUrl },
+          { label: 'Login', value: loginUrl },
         ],
-        cta: { label: 'View Dashboard', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/candidate-dashboard` },
+        cta: { label: 'Create Account', url: signupUrl },
       });
       initialAssessmentMailSent = true;
     }

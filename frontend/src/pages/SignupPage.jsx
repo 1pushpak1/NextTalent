@@ -21,6 +21,7 @@ export default function SignupPage() {
   const [params] = useSearchParams();
   const next = params.get('next') || '/profile-submission';
   const inviteEmail = String(params.get('email') || '').toLowerCase().trim();
+  const inviteToken = String(params.get('token') || '').trim();
   const isInviteFlow = params.get('invite') === '1' || Boolean(inviteEmail);
   const { isAuthenticated, setAuth } = useAuth();
 
@@ -85,13 +86,22 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      const { data } = await api.post('/auth/signup', { ...form, email: normalizedEmail });
+      const { data } = await api.post('/auth/signup', {
+        ...form,
+        email: normalizedEmail,
+        inviteToken: inviteToken || undefined,
+      });
       setAuth(data.token, data.user);
       localStorage.setItem('nst_signup_email', normalizedEmail);
       localStorage.removeItem('nst_eligibility_email');
       await claimEligibilityIfPresent();
       navigate(`/verify-email?next=${encodeURIComponent(next)}`);
     } catch (error) {
+      if (error.response?.status === 409) {
+        alert(error.response?.data?.message || 'Account already exists. Please log in.');
+        navigate(`/login?next=${encodeURIComponent(next)}`);
+        return;
+      }
       alert(error.response?.data?.message || 'Signup failed');
     } finally {
       setLoading(false);

@@ -105,12 +105,12 @@ export default function HomePage() {
                   </p>
                 </div>
                 <div className="order-2 mt-2 flex justify-start md:justify-end">
-                  <img
-                    src="https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=1200&q=80"
-                    alt="Illustration showing a structured process and workflow"
-                    loading="lazy"
-                    className="w-[220px] md:w-[280px] rounded-lg border border-[rgba(200,169,107,0.06)] shadow-lg object-cover"
-                  />
+                    <img
+                      src="/image2.png"
+                      alt="Illustration showing a structured process and workflow"
+                      loading="lazy"
+                      className="w-[220px] md:w-[280px] rounded-lg border border-[rgba(200,169,107,0.06)] shadow-lg object-cover"
+                    />
                 </div>
               </div>
             </Reveal>

@@ -63,6 +63,9 @@ const suppressedStepStatusEmails = new Set([
   'interviews:accepted',
   'final_payment:completed',
   'testimonial:completed',
+  // Suppress immediate eligibility approval emails across the app
+  'eligibility:accepted',
+  'eligibility:approved',
 ]);
 
 const variantThemes = {

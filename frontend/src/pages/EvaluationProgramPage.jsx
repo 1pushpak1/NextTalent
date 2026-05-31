@@ -50,10 +50,10 @@ export default function EvaluationProgramPage() {
               </div>
             </Reveal>
             <Reveal>
-              <div className="relative h-[520px] overflow-hidden rounded-2xl border border-[rgba(200,169,107,0.34)] shadow-xl transition-transform duration-700 ease-out hover:scale-[1.02]">
+              <div className="relative h-[440px] overflow-hidden rounded-2xl border border-[rgba(200,169,107,0.34)] shadow-xl transition-transform duration-700 ease-out hover:scale-[1.02]">
                 <img
                   className="h-full w-full object-cover transform-gpu will-change-transform"
-                  src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=80"
+                  src="/image1.png"
                   alt="Evaluation"
                 />
                 <div className="absolute inset-0 bg-gradient-to-tr from-black/55 via-black/10 to-transparent" />

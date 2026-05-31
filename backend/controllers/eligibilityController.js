@@ -44,21 +44,8 @@ const checkEligibility = async (req, res) => {
     });
 
     if (result.isEligible) {
-      await sendStepUpdateEmail({
-        to: email,
-        candidateName: fullName || email.split('@')[0],
-        stepKey: 'eligibility',
-        subjectOverride: 'Congratulations! You are eligible to proceed',
-        heading: 'Eligibility Approved',
-        message: 'You have successfully passed the initial eligibility screening. Please proceed to complete your profile submission.',
-        status: 'accepted',
-        details: [
-          { label: 'Destination', value: payload.destination },
-          { label: 'Country', value: payload.country },
-          { label: 'Next Step', value: 'Complete your profile submission' },
-        ],
-        cta: { label: 'Submit Profile', url: `${process.env.FRONTEND_BASE_URL || 'http://localhost:5173'}/profile-submission?eligibilityId=${record._id}` },
-      });
+      // Acceptance email suppressed: do not send the post-eligibility approval email.
+      // Per request, no automated email should be sent immediately after initial eligibility.
     } else {
       await sendStepUpdateEmail({
         to: email,

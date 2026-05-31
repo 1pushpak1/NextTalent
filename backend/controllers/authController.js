@@ -77,8 +77,6 @@ This is an automated email. Please do not reply to this message.`;
     subject: verifyEmailSubject,
     text,
     html,
-    fromEmail: 'noreply@nextsteptalent.net',
-    fromName: 'NextStep Talent Team',
     templateKey: 'email_verification_code',
   });
 
@@ -102,22 +100,26 @@ const signup = async (req, res) => {
       return res.status(400).json({ message: 'Passwords do not match' });
     }
 
-    // Check if invitation token is required and valid
-    if (!inviteToken) {
-      return res.status(403).json({ message: 'Account creation requires an invitation. Please check your email for the invitation link.' });
-    }
+    let invitedUser = null;
+    if (inviteToken) {
+      // Verify invitation token when present
+      const tokenHash = crypto.createHash('sha256').update(String(inviteToken).trim()).digest('hex');
+      invitedUser = await User.findOne({
+        email: normalizedEmail,
+        accountInviteToken: tokenHash,
+        accountInviteExpiresAt: { $gt: new Date() },
+        role: 'candidate',
+      });
 
-    // Verify invitation token
-    const tokenHash = crypto.createHash('sha256').update(String(inviteToken).trim()).digest('hex');
-    const invitedUser = await User.findOne({
-      email: normalizedEmail,
-      accountInviteToken: tokenHash,
-      accountInviteExpiresAt: { $gt: new Date() },
-      role: 'candidate',
-    });
-
-    if (!invitedUser) {
-      return res.status(403).json({ message: 'Invalid or expired invitation token. Please contact support.' });
+      if (!invitedUser) {
+        return res.status(403).json({ message: 'Invalid or expired invitation token. Please contact support.' });
+      }
+    } else {
+      // Allow account creation after approvals without a token (email must match approved candidate)
+      invitedUser = await User.findOne({ email: normalizedEmail, role: 'candidate' });
+      if (!invitedUser) {
+        return res.status(403).json({ message: 'Account creation requires an invitation. Please check your email for the invitation link.' });
+      }
     }
 
     const evaluationApproved = String(invitedUser.evaluationStatus || '').toLowerCase() === 'approved' || String(invitedUser.status || '').toLowerCase() === 'evaluation_approved' || Boolean(invitedUser.admin2EvaluationApproved);
@@ -127,8 +129,14 @@ const signup = async (req, res) => {
       return res.status(403).json({ message: 'Account creation is not available until evaluation and operations approvals are complete.' });
     }
 
-    if (invitedUser.accountStatus !== 'invited' || invitedUser.status !== 'account_invited') {
-      return res.status(403).json({ message: 'This invitation has already been used or is no longer valid.' });
+    if (invitedUser.passwordHash) {
+      return res.status(409).json({ message: 'An account with this email already exists. Please log in instead.' });
+    }
+
+    if (inviteToken) {
+      if (invitedUser.accountStatus !== 'invited' || invitedUser.status !== 'account_invited') {
+        return res.status(403).json({ message: 'This invitation has already been used or is no longer valid.' });
+      }
     }
 
     // Create account

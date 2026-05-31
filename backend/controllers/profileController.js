@@ -203,16 +203,50 @@ NextStep Talent Team
 
 This is an automated email. Please do not reply to this email.`;
   
-  await sendEmail({
-    to: recipientEmail,
-    subject: 'NextStep Talent – Profile Received for Review',
-    text: applicationConfirmationText,
-    html: applicationConfirmationText.replaceAll('\n', '<br/>'),
-    fromEmail: 'noreply@nextsteptalent.net',
-    fromName: 'NextStep Talent Team',
-    templateKey: 'profile_submission_confirmation',
-    relatedCandidateId: userId,
-  });
+  try {
+    const result = await sendEmail({
+      to: recipientEmail,
+      subject: 'NextStep Talent – Profile Received for Review',
+      text: applicationConfirmationText,
+      html: applicationConfirmationText.replaceAll('\n', '<br/>'),
+      templateKey: 'profile_submission_confirmation',
+      relatedCandidateId: userId,
+    });
+    console.log('Profile submission email result for', recipientEmail, result && typeof result === 'object' ? result : String(result));
+    // If the sendEmail returned a suppressed/rejected response, create an EmailLog entry for diagnostics
+    if (result && (Array.isArray(result.rejected) && result.rejected.length) && !result.info) {
+      const EmailLog = require('../models/EmailLog');
+      try {
+        await EmailLog.create({
+          to: Array.isArray(result.rejected) && result.rejected.length ? result.rejected : [recipientEmail],
+          subject: 'NextStep Talent – Profile Received for Review',
+          templateKey: 'profile_submission_confirmation',
+          relatedCandidateId: userId,
+          status: 'suppressed',
+          errorMessage: result.warning || 'Email suppressed or delivery not attempted',
+          sentAt: null,
+        });
+      } catch (logErr) {
+        console.error('Failed to create EmailLog for suppressed profile submission email:', logErr.message || logErr);
+      }
+    }
+  } catch (err) {
+    console.error('Profile submission email failed for', recipientEmail, err && err.message ? err.message : String(err));
+    const EmailLog = require('../models/EmailLog');
+    try {
+      await EmailLog.create({
+        to: [recipientEmail],
+        subject: 'NextStep Talent – Profile Received for Review',
+        templateKey: 'profile_submission_confirmation',
+        relatedCandidateId: userId,
+        status: 'failed',
+        errorMessage: err && err.message ? err.message : String(err),
+        sentAt: null,
+      });
+    } catch (logErr) {
+      console.error('Failed to create EmailLog for failed profile submission email:', logErr.message || logErr);
+    }
+  }
 
   // Send notification to Super Admin and Evaluation Admin
   try {

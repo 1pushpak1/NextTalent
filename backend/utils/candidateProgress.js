@@ -144,13 +144,14 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
   }
 
   if (!accountCreated) {
+    const accountInvited = normalizeStatus(candidate?.accountStatus) === 'invited' || Boolean(candidate?.accountCreationInviteSent);
     return {
       ...base,
       currentStageKey: 'account',
       currentStage: stageLabels.account,
       nextAction: 'Create Account',
-      pendingFrom: 'admin',
-      recommendedAdminAction: 'Send account invitation',
+      pendingFrom: accountInvited ? 'candidate' : 'admin',
+      recommendedAdminAction: accountInvited ? 'Wait for candidate to create account' : 'Send account invitation',
     };
   }
 

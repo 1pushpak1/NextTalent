@@ -89,10 +89,16 @@ const sendTransactionalEmail = async ({
   }
 
   const { transporter, cfg } = getTransporter();
-  const effectiveFromEmail = String(fromEmail || cfg.SMTP_FROM_EMAIL || COMPANY_DETAILS.senderEmail).trim();
+  // Prefer explicit fromEmail > configured SMTP_FROM_EMAIL > SMTP_USERNAME (if it looks like an email) > fallback sender
+  const smtpUsernameIsEmail = String(cfg.SMTP_USERNAME || '').includes('@');
+  const effectiveFromEmail = String(
+    fromEmail || cfg.SMTP_FROM_EMAIL || (smtpUsernameIsEmail ? cfg.SMTP_USERNAME : COMPANY_DETAILS.senderEmail)
+  ).trim();
   const effectiveFromName = String(fromName || cfg.SMTP_FROM_NAME || COMPANY_DETAILS.senderName).trim();
 
   try {
+    // Ensure the SMTP envelope from uses the authenticated username when available to satisfy providers
+    const envelopeFrom = smtpUsernameIsEmail ? cfg.SMTP_USERNAME : effectiveFromEmail;
     const info = await transporter.sendMail({
       from: `"${effectiveFromName}" <${effectiveFromEmail}>`,
       to: toList,
@@ -102,6 +108,10 @@ const sendTransactionalEmail = async ({
       text,
       html,
       attachments,
+      envelope: {
+        from: envelopeFrom,
+        to: toList,
+      },
     });
 
     let log = null;
