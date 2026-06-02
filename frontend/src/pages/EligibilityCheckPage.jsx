@@ -80,9 +80,8 @@ export default function EligibilityCheckPage() {
       answers.currentLocation,
       answers.willingToRelocate,
       answers.comfortableWithFees,
+      answers.qualification,
     ];
-
-    if (country === 'Germany') baseRequired.push(answers.qualification);
     return baseRequired.every((value) => Boolean(value && String(value).trim()));
   }, [answers, country]);
 
@@ -106,7 +105,7 @@ export default function EligibilityCheckPage() {
       destination,
       country,
       hasITBackground: answers.hasITBackground === 'Yes',
-      qualification: country === 'Germany' ? answers.qualification : '',
+      qualification: answers.qualification,
       languageAnswer: answers.languageAnswer,
       currentLocation: answers.currentLocation,
       ...(answers.willingToRelocate ? { willingToRelocate: answers.willingToRelocate === 'Yes' } : {}),
@@ -295,15 +294,13 @@ export default function EligibilityCheckPage() {
               <h2 className="mb-4 nst-display text-2xl font-semibold text-white">Quick Eligibility Questions</h2>
               <div className="grid gap-3 md:grid-cols-2">
                 <Select required label="Do you have an IT background? (Software, Data, Cloud, AI, Cybersecurity, etc.)" options={['Yes', 'No']} value={answers.hasITBackground} onChange={(e) => setAnswers({ ...answers, hasITBackground: e.target.value })} />
-                {country === 'Germany' && (
-                  <Select
-                    required
-                    label="Highest Qualification"
-                    options={['Diploma with one year practical training', 'Bachelor’s', 'Master’s']}
-                    value={answers.qualification}
-                    onChange={(e) => setAnswers({ ...answers, qualification: e.target.value })}
-                  />
-                )}
+                <Select
+                  required
+                  label="Highest Qualification*"
+                  options={['Diploma with one year practical training', 'Bachelor’s', 'Master’s']}
+                  value={answers.qualification}
+                  onChange={(e) => setAnswers({ ...answers, qualification: e.target.value })}
+                />
                 <Select
                   required
                   label={
@@ -317,14 +314,7 @@ export default function EligibilityCheckPage() {
                   value={answers.languageAnswer}
                   onChange={(e) => setAnswers({ ...answers, languageAnswer: e.target.value })}
                 />
-                {country === 'Poland' && (
-                  <Select
-                    label="Do you know German?"
-                    options={['Yes', 'No']}
-                    value={answers.knowsGerman}
-                    onChange={(e) => setAnswers({ ...answers, knowsGerman: e.target.value })}
-                  />
-                )}
+                {/* Removed Poland-specific German question per requirements */}
                 <Select required label="Current location" options={['Europe', 'Outside Europe']} value={answers.currentLocation} onChange={(e) => setAnswers({ ...answers, currentLocation: e.target.value })} />
                 <Select required label="Are you willing to relocate to the selected country?" options={['Yes', 'No']} value={answers.willingToRelocate} onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })} />
                 <Select required label="Are you comfortable with program/service fees for processing?" options={['Yes', 'No']} value={answers.comfortableWithFees} onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })} />
@@ -403,9 +393,48 @@ export default function EligibilityCheckPage() {
                     <span className="material-symbols-outlined text-3xl">cancel</span>
                   </div>
                   <h2 className="mb-3 nst-display text-3xl font-bold text-[#002147]">Not Eligible Right Now</h2>
-                  <p className="mx-auto mb-6 max-w-2xl text-[#44474e]">
-                    {result.rejectionReason || 'Based on your responses, you do not meet the current eligibility criteria for this program.'}
-                  </p>
+                  <div className="mx-auto mb-6 max-w-2xl text-[#44474e]">
+                    {Array.isArray(result.rejectionReasons) && result.rejectionReasons.length > 0 ? (
+                      <ul className="ml-6 text-left list-disc">
+                        {result.rejectionReasons.map((r, i) => (
+                          <li key={i}>{r}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      // derive reasons from the user's answers as fallback
+                      (() => {
+                        const reasons = [];
+                        if (answers.hasITBackground !== 'Yes') reasons.push('Must have an IT background.');
+
+                        if (country === 'Poland') {
+                          if (answers.languageAnswer !== 'Yes') reasons.push('Must demonstrate professional-level English proficiency.');
+                        } else if (country === 'Switzerland') {
+                          if (answers.languageAnswer === 'No' || !answers.languageAnswer) reasons.push('Must have certified B2 or above in German, French, or Italian.');
+                        } else {
+                          if (answers.languageAnswer !== 'Yes') reasons.push('Must have certified German B2 or above.');
+                        }
+
+
+                        if (answers.willingToRelocate !== 'Yes') reasons.push('Must be willing to relocate to the selected country.');
+
+                        if (answers.comfortableWithFees !== 'Yes') reasons.push('Must be comfortable with program/service fees for processing.');
+
+                        if (answers.currentLocation !== 'Europe') reasons.push('Must currently be located in Europe.');
+
+                        if (reasons.length > 0) {
+                          return (
+                            <ul className="ml-6 text-left list-disc">
+                              {reasons.map((r, i) => (
+                                <li key={i}>{r}</li>
+                              ))}
+                            </ul>
+                          );
+                        }
+
+                        return <p>{result.rejectionReason || 'Based on your responses, you do not meet the current eligibility criteria for this program.'}</p>;
+                      })()
+                    )}
+                  </div>
                   <div className="flex justify-center gap-3">
                     <Button
                       variant="secondary"

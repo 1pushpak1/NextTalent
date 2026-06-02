@@ -19,10 +19,10 @@ export default function EvaluationProgramPage() {
   ];
 
   const importantNotes = [
-    'This is an evaluation process, not a job application',
-    'This does not guarantee employment or placement',
-    'Progression is based on eligibility and external requirements',
-    'Only shortlisted candidates move forward to the next stage',
+    'Evaluation only — this is not a job application',
+    'No guarantee of employment or placement',
+    'Progression depends on meeting eligibility and external requirements',
+    'Only shortlisted candidates will be invited to the next stage',
   ];
 
   const suitableFor = [
@@ -50,7 +50,7 @@ export default function EvaluationProgramPage() {
               </div>
             </Reveal>
             <Reveal>
-              <div className="relative h-[440px] overflow-hidden rounded-2xl border border-[rgba(200,169,107,0.34)] shadow-xl transition-transform duration-700 ease-out hover:scale-[1.02]">
+              <div className="relative w-full max-w-[320px] md:max-w-[440px] mx-auto overflow-hidden rounded-2xl border border-[rgba(200,169,107,0.34)] shadow-xl transition-transform duration-700 ease-out hover:scale-[1.02] aspect-square">
                 <img
                   className="h-full w-full object-cover transform-gpu will-change-transform"
                   src="/image1.png"
