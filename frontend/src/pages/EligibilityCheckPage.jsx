@@ -9,14 +9,26 @@ import Select from '../components/Select';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 
+const EUROPE_DESTINATION = 'Europe Active';
+const GLOBAL_DESTINATION = 'Global Opportunities Active';
 const destinations = [
-  'Europe Active',
+  EUROPE_DESTINATION,
+  GLOBAL_DESTINATION,
   'United States Coming Soon',
   'United Kingdom Upcoming',
   'Spain Upcoming',
   'Italy Upcoming',
 ];
 const countries = ['Germany', 'Switzerland', 'Austria', 'Poland'];
+const defaultAnswers = {
+  hasITBackground: '',
+  qualification: '',
+  languageAnswer: '',
+  knowsGerman: '',
+  currentLocation: '',
+  willingToRelocate: '',
+  comfortableWithFees: '',
+};
 const eligibilityBurstPieces = [
   { left: '16%', delay: '0ms', duration: '2350ms', rotate: '-18deg', color: '#f59e0b' },
   { left: '24%', delay: '120ms', duration: '2550ms', rotate: '22deg', color: '#ef4444' },
@@ -38,18 +50,11 @@ export default function EligibilityCheckPage() {
   const [inactiveCorridor, setInactiveCorridor] = useState('');
   const [showValidationError, setShowValidationError] = useState(false);
   const [checkingEligibility, setCheckingEligibility] = useState(false);
-  const [answers, setAnswers] = useState({
-    hasITBackground: '',
-    qualification: '',
-    languageAnswer: '',
-    knowsGerman: '',
-    currentLocation: '',
-    willingToRelocate: '',
-    comfortableWithFees: '',
-  });
+  const [answers, setAnswers] = useState(() => ({ ...defaultAnswers }));
   const [result, setResult] = useState(null);
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
+  const isGlobalFlow = destination === GLOBAL_DESTINATION;
 
   const languageOptions = useMemo(() => {
     if (country === 'Switzerland') {
@@ -65,8 +70,12 @@ export default function EligibilityCheckPage() {
 
   const handleDestination = (value) => {
     if (!value) return;
-    if (value === 'Europe Active') {
+    if (value === EUROPE_DESTINATION || value === GLOBAL_DESTINATION) {
       setDestination(value);
+      setCountry('');
+      setAnswers({ ...defaultAnswers });
+      setResult(null);
+      setShowValidationError(false);
       setStep(3);
       return;
     }
@@ -74,7 +83,14 @@ export default function EligibilityCheckPage() {
   };
 
   const areAllRequiredAnswersFilled = useMemo(() => {
-    const baseRequired = [
+    const hasValue = (value) => Boolean(value && String(value).trim());
+    const globalRequired = [
+      answers.hasITBackground,
+      answers.languageAnswer,
+      answers.willingToRelocate,
+      answers.comfortableWithFees,
+    ];
+    const europeRequired = [
       answers.hasITBackground,
       answers.languageAnswer,
       answers.currentLocation,
@@ -82,8 +98,8 @@ export default function EligibilityCheckPage() {
       answers.comfortableWithFees,
       answers.qualification,
     ];
-    return baseRequired.every((value) => Boolean(value && String(value).trim()));
-  }, [answers, country]);
+    return (isGlobalFlow ? globalRequired : europeRequired).every(hasValue);
+  }, [answers, isGlobalFlow]);
 
   const submitEligibility = async () => {
     if (checkingEligibility) return;
@@ -95,7 +111,7 @@ export default function EligibilityCheckPage() {
         isEligible: false,
         rejectionReason: 'You must be willing to relocate and accept program/service fees to be eligible.',
       });
-      setStep(5);
+      setStep(isGlobalFlow ? 4 : 5);
       setCheckingEligibility(false);
       return;
     }
@@ -103,7 +119,7 @@ export default function EligibilityCheckPage() {
     const payload = {
       email: normalizedEmail,
       destination,
-      country,
+      country: isGlobalFlow ? String(answers.currentLocation || 'Global Opportunities').trim() : country,
       hasITBackground: answers.hasITBackground === 'Yes',
       qualification: answers.qualification,
       languageAnswer: answers.languageAnswer,
@@ -115,7 +131,7 @@ export default function EligibilityCheckPage() {
     try {
       const { data } = await api.post('/eligibility/check', payload);
       setResult(data);
-      setStep(5);
+      setStep(isGlobalFlow ? 4 : 5);
       if (data.isEligible) {
         localStorage.setItem('nst_eligible', 'true');
         localStorage.setItem('nst_eligibility_id', data._id);
@@ -126,13 +142,15 @@ export default function EligibilityCheckPage() {
         isEligible: false,
         rejectionReason: error.response?.data?.message || 'Unable to evaluate eligibility right now.',
       });
-      setStep(5);
+      setStep(isGlobalFlow ? 4 : 5);
     } finally {
       setCheckingEligibility(false);
     }
   };
 
-  const progressSteps = ['Email', 'Destination Selection', 'Country Selection', 'Quick Questions', 'Result'];
+  const progressSteps = isGlobalFlow
+    ? ['Email', 'Destination Selection', 'Quick Questions', 'Result']
+    : ['Email', 'Destination Selection', 'Country Selection', 'Quick Questions', 'Result'];
   const progress = (step / progressSteps.length) * 100;
 
   return (
@@ -216,7 +234,7 @@ export default function EligibilityCheckPage() {
             <div className="grid grid-cols-1 gap-6">
               <button
                 onClick={() => {
-                  setDestination('Europe Active');
+                  setDestination(EUROPE_DESTINATION);
                   setStep(3);
                 }}
                 className="relative overflow-hidden rounded-xl border border-[rgba(200,169,107,0.28)] bg-[rgba(255,255,255,0.04)] text-left shadow-sm transition hover:shadow-[0_0_26px_rgba(200,169,107,0.18)] w-full"
@@ -236,11 +254,45 @@ export default function EligibilityCheckPage() {
                 </div>
               </button>
 
+              <button
+                onClick={() => {
+                  setDestination(GLOBAL_DESTINATION);
+                  setStep(3);
+                }}
+                className="relative overflow-hidden rounded-xl border border-[rgba(200,169,107,0.28)] bg-[rgba(255,255,255,0.04)] text-left shadow-sm transition hover:shadow-[0_0_26px_rgba(200,169,107,0.18)] w-full"
+              >
+                <div className="relative overflow-hidden rounded-xl p-6">
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#001428] via-[#08253f] to-[#0f3559]" />
+                  <div className="absolute inset-0 opacity-35">
+                    <div className="absolute -left-8 top-0 h-32 w-32 rounded-full bg-[#c8a96b]/25 blur-3xl" />
+                  </div>
+                  <div className="relative flex items-center justify-between gap-6 text-white">
+                    <div className="max-w-2xl">
+                      <p className="text-xs uppercase tracking-widest text-[#f4dfb2]">Global Reach</p>
+                      <h2 className="nst-display text-3xl font-bold">Global Opportunities</h2>
+                      <p className="mt-1 text-sm text-[#dbe8f7]">
+                        International roles beyond Europe for candidates with strong IT and English readiness.
+                      </p>
+                    </div>
+                    <div className="pointer-events-none relative flex h-24 w-24 flex-none items-center justify-center sm:h-28 sm:w-28">
+                      <div className="absolute inset-0 rounded-full border border-[#8fc9ff]/35 bg-[#8fc9ff]/10 backdrop-blur-sm" />
+                      <div className="absolute inset-3 rounded-full border border-[#c8a96b]/25" />
+                      <svg viewBox="0 0 24 24" aria-hidden="true" className="relative h-14 w-14 text-[#dbe8f7]/80 sm:h-16 sm:w-16">
+                        <path
+                          fill="currentColor"
+                          d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm7.75 9h-2.12a16.7 16.7 0 0 0-1.3-5.08A8.02 8.02 0 0 1 19.75 11ZM12 4.02c.7.94 1.34 2.13 1.82 3.55H10.2c.48-1.42 1.12-2.61 1.8-3.55ZM4.25 13h2.12c.2 1.77.7 3.52 1.3 5.08A8.02 8.02 0 0 1 4.25 13Zm2.12-2H4.25a8.02 8.02 0 0 1 3.42-5.08A16.7 16.7 0 0 0 6.37 11Zm5.63 7.98c-.7-.94-1.34-2.13-1.82-3.55h3.64c-.48 1.42-1.12 2.61-1.82 3.55ZM9.7 13h4.6c-.18 1.44-.6 2.84-1.18 4.05h-2.24c-.58-1.21-1-2.61-1.18-4.05Zm4.92-2H9.38c.18-1.44.6-2.84 1.18-4.05h2.88c.58 1.21 1 2.61 1.18 4.05Zm1.08 7.08c.6-1.56 1.1-3.31 1.3-5.08h2.12a8.02 8.02 0 0 1-3.42 5.08Zm1.3-7.08c-.2-1.77-.7-3.52-1.3-5.08A8.02 8.02 0 0 1 19.75 11Z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </button>
+
               <div>
                 <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-[#c8a96b]">Upcoming</h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {destinations
-                    .filter((d) => d !== 'Europe Active')
+                    .filter((d) => d !== EUROPE_DESTINATION && d !== GLOBAL_DESTINATION)
                     .map((item) => (
                       <button
                         key={item}
@@ -255,7 +307,7 @@ export default function EligibilityCheckPage() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 3 && !isGlobalFlow && (
             <Card className="nst-card rounded-xl p-6">
               <h2 className="mb-4 nst-display text-2xl font-semibold text-white">Choose your preferred country</h2>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -289,7 +341,83 @@ export default function EligibilityCheckPage() {
             </Card>
           )}
 
-          {step === 4 && (
+          {step === 3 && isGlobalFlow && (
+            <Card className="nst-card rounded-xl p-6">
+              <h2 className="mb-4 nst-display text-2xl font-semibold text-white">Quick Eligibility Questions</h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Select
+                  required
+                  label="Do you have an IT background? (Software, Data, Cloud, AI, Cybersecurity, etc.)"
+                  options={['Yes', 'No']}
+                  value={answers.hasITBackground}
+                  onChange={(e) => setAnswers({ ...answers, hasITBackground: e.target.value })}
+                />
+                <Select
+                  label="Highest Qualification"
+                  options={['Diploma with one year practical training', 'Bachelor’s', 'Master’s']}
+                  value={answers.qualification}
+                  onChange={(e) => setAnswers({ ...answers, qualification: e.target.value })}
+                />
+                <Select
+                  required
+                  label="Do you have certified / professional English proficiency"
+                  options={['Yes', 'No']}
+                  value={answers.languageAnswer}
+                  onChange={(e) => setAnswers({ ...answers, languageAnswer: e.target.value })}
+                />
+                <Input
+                  label="Current location"
+                  value={answers.currentLocation}
+                  onChange={(e) => setAnswers({ ...answers, currentLocation: e.target.value })}
+                  placeholder="Type your country"
+                />
+                <Select
+                  required
+                  label="Are you willing to relocate to another country, if required"
+                  options={['Yes', 'No']}
+                  value={answers.willingToRelocate}
+                  onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })}
+                />
+                <Select
+                  required
+                  label="Are you comfortable with program/service fees for processing?"
+                  options={['Yes', 'No']}
+                  value={answers.comfortableWithFees}
+                  onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })}
+                />
+              </div>
+              <div className="mt-6 flex gap-2">
+                <Button
+                  variant="secondary"
+                  className="bg-transparent text-white hover:bg-[rgba(255,255,255,0.06)]"
+                  onClick={() => setStep(2)}
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (checkingEligibility) return;
+                    if (!areAllRequiredAnswersFilled) {
+                      setShowValidationError(true);
+                      return;
+                    }
+                    setShowValidationError(false);
+                    submitEligibility();
+                  }}
+                  disabled={!areAllRequiredAnswersFilled || checkingEligibility}
+                >
+                  {checkingEligibility ? 'Checking...' : 'Check Eligibility'}
+                </Button>
+              </div>
+              {showValidationError && (
+                <p className="mt-4 text-sm text-[#f4b3b3]">
+                  Please answer all required questions before checking eligibility.
+                </p>
+              )}
+            </Card>
+          )}
+
+          {step === 4 && !isGlobalFlow && (
             <Card className="nst-card rounded-xl p-6">
               <h2 className="mb-4 nst-display text-2xl font-semibold text-white">Quick Eligibility Questions</h2>
               <div className="grid gap-3 md:grid-cols-2">
@@ -350,7 +478,7 @@ export default function EligibilityCheckPage() {
             </Card>
           )}
 
-          {step === 5 && result && (
+          {step === (isGlobalFlow ? 4 : 5) && result && (
             <Card className="nst-card relative overflow-hidden rounded-xl p-8 text-center">
               {result.isEligible ? (
                 <>
@@ -406,7 +534,11 @@ export default function EligibilityCheckPage() {
                         const reasons = [];
                         if (answers.hasITBackground !== 'Yes') reasons.push('Must have an IT background.');
 
-                        if (country === 'Poland') {
+                        if (isGlobalFlow) {
+                          if (answers.languageAnswer !== 'Yes') reasons.push('Must have certified / professional English proficiency.');
+                          if (answers.willingToRelocate !== 'Yes') reasons.push('Must be willing to relocate to another country, if required.');
+                          if (answers.comfortableWithFees !== 'Yes') reasons.push('Must be comfortable with program/service fees for processing.');
+                        } else if (country === 'Poland') {
                           if (answers.languageAnswer !== 'Yes') reasons.push('Must demonstrate professional-level English proficiency.');
                         } else if (country === 'Switzerland') {
                           if (answers.languageAnswer === 'No' || !answers.languageAnswer) reasons.push('Must have certified B2 or above in German, French, or Italian.');
@@ -415,11 +547,11 @@ export default function EligibilityCheckPage() {
                         }
 
 
-                        if (answers.willingToRelocate !== 'Yes') reasons.push('Must be willing to relocate to the selected country.');
+                        if (!isGlobalFlow && answers.willingToRelocate !== 'Yes') reasons.push('Must be willing to relocate to the selected country.');
 
-                        if (answers.comfortableWithFees !== 'Yes') reasons.push('Must be comfortable with program/service fees for processing.');
+                        if (!isGlobalFlow && answers.comfortableWithFees !== 'Yes') reasons.push('Must be comfortable with program/service fees for processing.');
 
-                        if (answers.currentLocation !== 'Europe') reasons.push('Must currently be located in Europe.');
+                        if (!isGlobalFlow && answers.currentLocation !== 'Europe') reasons.push('Must currently be located in Europe.');
 
                         if (reasons.length > 0) {
                           return (
@@ -441,7 +573,7 @@ export default function EligibilityCheckPage() {
                       className="bg-transparent text-white hover:bg-[rgba(255,255,255,0.06)]"
                       onClick={() => setStep(3)}
                     >
-                      Back to Europe Options
+                      Back to {isGlobalFlow ? 'Global Opportunities' : 'Europe Options'}
                     </Button>
                     <Link to="/"><Button>Return Home</Button></Link>
                   </div>

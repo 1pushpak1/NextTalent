@@ -104,7 +104,7 @@ export default function HomePage() {
                     We offer a structured and selective process designed to support candidates at every stage of their international career journey:
                   </p>
                 </div>
-                <div className="order-2 mt-2 flex justify-start md:justify-end">
+                <div className="order-2 mt-2 flex justify-center md:justify-end">
                     <img
                       src="/image2.png"
                       alt="Illustration showing a structured process and workflow"

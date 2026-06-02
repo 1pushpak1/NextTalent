@@ -58,6 +58,7 @@ export default function CountrySearchSelect({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
           placeholder={placeholder}
           autoComplete="off"
         />

@@ -2,6 +2,8 @@ const Eligibility = require('../models/Eligibility');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const { runEligibilityCheck } = require('../utils/eligibilityRules');
 
+const GLOBAL_DESTINATION = 'Global Opportunities Active';
+
 const checkEligibility = async (req, res) => {
   try {
     const email = String(req.body?.email || '').toLowerCase().trim();
@@ -13,7 +15,10 @@ const checkEligibility = async (req, res) => {
 
     const payload = {
       destination: String(req.body?.destination || '').trim(),
-      country: String(req.body?.country || '').trim(),
+      country:
+        String(req.body?.destination || '').trim() === GLOBAL_DESTINATION
+          ? String(req.body?.country || '').trim() || 'Global Opportunities'
+          : String(req.body?.country || '').trim(),
       hasITBackground: Boolean(req.body?.hasITBackground),
       qualification: String(req.body?.qualification || '').trim(),
       languageAnswer: String(req.body?.languageAnswer || '').trim(),

@@ -6,6 +6,8 @@ const ACCEPTED_QUALIFICATIONS = Object.freeze([
   "Master's",
 ]);
 
+const EUROPE_DESTINATION = 'Europe Active';
+const GLOBAL_DESTINATION = 'Global Opportunities Active';
 const SUPPORTED_COUNTRIES = Object.freeze(['Germany', 'Poland', 'Switzerland', 'Austria']);
 
 const pushIf = (arr, condition, message) => {
@@ -52,6 +54,15 @@ const validateAustria = ({ hasITBackground, languageAnswer, currentLocation }) =
   return failedConditions;
 };
 
+const validateGlobalOpportunities = ({ hasITBackground, languageAnswer, willingToRelocate, comfortableWithFees }) => {
+  const failedConditions = [];
+  pushIf(failedConditions, hasITBackground === true, 'IT background must be Yes');
+  pushIf(failedConditions, languageAnswer === 'Yes', 'Certified / professional English proficiency must be Yes');
+  pushIf(failedConditions, willingToRelocate === true, 'Willingness to relocate must be Yes');
+  pushIf(failedConditions, comfortableWithFees === true, 'Acceptance of program/service fees must be Yes');
+  return failedConditions;
+};
+
 const COUNTRY_VALIDATORS = Object.freeze({
   Germany: validateGermany,
   Poland: validatePoland,
@@ -66,10 +77,19 @@ const runEligibilityCheck = (payload) => {
   if (!destination) {
     return { isEligible: false, rejectionReason: 'Destination is required.', failedConditions: ['Destination is required.'] };
   }
+  if (destination === GLOBAL_DESTINATION) {
+    const failedConditions = validateGlobalOpportunities(payload);
+    return {
+      isEligible: failedConditions.length === 0,
+      rejectionReason: failedConditions.length ? failedConditions.join('. ') : '',
+      failedConditions,
+    };
+  }
+
   if (!country) {
     return { isEligible: false, rejectionReason: 'Country is required.', failedConditions: ['Country is required.'] };
   }
-  if (destination !== 'Europe Active') {
+  if (destination !== EUROPE_DESTINATION) {
     return {
       isEligible: false,
       rejectionReason: 'Selected destination is not open yet.',

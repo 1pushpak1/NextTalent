@@ -4,6 +4,7 @@ const { runEligibilityCheck } = require('../utils/eligibilityRules');
 
 const base = {
   destination: 'Europe Active',
+  country: 'Germany',
   hasITBackground: true,
   qualification: '',
   languageAnswer: '',
@@ -15,7 +16,6 @@ const base = {
 test('Germany: Yes + Bachelor + German B2 -> PASS', () => {
   const result = runEligibilityCheck({
     ...base,
-    country: 'Germany',
     qualification: 'Bachelor’s',
     languageAnswer: 'Yes',
   });
@@ -26,7 +26,6 @@ test('Germany: Yes + Bachelor + German B2 -> PASS', () => {
 test('Germany: Yes + Bachelor + No German -> FAIL', () => {
   const result = runEligibilityCheck({
     ...base,
-    country: 'Germany',
     qualification: 'Bachelor’s',
     languageAnswer: 'No',
   });
@@ -37,7 +36,6 @@ test('Germany: Yes + Bachelor + No German -> FAIL', () => {
 test('Germany: No relocation or fees -> FAIL', () => {
   const result = runEligibilityCheck({
     ...base,
-    country: 'Germany',
     qualification: 'Bachelor’s',
     languageAnswer: 'Yes',
     willingToRelocate: false,
@@ -135,4 +133,46 @@ test('Relocation and fees do not affect eligibility', () => {
 
   assert.equal(passWithNoRelocationNoFees.isEligible, false);
   assert.equal(passWithRelocationAndFees.isEligible, true);
+});
+
+test('Global Opportunities: IT + English + relocation + fees -> PASS', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    destination: 'Global Opportunities Active',
+    country: 'Canada',
+    currentLocation: 'Canada',
+    qualification: '',
+    languageAnswer: 'Yes',
+    willingToRelocate: true,
+    comfortableWithFees: true,
+  });
+
+  assert.equal(result.isEligible, true);
+  assert.deepEqual(result.failedConditions, []);
+});
+
+test('Global Opportunities: qualification and current location are optional', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    destination: 'Global Opportunities Active',
+    country: 'Global Opportunities',
+    currentLocation: '',
+    qualification: '',
+    languageAnswer: 'Yes',
+  });
+
+  assert.equal(result.isEligible, true);
+});
+
+test('Global Opportunities: country can be omitted from eligibility logic', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    destination: 'Global Opportunities Active',
+    country: '',
+    currentLocation: '',
+    qualification: '',
+    languageAnswer: 'Yes',
+  });
+
+  assert.equal(result.isEligible, true);
 });

@@ -10,7 +10,7 @@ const eligibilitySchema = new mongoose.Schema(
     hasITBackground: { type: Boolean, required: true },
     qualification: { type: String, default: '' },
     languageAnswer: { type: String, required: true },
-    currentLocation: { type: String, required: true },
+    currentLocation: { type: String, default: '' },
     willingToRelocate: { type: Boolean, default: null },
     comfortableWithFees: { type: Boolean, default: null },
     profileSubmittedAt: { type: Date, default: null },

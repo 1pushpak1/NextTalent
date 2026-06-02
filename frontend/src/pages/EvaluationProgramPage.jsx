@@ -32,6 +32,34 @@ export default function EvaluationProgramPage() {
     'Are willing to meet language or certification requirements where applicable',
   ];
 
+  const ImportantBullet = () => (
+    <span className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center text-[#c8a96b] drop-shadow-[0_0_6px_rgba(200,169,107,0.35)]">
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-none stroke-current">
+        <path
+          d="M4 12.8 11.8 5l2.9 2.9v5.1l5.3 5.3-1.4 1.4-5.3-5.3h-5.1L4 12.8Z"
+          strokeWidth="1.35"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M12 12l5.8 5.8"
+          strokeWidth="1.35"
+          strokeLinecap="round"
+        />
+        <path
+          d="M13.4 7.9 16.1 5.2"
+          strokeWidth="1.35"
+          strokeLinecap="round"
+        />
+        <path
+          d="M9.4 14.7 6.3 20"
+          strokeWidth="1.35"
+          strokeLinecap="round"
+        />
+      </svg>
+    </span>
+  );
+
   return (
     <div className="nst-shell">
       <Navbar />
@@ -121,7 +149,7 @@ export default function EvaluationProgramPage() {
               <div className="grid gap-3 md:grid-cols-2">
                 {importantNotes.map((item) => (
                   <div key={item} className="flex items-start gap-3 rounded-lg bg-[rgba(255,255,255,0.02)] p-4">
-                    <span className="mt-1 inline-flex h-2.5 w-2.5 flex-none rounded-full bg-[#d7bf92] shadow-[0_0_10px_rgba(215,191,146,0.6)]" />
+                    <ImportantBullet />
                     <p className="text-sm leading-6 text-[#d1d2d7]">{item}</p>
                   </div>
                 ))}
@@ -152,7 +180,7 @@ export default function EvaluationProgramPage() {
               <h3 className="mb-4 nst-display text-2xl font-semibold text-white">Country-specific Eligibility Criteria</h3>
               <p className="mb-6 text-base leading-8 text-[#d1d2d7]">Minimum Eligibility</p>
 
-              <div className="mt-6 grid gap-6 sm:grid-cols-2">
+              <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5">
                   <h4 className="flex items-center gap-2 text-lg font-semibold text-white">
                     <img src="https://flagcdn.com/w20/de.png" alt="Germany flag" className="h-4 w-5 rounded-sm" />
@@ -194,6 +222,17 @@ export default function EvaluationProgramPage() {
                   <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe</li>
                     <li><strong>Language requirement:</strong> Certified level of English; Certified German language proficiency is a plus </li>
+                  </ul>
+                </div>
+
+                <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5 sm:col-span-2 lg:col-span-1">
+                  <h4 className="flex items-center gap-2 text-lg font-semibold text-white">
+                    <span className="material-symbols-outlined text-[#c8a96b]">public</span>
+                    Global Opportunities
+                  </h4>
+                  <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
+                    <li><strong>Location requirement:</strong> NA</li>
+                    <li><strong>Language requirement:</strong> Certified level of English proficiency</li>
                   </ul>
                 </div>
               </div>
