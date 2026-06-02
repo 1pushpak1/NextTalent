@@ -120,8 +120,7 @@ export default function HomePage() {
                 <Reveal
                   key={step.title}
                   delay={index * 70}
-                  className="group nst-hover-gold relative border-b border-[rgba(200,169,107,0.14)] px-6 py-8 transition duration-500 md:border-r xl:min-h-[360px]"
-                >
+                  className="group nst-hover-gold relative border-b border-[rgba(200,169,107,0.14)] px-6 py-8 transition duration-500 md:border-r xl:min-h-[360px]">
                   <div className="absolute inset-x-0 top-0 h-px origin-left scale-x-0 bg-[#c8a96b] transition duration-500 group-hover:scale-x-100" />
                   <div className="text-[0.72rem] uppercase tracking-[0.35em] text-[#8f8469]">{String(index + 1).padStart(2, '0')}</div>
                   <h3 className="mt-10 nst-display text-[2rem] leading-[1.08] text-white">{step.title}</h3>
@@ -158,14 +157,14 @@ export default function HomePage() {
                   className="rounded-2xl border border-[#c8a96b] bg-gradient-to-r from-[#071018] via-transparent to-transparent p-6 shadow-xl"
                 >
                   <div className="flex flex-col items-center gap-4 md:flex-row md:items-center">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#c8a96b] text-black text-2xl font-semibold">
+                    {/* <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#c8a96b] text-black text-2xl font-semibold">
                       <span className="material-symbols-outlined">verified</span>
-                    </div>
+                    </div> */}
                     <div className="text-center md:text-left">
                       {/* <p className="text-xs font-semibold uppercase tracking-wider text-[#f4dfb2]">Selective Intake</p> */}
-                      <h3 className="mt-2 text-2xl md:text-3xl font-extrabold text-white leading-tight">
+                      <h2 className="mx-auto mt-8 text-center nst-display text-[1.8rem] leading-[1.08] tracking-[-0.03em] text-white sm:text-[2.3rem] md:text-[3rem]">
                         Due to our structured and selective process, only a limited number of candidates are onboarded each cycle.
-                      </h3>
+                      </h2>
                       {/* <p className="mt-2 max-w-[56ch] text-sm text-[#d1d2d7]">
                         We prioritise quality over quantity — apply early or join the waiting list to reserve consideration in the next intake.
                       </p> */}

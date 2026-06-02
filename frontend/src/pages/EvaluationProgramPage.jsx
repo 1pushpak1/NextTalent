@@ -82,9 +82,10 @@ export default function EvaluationProgramPage() {
                 {evaluationCriteria.map((item) => (
                   <div
                     key={item}
-                    className="rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.02)] p-4 text-sm leading-6 text-[#e5e6ea]"
+                    className="flex items-start gap-3 rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(200,169,107,0.09)] p-4"
                   >
-                    {item}
+                    <span className="mt-0.5 material-symbols-outlined text-[#f4dfb2]">task_alt</span>
+                    <p className="text-sm leading-6 text-[#f2f3f6]">{item}</p>
                   </div>
                 ))}
               </div>
@@ -104,10 +105,10 @@ export default function EvaluationProgramPage() {
                 {includedItems.map((item) => (
                   <div
                     key={item}
-                    className="flex items-start gap-3 rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(200,169,107,0.09)] p-4"
+                    className="flex items-start gap-3 rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.02)] p-4"
                   >
-                    <span className="mt-0.5 material-symbols-outlined text-[#f4dfb2]">task_alt</span>
-                    <p className="text-sm leading-6 text-[#f2f3f6]">{item}</p>
+                    <span className="mt-0.5 material-symbols-outlined text-[#c8a96b]">radio_button_checked</span>
+                    <p className="text-sm leading-6 text-[#e5e6ea]">{item}</p>
                   </div>
                 ))}
               </div>
@@ -119,7 +120,8 @@ export default function EvaluationProgramPage() {
               <h3 className="mb-4 nst-display text-2xl font-semibold text-white">Important Information</h3>
               <div className="grid gap-3 md:grid-cols-2">
                 {importantNotes.map((item) => (
-                  <div key={item} className="rounded-lg bg-[rgba(255,255,255,0.02)] p-4">
+                  <div key={item} className="flex items-start gap-3 rounded-lg bg-[rgba(255,255,255,0.02)] p-4">
+                    <span className="mt-1 inline-flex h-2.5 w-2.5 flex-none rounded-full bg-[#d7bf92] shadow-[0_0_10px_rgba(215,191,146,0.6)]" />
                     <p className="text-sm leading-6 text-[#d1d2d7]">{item}</p>
                   </div>
                 ))}
@@ -152,7 +154,10 @@ export default function EvaluationProgramPage() {
 
               <div className="mt-6 grid gap-6 sm:grid-cols-2">
                 <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5">
-                  <h4 className="text-lg font-semibold text-white">Germany</h4>
+                  <h4 className="flex items-center gap-2 text-lg font-semibold text-white">
+                    <img src="https://flagcdn.com/w20/de.png" alt="Germany flag" className="h-4 w-5 rounded-sm" />
+                    Germany
+                  </h4>
                   <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe, Outside Europe</li>
                     <li><strong>Language requirement:</strong>  B2 Certified or above in German</li>
@@ -160,7 +165,10 @@ export default function EvaluationProgramPage() {
                 </div>
 
                 <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5">
-                  <h4 className="text-lg font-semibold text-white">Switzerland</h4>
+                  <h4 className="flex items-center gap-2 text-lg font-semibold text-white">
+                    <img src="https://flagcdn.com/w20/ch.png" alt="Switzerland flag" className="h-4 w-5 rounded-sm" />
+                    Switzerland
+                  </h4>
                   <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe</li>
                     <li><strong>Language requirement:</strong> B2 Certified or above in German, French, or Italian</li>
@@ -168,7 +176,10 @@ export default function EvaluationProgramPage() {
                 </div>
 
                 <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5">
-                  <h4 className="text-lg font-semibold text-white">Austria</h4>
+                  <h4 className="flex items-center gap-2 text-lg font-semibold text-white">
+                    <img src="https://flagcdn.com/w20/at.png" alt="Austria flag" className="h-4 w-5 rounded-sm" />
+                    Austria
+                  </h4>
                   <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe</li>
                     <li><strong>Language requirement:</strong> B2 certified or above in German </li>
@@ -176,7 +187,10 @@ export default function EvaluationProgramPage() {
                 </div>
 
                 <div className="rounded-lg border border-[rgba(200,169,107,0.12)] bg-[rgba(255,255,255,0.02)] p-5">
-                  <h4 className="text-lg font-semibold text-white">Poland</h4>
+                  <h4 className="flex items-center gap-2 text-lg font-semibold text-white">
+                    <img src="https://flagcdn.com/w20/pl.png" alt="Poland flag" className="h-4 w-5 rounded-sm" />
+                    Poland
+                  </h4>
                   <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
                     <li><strong>Location requirement:</strong> Europe</li>
                     <li><strong>Language requirement:</strong> Certified level of English; Certified German language proficiency is a plus </li>

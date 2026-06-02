@@ -148,22 +148,17 @@ export default function PrivacyPolicyPage() {
       title: '11. CONTACT INFORMATION',
       content: (
         <>
-          <p>
-            NG Global Advisory and Consulting LLC.
-            <br />
-            DBA: NextStep Talent
-            <br />
-            Company Address:
-            <br />
-            8735 Dunwoody Place Ste N
-            <br />
-            Atlanta, GA 30350 United States
-            <br />
-            Email Address:{' '}
-            <a className="font-semibold text-[#3a5f94] underline" href="mailto:contact@NextStepTalent.net">
-              contact@NextStepTalent.net
-            </a>
-          </p>
+          <ul className="list-disc space-y-2 pl-5 text-left">
+            <li>NG Global Advisory and Consulting LLC.</li>
+            <li>DBA: NextStep Talent</li>
+            <li>Company Address: 8735 Dunwoody Place Ste N, Atlanta, GA 30350 United States</li>
+            <li>
+              Email Address:{' '}
+              <a className="font-semibold text-[#3a5f94] underline" href="mailto:contact@NextStepTalent.net">
+                contact@NextStepTalent.net
+              </a>
+            </li>
+          </ul>
         </>
       ),
     },

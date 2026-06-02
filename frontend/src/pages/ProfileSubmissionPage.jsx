@@ -2158,7 +2158,7 @@ By signing below, you accept full responsibility for the authenticity of the det
           <p className="font-semibold text-slate-900">Post Initial Evaluation</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {/* <li>USD 500 (non-refundable)</li> */}
-            <li>First installment payment is USD 3,100 (includes bank fees), refundable minus USD 200 only if not selected post-interview or invalid visa rejections per agreement.</li>
+            <li>First installment payment is USD 3,100</li>
             <li>USD 3,100 payable upon successful selection</li>
           </ul>
           {/* explanatory note moved above, under Initial Evaluation Fee */}
