@@ -215,6 +215,11 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // If user exists but has no password set yet, account must be created via invite/signup flow
+    if (!user.passwordHash) {
+      return res.status(403).json({ message: 'Account not yet created. Please use the invitation link to create your account.' });
+    }
+
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
       return res.status(401).json({ message: 'Invalid credentials' });

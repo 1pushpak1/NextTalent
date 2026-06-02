@@ -48,12 +48,12 @@ const createPlaceholderCandidateUser = async ({ email, name, eligibility }) => {
   const normalizedEmail = normalizeEmail(email);
   let user = await User.findOne({ email: normalizedEmail });
   if (!user) {
-    const randomPassword = crypto.randomBytes(32).toString('hex');
-    const passwordHash = await bcrypt.hash(randomPassword, 10);
+    // Create a placeholder user WITHOUT a password. Actual account (with password) will be created
+    // when the candidate uses the invitation link and completes signup. This prevents accounts
+    // from being effectively 'created' before the candidate acts on the invite.
     user = await User.create({
       name: name || normalizedEmail.split('@')[0],
       email: normalizedEmail,
-      passwordHash,
       role: 'candidate',
       status: 'eligibility_approved',
       evaluationStatus: 'pending',
