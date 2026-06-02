@@ -79,7 +79,14 @@ const KeyValueGrid = ({ rows = [] }) => (
     {rows.map((row) => (
       <div key={row.label} className="rounded-2xl bg-slate-50 p-3">
         <p className="text-xs uppercase tracking-wide text-slate-400">{row.label}</p>
-        <p className="mt-1 break-words text-sm font-medium text-slate-800">{row.value || '—'}</p>
+        {String(row.label || '').toLowerCase().includes('additional information') || String(row.label || '').toLowerCase() === 'additional information' ? (
+          <div className="mt-1 rounded-lg bg-white p-4 text-sm">
+            <p className="text-slate-500">Notes</p>
+            <p className="whitespace-pre-wrap font-medium text-slate-900 break-words break-all">{row.value || '—'}</p>
+          </div>
+        ) : (
+          <p className="mt-1 break-words text-sm font-medium text-slate-800">{row.value || '—'}</p>
+        )}
       </div>
     ))}
   </div>

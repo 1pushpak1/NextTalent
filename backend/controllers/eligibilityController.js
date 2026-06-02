@@ -47,21 +47,10 @@ const checkEligibility = async (req, res) => {
       // Acceptance email suppressed: do not send the post-eligibility approval email.
       // Per request, no automated email should be sent immediately after initial eligibility.
     } else {
-      await sendStepUpdateEmail({
-        to: email,
-        candidateName: fullName || email.split('@')[0],
-        stepKey: 'eligibility',
-        subjectOverride: 'Eligibility Result',
-        heading: 'Not Eligible',
-        message: result.rejectionReason || 'Your current profile does not meet the eligibility criteria at this time.',
-        status: 'rejected',
-        details: [
-          { label: 'Destination', value: payload.destination },
-          { label: 'Country', value: payload.country },
-          { label: 'Reason', value: result.rejectionReason || 'Does not meet criteria' },
-        ],
-        cta: null,
-      });
+      // Sending automated eligibility rejection emails has been disabled.
+      // Per request, do not send automated "Eligibility Result" emails to candidates.
+      // If you need this re-enabled in future, consider toggling via an environment flag
+      // (e.g., `SEND_ELIGIBILITY_EMAILS=true`) and restoring the `sendStepUpdateEmail` call.
     }
 
     res.status(201).json(record);

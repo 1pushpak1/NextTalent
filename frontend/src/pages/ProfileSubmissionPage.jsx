@@ -318,39 +318,8 @@ const getStepValidation = (step, form, { requireVisa, technicalSkills, financial
       if (diplomaMissing.length && !summary) {
         summary = 'Please complete all diploma fields or mark diploma as not applicable.';
       }
-    } else {
-      const bachelorsMissing = [];
-      if (!hasValue(e.bachelors.startDate)) {
-        addError(errors, 'education.bachelors.startDate', "Bachelor's start date is required.");
-        bachelorsMissing.push('startDate');
-      }
-      if (!hasValue(e.bachelors.endDate)) {
-        addError(errors, 'education.bachelors.endDate', "Bachelor's end date is required.");
-        bachelorsMissing.push('endDate');
-      }
-      if (!hasValue(e.bachelors.field)) {
-        addError(errors, 'education.bachelors.field', "Bachelor's field of study is required.");
-        bachelorsMissing.push('field');
-      }
-      if (!hasValue(e.bachelors.country)) {
-        addError(errors, 'education.bachelors.country', "Bachelor's country is required.");
-        bachelorsMissing.push('country');
-      }
-      if (bachelorsMissing.length && !summary) {
-        summary = "Bachelor's details are mandatory when diploma is not applicable.";
-      }
     }
-
-    const bachelorsTouched = [e.bachelors.startDate, e.bachelors.endDate, e.bachelors.field, e.bachelors.country].some(hasValue);
-    if (!e.diploma.notApplicable && bachelorsTouched) {
-      if (!hasValue(e.bachelors.startDate)) addError(errors, 'education.bachelors.startDate', "Bachelor's start date is required once you start this section.");
-      if (!hasValue(e.bachelors.endDate)) addError(errors, 'education.bachelors.endDate', "Bachelor's end date is required once you start this section.");
-      if (!hasValue(e.bachelors.field)) addError(errors, 'education.bachelors.field', "Bachelor's field of study is required once you start this section.");
-      if (!hasValue(e.bachelors.country)) addError(errors, 'education.bachelors.country', "Bachelor's country is required once you start this section.");
-      if (Object.keys(errors).some((key) => key.startsWith('education.bachelors.')) && !summary) {
-        summary = "Please complete all highlighted bachelor's fields before continuing.";
-      }
-    }
+    // Bachelor's details are always optional.
 
     if (!e.masters.notApplicable) {
       const mastersTouched = [e.masters.startDate, e.masters.endDate, e.masters.field, e.masters.country].some(hasValue);
@@ -527,97 +496,39 @@ const clampStep = (value, fallback = 1) => {
 const countryOptions = Object.values(countries)
   .map((country) => country.name)
   .sort((left, right) => left.localeCompare(right));
-const academicTrackGroups = [
+const academicTrackOptions = ['STEM', 'Business', 'Humanities & Arts', 'Social Sciences'];
+const academicTrackExamples = [
   {
     label: 'STEM',
-    options: [
-      'Computer Science – Software Engineering Track',
-      'Computer Science – Artificial Intelligence & Machine Learning Track',
-      'Computer Science – Data Science Track',
-      'Computer Science – Cybersecurity Track',
-      'Information Technology Track',
-      'Software Engineering Track',
-      'Electrical Engineering Track',
-      'Electronics & Communication Engineering Track',
-      'Mechanical Engineering Track',
-      'Civil Engineering Track',
-      'Chemical Engineering Track',
-      'Aerospace Engineering Track',
-      'Biomedical Engineering Track',
-      'Industrial Engineering Track',
-      'Environmental Engineering Track',
-      'Biotechnology Track',
-      'Biology – Medical Track',
-      'Biology – Research Track',
-      'Physics Track',
-      'Applied Physics Track',
-      'Chemistry Track',
-      'Applied Chemistry Track',
-      'Mathematics Track',
-      'Applied Mathematics Track',
-      'Statistics Track',
-      'Data Analytics Track',
-    ],
+    examples: ['B.S. in Computer Science - Software Engineering Track', 'B.S. in Biology - Medical Track'],
   },
   {
     label: 'Business',
-    options: [
-      'Bachelor of Business Administration – Corporate Finance Track',
-      'Bachelor of Business Administration – Entrepreneurship Track',
-      'Bachelor of Business Administration – Operations Management Track',
-      'Marketing – Digital Media Analytics Track',
-      'Marketing – Brand Management Track',
-      'Marketing – Sales & Business Development Track',
-      'Finance Track',
-      'Accounting Track',
-      'Economics Track',
-      'Human Resources Track',
-      'International Business Track',
-      'Supply Chain Management Track',
-      'Business Analytics Track',
-      'Management Information Systems Track',
+    examples: [
+      'Bachelor of Business Administration - Corporate Finance Track',
+      'B.S. in Marketing - Digital Media Analytics Track',
     ],
   },
   {
     label: 'Humanities & Arts',
-    options: [
-      'English – Creative Writing Track',
-      'English Literature Track',
-      'Journalism & Mass Communication Track',
-      'Media Studies Track',
-      'History Track',
-      'Philosophy Track',
-      'Linguistics Track',
-      'Fine Arts – Design Track',
-      'Fine Arts – Visual Arts Track',
-      'Graphic Design Track',
-      'Fashion Design Track',
-      'Interior Design Track',
-      'Performing Arts Track',
-      'Music Track',
-      'Theatre & Drama Track',
-      'Film & Media Production Track',
-    ],
+    examples: ['B.A. in English - Creative Writing Track', 'Bachelor of Fine Arts - Design Track'],
   },
   {
     label: 'Social Sciences',
-    options: [
-      'Psychology – Clinical & Counseling Track',
-      'Psychology – Organizational Behavior Track',
-      'Political Science – International Relations Track',
-      'Political Science – Public Policy Track',
-      'Sociology Track',
-      'Anthropology Track',
-      'Criminology Track',
-      'Public Administration Track',
-      'International Relations Track',
-      'Social Work Track',
-      'Geography Track',
-      'Development Studies Track',
+    examples: [
+      'B.A. in Psychology - Clinical & Counseling Track',
+      'B.S. in Political Science - International Relations Track',
     ],
   },
 ];
-const academicTrackOptions = academicTrackGroups.flatMap((group) => group.options);
+const academicTrackDropdownOptions = academicTrackExamples.flatMap((group) => [
+  { value: group.label, label: group.label },
+  ...group.examples.map((example, index) => ({
+    value: `__example_${group.label.replace(/[^a-zA-Z0-9]+/g, '_')}_${index}`,
+    label: `Example: ${example} etc.`,
+    disabled: true,
+  })),
+]);
 const legacyAcademicTrackOptions = ['Science', 'Commerce', 'Arts', 'Other'];
 const createDefaultForm = () => ({
   personalDetails: {
@@ -696,6 +607,7 @@ export default function ProfileSubmissionPage() {
   const [technicalSkillInput, setTechnicalSkillInput] = useState('');
   const [eligibilityDetails, setEligibilityDetails] = useState(null);
   const activeJourneyStepRef = useRef(null);
+  const additionalInfoRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const publicEligibilityId = String(localStorage.getItem('nst_eligibility_id') || '').trim();
@@ -903,7 +815,7 @@ By signing below, you accept full responsibility for the authenticity of the det
         if (cancelled) return;
         const message =
           error.code === 1
-            ? 'Location access is required to sign and continue. Please allow location permission and try again.'
+            ? 'Location access is required to sign and continue. Please allow location from browser permission and try again.'
             : 'Unable to capture your location. Please try again.';
         setLocationCaptureError(message);
         setIsCapturingLocation(false);
@@ -920,6 +832,16 @@ By signing below, you accept full responsibility for the authenticity of the det
     if (typeof window === 'undefined' || window.innerWidth >= 1024) return;
     activeJourneyStepRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }, [currentStep]);
+
+  useEffect(() => {
+    // Ensure the additional info textarea resizes when content is loaded or step activated
+    const el = additionalInfoRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const newHeight = Math.min(el.scrollHeight, 300);
+    el.style.height = `${newHeight}px`;
+    el.style.overflowY = el.scrollHeight > 300 ? 'auto' : 'hidden';
+  }, [currentStep, form.additionalInfo]);
 
   const technicalSkills = useMemo(
     () => form.skills.technical.split(',').map((skill) => skill.trim()).filter(Boolean),
@@ -1259,7 +1181,14 @@ By signing below, you accept full responsibility for the authenticity of the det
               <div className="grid gap-3 md:grid-cols-2">
                 <Input required label="High School Start (MM/YYYY)" error={getFieldError('education.highSchool.startDate')} value={form.education.highSchool.startDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, startDate: formatMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
                 <Input required label="High School End (MM/YYYY)" error={getFieldError('education.highSchool.endDate')} value={form.education.highSchool.endDate} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, endDate: formatEndMonthYearInput(e.target.value) } })} placeholder="MM/YYYY" maxLength={7} inputMode="numeric" />
-                <Select required label="Academic Track" error={getFieldError('education.highSchool.track')} value={form.education.highSchool.track} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, track: e.target.value } })} options={academicTrackGroups} />
+                <Select
+                  required
+                  label="Academic Track"
+                  error={getFieldError('education.highSchool.track')}
+                  value={form.education.highSchool.track}
+                  onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, track: e.target.value } })}
+                  options={academicTrackDropdownOptions}
+                />
                 <CountrySearchSelect required label="High School Country" error={getFieldError('education.highSchool.country')} options={countryOptions} value={form.education.highSchool.country} onChange={(e) => updateSection('education', { ...form.education, highSchool: { ...form.education.highSchool, country: e.target.value } })} />
               </div>
 
@@ -1368,7 +1297,6 @@ By signing below, you accept full responsibility for the authenticity of the det
                 <h3 className="font-semibold text-slate-900">Bachelor's</h3>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <Input
-                    required={form.education.diploma.notApplicable}
                     label="Bachelor's Start (MM/YYYY)"
                     error={getFieldError('education.bachelors.startDate')}
                     placeholder="MM/YYYY"
@@ -1383,7 +1311,6 @@ By signing below, you accept full responsibility for the authenticity of the det
                     }
                   />
                   <Input
-                    required={form.education.diploma.notApplicable}
                     label="Bachelor's End (MM/YYYY)"
                     error={getFieldError('education.bachelors.endDate')}
                     placeholder="MM/YYYY"
@@ -1398,7 +1325,6 @@ By signing below, you accept full responsibility for the authenticity of the det
                     }
                   />
                   <Input
-                    required={form.education.diploma.notApplicable}
                     label="Bachelor's Field of Study"
                     error={getFieldError('education.bachelors.field')}
                     value={form.education.bachelors.field}
@@ -1410,7 +1336,6 @@ By signing below, you accept full responsibility for the authenticity of the det
                     }
                   />
                   <CountrySearchSelect
-                    required={form.education.diploma.notApplicable}
                     label="Bachelor's Country"
                     error={getFieldError('education.bachelors.country')}
                     options={countryOptions}
@@ -1884,12 +1809,27 @@ By signing below, you accept full responsibility for the authenticity of the det
           )}
 
           {currentStep === 7 && (
-            <Input
-              label="Additional Information (max 1000 chars)"
-              value={form.additionalInfo}
-              maxLength={1000}
-              onChange={(e) => updateSection('additionalInfo', e.target.value)}
-            />
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-[#d3d3d8]">Additional Information (max 1000 chars)</span>
+              <textarea
+                ref={additionalInfoRef}
+                className="w-full resize-none rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.035)] px-3 py-2.5 text-sm text-[#f7f3ea] outline-none transition placeholder:text-[#8f8f96] focus:border-[#c8a96b] focus:ring-2 focus:ring-[#c8a96b]/20"
+                value={form.additionalInfo}
+                maxLength={1000}
+                rows={3}
+                style={{ maxHeight: '300px', overflowY: 'auto' }}
+                onChange={(e) => {
+                  updateSection('additionalInfo', e.target.value);
+                }}
+                onInput={(e) => {
+                  const el = e.target;
+                  el.style.height = 'auto';
+                  const newHeight = Math.min(el.scrollHeight, 300);
+                  el.style.height = `${newHeight}px`;
+                  el.style.overflowY = el.scrollHeight > 300 ? 'auto' : 'hidden';
+                }}
+              />
+            </label>
           )}
 
           {currentStep === 8 && (
@@ -2103,7 +2043,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                 </div>
                 <div className="rounded-lg bg-white p-4 text-sm">
                   <p className="text-slate-500">Notes</p>
-                  <p className="whitespace-pre-wrap font-medium text-slate-900">{reviewValue(form.additionalInfo)}</p>
+                  <p className="whitespace-pre-wrap font-medium text-slate-900 break-words break-all">{reviewValue(form.additionalInfo)}</p>
                 </div>
               </Card>
 
@@ -2115,11 +2055,11 @@ By signing below, you accept full responsibility for the authenticity of the det
             </div>
           )}
 
-          <div className="mt-6 flex gap-2">
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
             {currentStep > 1 && currentStep < 8 && (
               <Button
                 variant="secondary"
-                className="bg-transparent text-white hover:bg-[rgba(255,255,255,0.06)]"
+                className="w-full bg-transparent text-white hover:bg-[rgba(255,255,255,0.06)] sm:w-auto"
                 onClick={() => goToStep(currentStep - 1)}
                 disabled={savingDraft || loading}
               >
@@ -2127,7 +2067,7 @@ By signing below, you accept full responsibility for the authenticity of the det
               </Button>
             )}
             {currentStep < 8 && (
-              <Button onClick={handleSaveAndContinue} disabled={savingDraft || loading}>
+              <Button className="w-full sm:ml-auto sm:min-w-[11rem] sm:w-auto" onClick={handleSaveAndContinue} disabled={savingDraft || loading}>
                 {savingDraft ? 'Saving...' : 'Save & Continue'}
               </Button>
             )}

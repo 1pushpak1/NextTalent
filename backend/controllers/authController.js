@@ -115,11 +115,8 @@ const signup = async (req, res) => {
         return res.status(403).json({ message: 'Invalid or expired invitation token. Please contact support.' });
       }
     } else {
-      // Allow account creation after approvals without a token (email must match approved candidate)
-      invitedUser = await User.findOne({ email: normalizedEmail, role: 'candidate' });
-      if (!invitedUser) {
-        return res.status(403).json({ message: 'Account creation requires an invitation. Please check your email for the invitation link.' });
-      }
+      // Require explicit invitation token for account creation.
+      return res.status(403).json({ message: 'Account creation requires an invitation token. Please use the link sent to your email.' });
     }
 
     const evaluationApproved = String(invitedUser.evaluationStatus || '').toLowerCase() === 'approved' || String(invitedUser.status || '').toLowerCase() === 'evaluation_approved' || Boolean(invitedUser.admin2EvaluationApproved);

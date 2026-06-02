@@ -3,7 +3,7 @@ const isOptionGroup = (option) => Boolean(option && typeof option === 'object' &
 export default function Select({ label, options = [], error, required = false, ...props }) {
   const normalizedOptions = options.map((option) => {
     if (typeof option === 'string') {
-      return { type: 'option', value: option, label: option };
+      return { type: 'option', value: option, label: option, disabled: false };
     }
 
     if (isOptionGroup(option)) {
@@ -12,8 +12,12 @@ export default function Select({ label, options = [], error, required = false, .
         label: option.label,
         options: option.options.map((groupOption) =>
           typeof groupOption === 'string'
-            ? { value: groupOption, label: groupOption }
-            : { value: groupOption.value, label: groupOption.label ?? groupOption.value },
+            ? { value: groupOption, label: groupOption, disabled: false }
+            : {
+                value: groupOption.value,
+                label: groupOption.label ?? groupOption.value,
+                disabled: Boolean(groupOption.disabled),
+              },
         ),
       };
     }
@@ -22,6 +26,7 @@ export default function Select({ label, options = [], error, required = false, .
       type: 'option',
       value: option.value,
       label: option.label ?? option.value,
+      disabled: Boolean(option.disabled),
     };
   });
   const currentValue = typeof props.value === 'string' ? props.value : '';
@@ -54,13 +59,13 @@ export default function Select({ label, options = [], error, required = false, .
           option.type === 'group' ? (
             <optgroup key={option.label} label={option.label}>
               {option.options.map((groupOption) => (
-                <option key={groupOption.value} value={groupOption.value} className="text-black">
+                <option key={groupOption.value} value={groupOption.value} disabled={groupOption.disabled} className="text-black">
                   {groupOption.label}
                 </option>
               ))}
             </optgroup>
           ) : (
-            <option key={option.value} value={option.value} className="text-black">
+            <option key={option.value} value={option.value} disabled={option.disabled} className="text-black">
               {option.label}
             </option>
           ),
