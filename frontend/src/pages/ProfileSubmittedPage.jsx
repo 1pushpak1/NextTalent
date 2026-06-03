@@ -1,5 +1,7 @@
+import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import Button from '../components/Button';
 
 export default function ProfileSubmittedPage() {
   return (
@@ -23,6 +25,11 @@ export default function ProfileSubmittedPage() {
               <p>You do not need to take any further action at this stage.</p>
               <p>If additional information is required, our team will contact you.</p>
               <p className="text-base font-medium text-white">You may now close this page.</p>
+              <div className="pt-2">
+                <Link to="/">
+                  <Button className="w-full sm:w-auto">Close</Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>

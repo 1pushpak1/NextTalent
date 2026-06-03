@@ -58,7 +58,6 @@ export default function CountrySearchSelect({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          onBlur={() => setOpen(false)}
           placeholder={placeholder}
           autoComplete="off"
         />
@@ -70,8 +69,10 @@ export default function CountrySearchSelect({
                   key={option}
                   type="button"
                   className="block w-full px-3 py-2 text-left text-sm text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.14)]"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => selectOption(option)}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    selectOption(option);
+                  }}
                 >
                   {option}
                 </button>

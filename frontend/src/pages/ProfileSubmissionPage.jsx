@@ -605,6 +605,7 @@ export default function ProfileSubmissionPage() {
   const [loading, setLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [technicalSkillInput, setTechnicalSkillInput] = useState('');
+  const [softSkillInput, setSoftSkillInput] = useState('');
   const [eligibilityDetails, setEligibilityDetails] = useState(null);
   const activeJourneyStepRef = useRef(null);
   const additionalInfoRef = useRef(null);
@@ -847,6 +848,10 @@ By signing below, you accept full responsibility for the authenticity of the det
     () => form.skills.technical.split(',').map((skill) => skill.trim()).filter(Boolean),
     [form.skills.technical],
   );
+  const softSkills = useMemo(
+    () => form.skills.soft.split(',').map((skill) => skill.trim()).filter(Boolean),
+    [form.skills.soft],
+  );
   useEffect(() => {
     if (!Object.keys(fieldErrors).length) return;
     const nextErrors = getStepValidation(currentStep, form, {
@@ -878,6 +883,28 @@ By signing below, you accept full responsibility for the authenticity of the det
     updateSection('skills', {
       ...form.skills,
       technical: technicalSkills.filter((skill) => skill !== skillToRemove).join(', '),
+    });
+  };
+  const addSoftSkill = () => {
+    const nextSkill = softSkillInput.trim();
+    if (!nextSkill) return;
+
+    const exists = softSkills.some((skill) => skill.toLowerCase() === nextSkill.toLowerCase());
+    if (exists) {
+      setSoftSkillInput('');
+      return;
+    }
+
+    updateSection('skills', {
+      ...form.skills,
+      soft: [...softSkills, nextSkill].join(', '),
+    });
+    setSoftSkillInput('');
+  };
+  const removeSoftSkill = (skillToRemove) => {
+    updateSection('skills', {
+      ...form.skills,
+      soft: softSkills.filter((skill) => skill !== skillToRemove).join(', '),
     });
   };
 
@@ -1025,6 +1052,7 @@ By signing below, you accept full responsibility for the authenticity of the det
     const internshipRows = form.workExperience.filter((item) => item.experienceType === 'internship');
     return { workRows, internshipRows };
   };
+  const { workRows, internshipRows } = splitExperience();
   const updateExperienceLists = (workRows, internshipRows) => {
     updateSection('workExperience', [...workRows, ...internshipRows]);
   };
@@ -1705,11 +1733,11 @@ By signing below, you accept full responsibility for the authenticity of the det
           )}
 
           {currentStep === 5 && (
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Technical Skills<span className="text-rose-600">*</span>
-                </label>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Technical Skills<span className="text-rose-600">*</span>
+                  </label>
                 <div className="flex gap-2">
                   <input
                     className={`w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#002147] focus:ring-2 focus:ring-[#002147]/15 ${getFieldError('skills.technical') ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20' : ''}`.trim()}
@@ -1744,11 +1772,41 @@ By signing below, you accept full responsibility for the authenticity of the det
                   ))}
                 </div>
               </div>
-              <Input
-                label="Soft Skills"
-                value={form.skills.soft}
-                onChange={(e) => updateSection('skills', { ...form.skills, soft: e.target.value })}
-              />
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Soft Skills</label>
+                <div className="flex gap-2">
+                  <input
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#002147] focus:ring-2 focus:ring-[#002147]/15"
+                    value={softSkillInput}
+                    onChange={(e) => setSoftSkillInput(e.target.value)}
+                    placeholder="Type a soft skill"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === 'NumpadEnter') {
+                        e.preventDefault();
+                        addSoftSkill();
+                      }
+                    }}
+                  />
+                  <Button type="button" onClick={addSoftSkill} className="px-4" aria-label="Add soft skill">
+                    +
+                  </Button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {softSkills.map((skill) => (
+                    <span key={skill} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-[#002147]">
+                      {skill}
+                      <button
+                        type="button"
+                        className="text-[#002147] hover:text-rose-700"
+                        onClick={() => removeSoftSkill(skill)}
+                        aria-label={`Remove ${skill}`}
+                      >
+                        x
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1968,27 +2026,52 @@ By signing below, you accept full responsibility for the authenticity of the det
 
               <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-slate-900">Work Experience / Internships</h3>
+                  <h3 className="text-lg font-bold text-slate-900">Work Experience</h3>
                   {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(4)}>Edit</Button>}
                 </div>
-                {form.workExperience.some((w) => w.organizationName || w.jobTitle || w.responsibilities || w.startDate || w.endDate || w.currentlyWorkingHere || w.country) ? (
+                {workRows.length ? (
                   <div className="space-y-3 text-sm">
-                    {form.workExperience
-                      .filter((w) => w.organizationName || w.jobTitle || w.responsibilities || w.startDate || w.endDate || w.currentlyWorkingHere || w.country)
-                      .map((w, idx) => (
-                        <div key={idx} className="rounded-lg bg-white p-4">
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Experience {idx + 1}</p>
-                          <div className="grid gap-3 md:grid-cols-2">
-                            <div><p className="text-slate-500">Organization</p><p className="font-medium text-slate-900">{reviewValue(w.organizationName)}</p></div>
-                            <div><p className="text-slate-500">Job Title</p><p className="font-medium text-slate-900">{reviewValue(w.jobTitle)}</p></div>
-                            <div><p className="text-slate-500">Country</p><p className="font-medium text-slate-900">{reviewValue(w.country)}</p></div>
-                            <div><p className="text-slate-500">Currently Working Here</p><p className="font-medium text-slate-900">{w.currentlyWorkingHere ? 'Yes' : 'No'}</p></div>
-                            <div><p className="text-slate-500">Start Date</p><p className="font-medium text-slate-900">{reviewValue(w.startDate)}</p></div>
-                            <div><p className="text-slate-500">End Date</p><p className="font-medium text-slate-900">{w.currentlyWorkingHere ? 'Present' : reviewValue(w.endDate)}</p></div>
-                            <div className="md:col-span-2"><p className="text-slate-500">Key Responsibilities</p><p className="font-medium text-slate-900">{reviewValue(w.responsibilities)}</p></div>
-                          </div>
+                    {workRows.map((w, idx) => (
+                      <div key={idx} className="rounded-lg bg-white p-4">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Work Experience {idx + 1}</p>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div><p className="text-slate-500">Organization</p><p className="font-medium text-slate-900">{reviewValue(w.organizationName)}</p></div>
+                          <div><p className="text-slate-500">Job Title</p><p className="font-medium text-slate-900">{reviewValue(w.jobTitle)}</p></div>
+                          <div><p className="text-slate-500">Country</p><p className="font-medium text-slate-900">{reviewValue(w.country)}</p></div>
+                          <div><p className="text-slate-500">Currently Working Here</p><p className="font-medium text-slate-900">{w.currentlyWorkingHere ? 'Yes' : 'No'}</p></div>
+                          <div><p className="text-slate-500">Start Date</p><p className="font-medium text-slate-900">{reviewValue(w.startDate)}</p></div>
+                          <div><p className="text-slate-500">End Date</p><p className="font-medium text-slate-900">{w.currentlyWorkingHere ? 'Present' : reviewValue(w.endDate)}</p></div>
+                          <div className="md:col-span-2"><p className="text-slate-500">Key Responsibilities</p><p className="font-medium text-slate-900">{reviewValue(w.responsibilities)}</p></div>
                         </div>
-                      ))}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-600">Not provided</p>
+                )}
+              </Card>
+
+              <Card className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900">Internships</h3>
+                  {!isApprovedProfileView && <Button className="text-white" variant="secondary" onClick={() => goToStep(4)}>Edit</Button>}
+                </div>
+                {internshipRows.length ? (
+                  <div className="space-y-3 text-sm">
+                    {internshipRows.map((w, idx) => (
+                      <div key={idx} className="rounded-lg bg-white p-4">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Internship {idx + 1}</p>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div><p className="text-slate-500">Organization</p><p className="font-medium text-slate-900">{reviewValue(w.organizationName)}</p></div>
+                          <div><p className="text-slate-500">Job Title</p><p className="font-medium text-slate-900">{reviewValue(w.jobTitle)}</p></div>
+                          <div><p className="text-slate-500">Country</p><p className="font-medium text-slate-900">{reviewValue(w.country)}</p></div>
+                          <div><p className="text-slate-500">Currently Working Here</p><p className="font-medium text-slate-900">{w.currentlyWorkingHere ? 'Yes' : 'No'}</p></div>
+                          <div><p className="text-slate-500">Start Date</p><p className="font-medium text-slate-900">{reviewValue(w.startDate)}</p></div>
+                          <div><p className="text-slate-500">End Date</p><p className="font-medium text-slate-900">{w.currentlyWorkingHere ? 'Present' : reviewValue(w.endDate)}</p></div>
+                          <div className="md:col-span-2"><p className="text-slate-500">Key Responsibilities</p><p className="font-medium text-slate-900">{reviewValue(w.responsibilities)}</p></div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <p className="text-sm text-slate-600">Not provided</p>
@@ -2007,7 +2090,7 @@ By signing below, you accept full responsibility for the authenticity of the det
                   </div>
                   <div className="rounded-lg bg-white p-3">
                     <p className="text-slate-500">Soft Skills</p>
-                    <p className="font-medium text-slate-900">{reviewValue(form.skills.soft)}</p>
+                    <p className="font-medium text-slate-900">{softSkills.length ? softSkills.join(', ') : 'Not provided'}</p>
                   </div>
                 </div>
               </Card>

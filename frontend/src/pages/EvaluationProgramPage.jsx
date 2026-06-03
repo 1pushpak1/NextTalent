@@ -187,7 +187,7 @@ export default function EvaluationProgramPage() {
                     Germany
                   </h4>
                   <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-[#d1d2d7]">
-                    <li><strong>Location requirement:</strong> Europe, Outside Europe</li>
+                    <li><strong>Location requirement:</strong> Europe or Outside Europe</li>
                     <li><strong>Language requirement:</strong>  B2 Certified or above in German</li>
                   </ul>
                 </div>

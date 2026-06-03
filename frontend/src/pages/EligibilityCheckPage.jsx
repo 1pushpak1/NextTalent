@@ -93,13 +93,13 @@ export default function EligibilityCheckPage() {
     const europeRequired = [
       answers.hasITBackground,
       answers.languageAnswer,
-      answers.currentLocation,
       answers.willingToRelocate,
       answers.comfortableWithFees,
       answers.qualification,
+      answers.currentLocation,
     ];
     return (isGlobalFlow ? globalRequired : europeRequired).every(hasValue);
-  }, [answers, isGlobalFlow]);
+  }, [answers, country, isGlobalFlow]);
 
   const submitEligibility = async () => {
     if (checkingEligibility) return;
@@ -443,7 +443,13 @@ export default function EligibilityCheckPage() {
                   onChange={(e) => setAnswers({ ...answers, languageAnswer: e.target.value })}
                 />
                 {/* Removed Poland-specific German question per requirements */}
-                <Select required label="Current location" options={['Europe', 'Outside Europe']} value={answers.currentLocation} onChange={(e) => setAnswers({ ...answers, currentLocation: e.target.value })} />
+                <Select
+                  required
+                  label="Current location"
+                  options={['Europe', 'Outside Europe']}
+                  value={answers.currentLocation}
+                  onChange={(e) => setAnswers({ ...answers, currentLocation: e.target.value })}
+                />
                 <Select required label="Are you willing to relocate to the selected country?" options={['Yes', 'No']} value={answers.willingToRelocate} onChange={(e) => setAnswers({ ...answers, willingToRelocate: e.target.value })} />
                 <Select required label="Are you comfortable with program/service fees for processing?" options={['Yes', 'No']} value={answers.comfortableWithFees} onChange={(e) => setAnswers({ ...answers, comfortableWithFees: e.target.value })} />
               </div>
@@ -551,7 +557,7 @@ export default function EligibilityCheckPage() {
 
                         if (!isGlobalFlow && answers.comfortableWithFees !== 'Yes') reasons.push('Must be comfortable with program/service fees for processing.');
 
-                        if (!isGlobalFlow && answers.currentLocation !== 'Europe') reasons.push('Must currently be located in Europe.');
+                        if (!isGlobalFlow && country !== 'Germany' && answers.currentLocation !== 'Europe') reasons.push('Must currently be located in Europe.');
 
                         if (reasons.length > 0) {
                           return (

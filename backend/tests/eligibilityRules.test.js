@@ -23,6 +23,17 @@ test('Germany: Yes + Bachelor + German B2 -> PASS', () => {
   assert.deepEqual(result.failedConditions, []);
 });
 
+test('Germany: Yes + Bachelor + German B2 + Outside Europe -> PASS', () => {
+  const result = runEligibilityCheck({
+    ...base,
+    qualification: 'Bachelor’s',
+    languageAnswer: 'Yes',
+    currentLocation: 'Outside Europe',
+  });
+  assert.equal(result.isEligible, true);
+  assert.deepEqual(result.failedConditions, []);
+});
+
 test('Germany: Yes + Bachelor + No German -> FAIL', () => {
   const result = runEligibilityCheck({
     ...base,
