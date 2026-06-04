@@ -82,7 +82,7 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
         }`}
       >
         <div className="border-b border-[rgba(200,169,107,0.24)] px-5 py-5">
-          <p className="text-xs uppercase tracking-[0.24em] text-[#c8a96b]">Control Center</p>
+          {/* <p className="text-xs uppercase tracking-[0.24em] text-[#c8a96b]">Control Center</p> */}
           <h1 className="mt-2 text-xl font-bold text-white">Admin Console</h1>
           {/* <p className="text-xs tracking-wide text-[#bdbdc3]">Review-first workflow and audit trail</p> */}
         </div>

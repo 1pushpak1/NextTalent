@@ -60,18 +60,20 @@ export default function AdminLayout() {
         </button>
 
         <header className="sticky top-0 z-20 border-b border-[rgba(200,169,107,0.24)] bg-[rgba(8,8,9,0.9)] px-4 py-4 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+          <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
+            <div className="hidden md:block" />
+            <div className="text-center">
               <p className="text-xs uppercase tracking-[0.22em] text-[#c8a96b]">NextStep Talent Admin</p>
-              <h1 className="text-lg font-semibold text-[#f7f3ea]">Operations Workspace</h1>
             </div>
-            <div className="flex items-center gap-3 rounded-2xl border border-[rgba(200,169,107,0.24)] bg-[rgba(255,255,255,0.04)] px-4 py-2">
-              <div className="h-10 w-10 rounded-full bg-[#c8a96b]/90 text-center text-sm font-bold leading-10 text-black">
-                {String(user?.name || 'A').charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-[#f7f3ea]">{user?.name || 'Admin'}</p>
-                <p className="text-xs text-[#bdbdc3]">{String(user?.adminRole || '').replaceAll('_', ' ') || 'admin'}</p>
+            <div className="flex justify-start md:justify-end">
+              <div className="flex items-center gap-3 rounded-2xl border border-[rgba(200,169,107,0.24)] bg-[rgba(255,255,255,0.04)] px-4 py-2">
+                <div className="h-10 w-10 rounded-full bg-[#c8a96b]/90 text-center text-sm font-bold leading-10 text-black">
+                  {String(user?.name || 'A').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#f7f3ea]">{user?.name || 'Admin'}</p>
+                  <p className="text-xs text-[#bdbdc3]">{String(user?.adminRole || '').replaceAll('_', ' ') || 'admin'}</p>
+                </div>
               </div>
             </div>
           </div>

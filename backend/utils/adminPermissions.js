@@ -93,21 +93,21 @@ const parseSeparateRoleAdmins = () => {
       emailKey: 'SUPER_ADMIN_EMAIL',
       passwordKey: 'SUPER_ADMIN_PASSWORD',
       nameKey: 'SUPER_ADMIN_NAME',
-      defaultName: 'Super Admin',
+      defaultName: 'Nivedita Gowda',
     },
     {
       role: ADMIN_ROLES.EVALUATION_ADMIN,
       emailKey: 'EVALUATION_ADMIN_EMAIL',
       passwordKey: 'EVALUATION_ADMIN_PASSWORD',
       nameKey: 'EVALUATION_ADMIN_NAME',
-      defaultName: 'Evaluation Admin',
+      defaultName: 'Deepak Tyagi',
     },
     {
       role: ADMIN_ROLES.OPERATIONS_ADMIN,
       emailKey: 'OPERATIONS_ADMIN_EMAIL',
       passwordKey: 'OPERATIONS_ADMIN_PASSWORD',
       nameKey: 'OPERATIONS_ADMIN_NAME',
-      defaultName: 'Operations Admin',
+      defaultName: 'Arna Bose',
     },
   ];
 

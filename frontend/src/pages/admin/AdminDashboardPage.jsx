@@ -5,19 +5,17 @@ import usePermissions from '../../hooks/usePermissions';
 
 const cardConfig = [
   { key: 'totalApplications', label: 'Total Candidates', to: '/admin/candidates', requiredPermission: 'candidates:read' },
-  { key: 'eligibleCandidates', label: 'Eligible Candidates', to: '/admin/candidates?profileStatus=accepted', requiredPermission: 'evaluation:approve' },
   { key: 'awaitingEvaluationApproval', label: 'Awaiting Evaluation Approval', to: '/admin/candidates?stage=profile_review&pendingFrom=admin', requiredPermission: 'evaluation:approve' },
   { key: 'awaitingOperationsApproval', label: 'Awaiting Operations Approval', to: '/admin/candidates?stage=operations_approval&pendingFrom=admin', requiredPermission: 'operations:approve' },
   { key: 'awaitingAccountCreation', label: 'Awaiting Account Creation', to: '/admin/candidates?stage=selection', requiredPermission: 'selection:publish' },
-  { key: 'awaitingEmailVerification', label: 'Awaiting Email Verification', to: '/admin/candidates?stage=selection', requiredPermission: 'candidates:read' },
   { key: 'awaiting500Payment', label: 'Awaiting $500 Payment', to: '/admin/candidates?stage=selection', requiredPermission: 'payments:verify' },
   { key: 'awaitingDocumentUpload', label: 'Awaiting Document Upload', to: '/admin/candidates?stage=document_upload', requiredPermission: 'documents:verify' },
-  { key: 'awaitingProgramFeeVerification', label: 'Awaiting Program Fee Verification', to: '/admin/candidates?stage=program_payment', requiredPermission: 'payments:verify' },
+  { key: 'awaitingProgramFeeVerification', label: 'Awaiting First Installment', to: '/admin/candidates?stage=program_payment', requiredPermission: 'payments:verify' },
   { key: 'awaitingDocumentVerification', label: 'Awaiting Document Verification', to: '/admin/candidates?stage=document_verification', requiredPermission: 'documents:verify' },
   { key: 'assignedToHiringPartner', label: 'Assigned to Hiring Partner', to: '/admin/candidates?stage=hiring', requiredPermission: 'candidates:update' },
   { key: 'selectedCandidates', label: 'Selected Candidates', to: '/admin/candidates?selectionStatus=selected', requiredPermission: 'selection:publish' },
-  { key: 'rejectedCandidates', label: 'Rejected Candidates', to: '/admin/candidates?selectionStatus=rejected', requiredPermission: 'selection:publish' },
-  { key: 'finalPaymentPending', label: 'Final Payment Pending', to: '/admin/candidates?paymentStatus=pending', requiredPermission: 'payments:verify' },
+  { key: 'rejectedCandidates', label: 'Declined Candidates', to: '/admin/candidates?selectionStatus=rejected', requiredPermission: 'selection:publish' },
+  { key: 'finalPaymentPending', label: 'Awaiting Final Installment', to: '/admin/candidates?paymentStatus=pending', requiredPermission: 'payments:verify' },
   { key: 'completedCandidates', label: 'Completed Candidates', to: '/admin/candidates?selectionStatus=selected', requiredPermission: 'candidates:read' },
   { key: 'totalRevenue', label: 'Total Revenue', requiredPermission: 'payments:verify' },
 ];
@@ -37,11 +35,9 @@ export default function AdminDashboardPage() {
   const [summary, setSummary] = useState({
     cards: {
       totalApplications: 0,
-      eligibleCandidates: 0,
       awaitingEvaluationApproval: 0,
       awaitingOperationsApproval: 0,
       awaitingAccountCreation: 0,
-      awaitingEmailVerification: 0,
       awaiting500Payment: 0,
       awaitingDocumentUpload: 0,
       awaitingProgramFeeVerification: 0,
@@ -54,7 +50,6 @@ export default function AdminDashboardPage() {
       totalRevenue: 0,
     },
     recentApplications: [],
-    recentPayments: [],
   });
 
   const load = useCallback(async ({ silent = false } = {}) => {
@@ -65,11 +60,10 @@ export default function AdminDashboardPage() {
       setSummary((prev) => ({
         cards: data?.cards || prev.cards,
         recentApplications: data?.recentApplications || [],
-        recentPayments: data?.recentPayments || [],
       }));
     } catch {
       if (!mountedRef.current) return;
-      setSummary((prev) => ({ ...prev, recentApplications: [], recentPayments: [] }));
+      setSummary((prev) => ({ ...prev, recentApplications: [] }));
     } finally {
       if (!silent && mountedRef.current) setLoading(false);
     }
@@ -96,13 +90,12 @@ export default function AdminDashboardPage() {
     if (Array.isArray(card.requiredRoles) && card.requiredRoles.length && !card.requiredRoles.includes(String(role || ''))) return false;
     return true;
   });
-  const showRecentPayments = can('payments:verify');
 
   return (
     <section className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-sm text-slate-600">Pipeline snapshot and recent admin activity.</p>
+        {/* <p className="text-sm text-slate-600">Pipeline snapshot and recent admin activity.</p> */}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -116,7 +109,7 @@ export default function AdminDashboardPage() {
         ))}
       </div>
 
-      <div className={`grid gap-4 ${showRecentPayments ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
+      <div className="grid gap-4 xl:grid-cols-1">
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="text-lg font-semibold text-slate-900">Recent Applications</h2>
           {loading && <p className="mt-3 text-sm text-slate-500">Loading...</p>}
@@ -140,28 +133,6 @@ export default function AdminDashboardPage() {
             </div>
           )}
         </div>
-
-        {showRecentPayments && (
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-lg font-semibold text-slate-900">Recent Payments</h2>
-            {loading && <p className="mt-3 text-sm text-slate-500">Loading...</p>}
-            {!loading && !summary.recentPayments.length && <p className="mt-3 text-sm text-slate-500">No recent payments.</p>}
-            {!loading && summary.recentPayments.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {summary.recentPayments.map((item) => (
-                  <div key={item._id} className="rounded-lg border border-slate-200 px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-900">{item.candidateName}</p>
-                      <p className="text-xs text-slate-500">{formatDate(item.date)}</p>
-                    </div>
-                    <p className="text-xs text-slate-600">{item.type} • {item.currency} {item.amount} • {item.status}</p>
-                    <p className="text-xs text-slate-500">Txn: {item.transactionId || '—'}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </section>
   );

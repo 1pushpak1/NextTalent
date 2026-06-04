@@ -848,8 +848,14 @@ const getDashboardSummary = async (req, res) => {
       const paid = s.payments.filter((p) => p.status === 'completed').reduce((acc, p) => acc + (p.amount || 0), 0);
       return sum + paid;
     }, 0);
+    const isAccountCreated = (candidate) => {
+      const accountStatus = normalize(candidate?.accountStatus);
+      const workflowStatus = normalize(candidate?.status);
+      return ['created', 'email_verified'].includes(accountStatus) || ['account_created', 'email_verified'].includes(workflowStatus);
+    };
 
     const recentApplications = snapshots
+      .filter((snapshot) => !isAccountCreated(snapshot.candidate))
       .map((s) => formatCandidateRow(s))
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 8);

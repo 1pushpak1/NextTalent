@@ -126,7 +126,7 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
       ...base,
       currentStageKey: 'profile_review',
       currentStage: stageLabels.profile_review,
-      nextAction: 'Awaiting Evaluation Approval',
+      nextAction: 'Awaiting Admin Approval',
       pendingFrom: 'admin',
       recommendedAdminAction: 'Review Internal Evaluation',
     };
