@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { capitalizeFirstLetter } from '../utils/dateFormat';
 
 export default function CountrySearchSelect({
   label,
@@ -53,8 +54,15 @@ export default function CountrySearchSelect({
           className={`w-full rounded-lg border border-[rgba(200,169,107,0.22)] bg-[rgba(255,255,255,0.035)] px-3 py-2.5 text-sm text-[#f7f3ea] outline-none transition placeholder:text-[#8f8f96] focus:border-[#c8a96b] focus:ring-2 focus:ring-[#c8a96b]/20 ${error ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20' : ''}`.trim()}
           value={query}
           onChange={(event) => {
-            setQuery(event.target.value);
-            onChange?.(event);
+            const nextValue = capitalizeFirstLetter(event.target.value);
+            setQuery(nextValue);
+            onChange?.({
+              ...event,
+              target: {
+                ...event.target,
+                value: nextValue,
+              },
+            });
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}

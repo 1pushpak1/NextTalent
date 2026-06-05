@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
+const Eligibility = require('../models/Eligibility');
 const Payment = require('../models/Payment');
 const Invoice = require('../models/Invoice');
 const Receipt = require('../models/Receipt');
@@ -17,6 +18,7 @@ const { createAuditLog, getRequestIp } = require('../services/auditService');
 const { nextConsentId, nextPdfReference } = require('../services/documentNumberService');
 const { candidateSubmissionConfirmation, wrapHtml, applicationStatusUpdate, websiteUrl } = require('../services/emailTemplateService');
 const { generateDeclarationPdf } = require('../utils/declarationPdf');
+const { ensureCandidateIdForUser } = require('../utils/candidateId');
 
 const FRONTEND_BASE = String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
@@ -97,6 +99,8 @@ const submitCandidateApplication = async (req, res) => {
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
     const profile = await Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean();
+    const eligibility = await Eligibility.findOne({ userId: candidate._id, isEligible: true }).sort({ createdAt: -1 }).lean();
+    await ensureCandidateIdForUser({ userId: candidate._id, user: candidate, profile, eligibility });
     const now = new Date();
 
     candidate.applicationSubmittedAt = candidate.applicationSubmittedAt || now;

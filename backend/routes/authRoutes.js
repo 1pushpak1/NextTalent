@@ -4,6 +4,7 @@ const {
   login,
   verifyEmail,
   resendVerificationEmail,
+  sendProfileEmailVerification,
   verifyPhone,
   forgotPassword,
   resetPassword,
@@ -15,6 +16,7 @@ router.post('/signup', signup);
 router.post('/login', login);
 router.post('/verify-email', verifyEmail);
 router.post('/resend-verification-email', resendVerificationEmail);
+router.post('/send-profile-email-verification', sendProfileEmailVerification);
 router.post('/verify-phone', verifyPhone);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);

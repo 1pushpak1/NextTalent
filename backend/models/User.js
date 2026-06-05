@@ -90,10 +90,4 @@ const userSchema = new mongoose.Schema(
   { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } }
 );
 
-userSchema.pre('save', function ensureCandidateId() {
-  if (this.role === 'candidate' && !this.candidateId && this._id) {
-    this.candidateId = `NST-CAND-${String(this._id).slice(-8).toUpperCase()}`;
-  }
-});
-
 module.exports = mongoose.model('User', userSchema);

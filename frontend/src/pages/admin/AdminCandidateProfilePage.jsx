@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf';
 import ApprovalReviewModal from '../../components/admin/ApprovalReviewModal';
 import AuditHistoryPanel from '../../components/admin/AuditHistoryPanel';
 import Button from '../../components/Button';
+import DateInput from '../../components/DateInput';
 import Modal from '../../components/Modal';
 import {
   approveCandidateOperations,
@@ -20,6 +21,7 @@ import {
 } from '../../api/adminApi';
 import usePermissions from '../../hooks/usePermissions';
 import { getAdminDisplayName, getAdminPossessiveName } from '../../utils/adminDisplay';
+import { formatDisplayDate } from '../../utils/dateFormat';
 
 const tabs = ['overview', 'profile', 'eligibility', 'payments', 'documents', 'hiring', 'selection', 'notes', 'history'];
 const EMPTY_VALUE = 'NA';
@@ -228,6 +230,7 @@ export default function AdminCandidateProfilePage() {
   const payments = data?.payments || [];
   const documents = data?.documents || [];
   const progress = data?.progress;
+  const currentStageKey = String(progress?.currentStageKey || '').toLowerCase();
   const approvalHistory = data?.approvalHistory || [];
   const documentVerificationDecision = readStageDecision(candidate, 'document-verification');
   const hiringDecision = readStageDecision(candidate, 'hiring');
@@ -355,15 +358,11 @@ export default function AdminCandidateProfilePage() {
     return {
       personal: [
         { label: 'Candidate Name', value: candidate?.name || candidate?.email },
-        { label: 'Profile Status', value: humanize(profile.status) },
         { label: 'Email Verified', value: candidate?.emailVerified ? 'Yes' : 'No' },
-        { label: 'Mobile No Provided', value: candidate?.phoneVerified ? 'Yes' : 'No' },
-        { label: 'Financial Disclosure', value: profile.financialDisclosureAccepted ? 'Accepted' : 'Pending' },
-        { label: 'Signature', value: profile.signature ? 'Submitted' : 'Pending' },
         { label: 'First Name', value: profile.personalDetails?.firstName },
         { label: 'Middle Name', value: profile.personalDetails?.middleName },
         { label: 'Last Name', value: profile.personalDetails?.lastName },
-        { label: 'Date of Birth', value: profile.personalDetails?.dateOfBirth },
+        { label: 'Date of Birth', value: formatDisplayDate(profile.personalDetails?.dateOfBirth) },
         { label: 'Country of Birth', value: profile.personalDetails?.countryOfBirth },
         { label: 'Citizenship', value: profile.personalDetails?.citizenship },
         { label: 'Current Country of Residence', value: profile.personalDetails?.currentCountryOfResidence },
@@ -700,7 +699,6 @@ export default function AdminCandidateProfilePage() {
         currentStatus: profile?.status,
         summaryRows: [
           { label: 'Candidate', value: candidate?.name || candidate?.email || EMPTY_VALUE },
-          { label: 'Profile Status', value: humanize(profile?.status) },
           { label: 'Current Stage', value: progress?.currentStage || EMPTY_VALUE },
         ],
         evidenceItems: [],
@@ -826,26 +824,33 @@ export default function AdminCandidateProfilePage() {
     const safe = (value) => String(value || EMPTY_VALUE);
 
     const addPageHeader = () => {
-      doc.setFillColor(15, 23, 42);
-      doc.roundedRect(marginX, 24, contentWidth, 72, 10, 10, 'F');
+      const pageNumber = doc.getCurrentPageInfo().pageNumber;
+      if (pageNumber === 1) {
+        doc.setFillColor(15, 23, 42);
+        doc.roundedRect(marginX, 24, contentWidth, 72, 10, 10, 'F');
 
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
-      doc.text('Candidate Profile Report', marginX + 16, 54);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.text(safe(candidate?.name || candidate?.email), marginX + 16, 54);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, marginX + 16, 72);
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(`Generated: ${new Date().toLocaleString()}`, marginX + 16, 72);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text(safe(candidate?.email), pageWidth - marginX - 16, 54, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text(safe(candidate?.email), pageWidth - marginX - 16, 72, { align: 'right' });
+        doc.setTextColor(17, 24, 39);
+        y = 118;
+        return;
+      }
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text(safe(candidate?.name || candidate?.email), pageWidth - marginX - 16, 54, { align: 'right' });
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(safe(candidate?.email), pageWidth - marginX - 16, 72, { align: 'right' });
       doc.setTextColor(17, 24, 39);
-      y = 118;
+      doc.setFont('helvetica', 'normal');
+      y = topMargin;
     };
 
     const ensureSpace = (requiredHeight = 20) => {
@@ -1083,7 +1088,6 @@ export default function AdminCandidateProfilePage() {
     const counts = {};
     const pendingFromAdmin = String(progress?.pendingFrom || '').toLowerCase() === 'admin';
     const stageKey = String(progress?.currentStageKey || '').toLowerCase();
-    const normalizedRole = String(role || '');
     const hasPaymentInstructionPending = can('payments:verify') && (canSendProgramInstruction || canSendFinalInstruction);
 
     if (hasPaymentInstructionPending) counts.payments = 1;
@@ -1616,9 +1620,8 @@ export default function AdminCandidateProfilePage() {
                       value={interviewDraft.country}
                       onChange={(event) => setInterviewDraft((prev) => ({ ...prev, country: event.target.value }))}
                     />
-                    <input
-                      type="date"
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-[rgba(200,169,107,0.5)]"
+                    <DateInput
+                      label="Interview Date (MM/DD/YYYY)"
                       value={interviewDraft.date}
                       onChange={(event) => setInterviewDraft((prev) => ({ ...prev, date: event.target.value }))}
                     />

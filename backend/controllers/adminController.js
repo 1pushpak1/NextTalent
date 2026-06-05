@@ -22,6 +22,7 @@ const { LEGACY_PAYMENT_TYPE_TO_STAGE, PAYMENT_STAGES, EMAIL_TEMPLATE_KEYS, PAYME
 const sendEmail = require('../utils/sendEmail');
 const { getWorkflowConfig, sendAdminNotification, normalizeEmail } = require('../utils/workflowEmailer');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
+const { ensureCandidateIdForUser } = require('../utils/candidateId');
 const {
   generateInvoiceForStage,
   generateReceiptForPayment,
@@ -1060,9 +1061,14 @@ const getAdminCandidateProfile = async (req, res) => {
       Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
       Testimonial.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
     ]);
-    const progress = deriveCandidateProgress({ candidate, profile, eligibility, documents, interviews, payments, testimonial });
+    const refreshedCandidateDoc = await ensureCandidateIdForUser({ userId: candidate._id, user: candidate, profile, eligibility });
+    const refreshedCandidate =
+      refreshedCandidateDoc && typeof refreshedCandidateDoc.toObject === 'function'
+        ? refreshedCandidateDoc.toObject()
+        : refreshedCandidateDoc || candidate;
+    const progress = deriveCandidateProgress({ candidate: refreshedCandidate || candidate, profile, eligibility, documents, interviews, payments, testimonial });
     const approvalHistory = await loadApprovalHistory(candidate._id, req);
-    return res.json({ candidate, profile, documents, interviews, payments, eligibility, testimonial, progress, adminNotes: candidate.adminNotes || '', approvalHistory });
+    return res.json({ candidate: refreshedCandidate || candidate, profile, documents, interviews, payments, eligibility, testimonial, progress, adminNotes: candidate.adminNotes || '', approvalHistory });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }

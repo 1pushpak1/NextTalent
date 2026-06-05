@@ -160,7 +160,7 @@ export default function AdminCandidateDetailPage() {
     if (!value) return '—';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '—';
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('en-US');
   };
 
   const printInvoice = (payment) => {
@@ -311,7 +311,7 @@ export default function AdminCandidateDetailPage() {
       { label: 'Amount', value: `${payment.currency} ${payment.amount}` },
       { label: 'Transaction ID', value: payment.transactionId },
       { label: 'Status', value: payment.status },
-      { label: 'Date', value: payment.createdAt ? new Date(payment.createdAt).toLocaleDateString() : '' },
+      { label: 'Date', value: payment.createdAt ? new Date(payment.createdAt).toLocaleDateString('en-US') : '' },
     ]);
 
     const html = `

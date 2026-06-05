@@ -83,6 +83,38 @@ This is an automated email. Please do not reply to this message.`;
   return true;
 };
 
+const getOrCreateCandidateForEmail = async ({ email, name = '' }) => {
+  const normalizedEmail = String(email || '').toLowerCase().trim();
+  if (!normalizedEmail) {
+    const error = new Error('Email is required');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (findConfiguredAdminByEmail(normalizedEmail)) {
+    const error = new Error('This email is reserved for admin login');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let user = await User.findOne({ email: normalizedEmail });
+  if (!user) {
+    user = await User.create({
+      name: String(name || normalizedEmail.split('@')[0] || 'Candidate').trim(),
+      email: normalizedEmail,
+      role: 'candidate',
+      status: 'eligibility_approved',
+      evaluationStatus: 'pending',
+      operationsStatus: 'pending',
+      accountStatus: 'not_invited',
+      emailVerified: false,
+      phoneVerified: false,
+    });
+  }
+
+  return user;
+};
+
 const signup = async (req, res) => {
   try {
     const { email, password, confirmPassword, inviteToken } = req.body;
@@ -286,6 +318,19 @@ const resendVerificationEmail = async (req, res) => {
   }
 };
 
+const sendProfileEmailVerification = async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    const user = await getOrCreateCandidateForEmail({ email, name });
+    if (user.emailVerified) return res.status(400).json({ message: 'Email is already verified' });
+
+    await sendVerificationEmail(user);
+    res.json({ message: 'Verification email sent' });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
 const verifyPhone = async (req, res) => {
   try {
     const { email, countryCode, phone } = req.body;
@@ -412,4 +457,4 @@ const resetPassword = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, verifyEmail, resendVerificationEmail, verifyPhone, forgotPassword, resetPassword };
+module.exports = { signup, login, verifyEmail, resendVerificationEmail, sendProfileEmailVerification, verifyPhone, forgotPassword, resetPassword };

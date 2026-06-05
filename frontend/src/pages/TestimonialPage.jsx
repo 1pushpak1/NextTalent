@@ -84,7 +84,7 @@ export default function TestimonialPage() {
                       <textarea
                         className="min-h-[180px] w-full rounded-lg border border-[#c4c6cf] bg-white px-3 py-2.5 text-sm outline-none transition focus:border-[#3a5f94] focus:ring-2 focus:ring-[#3a5f94]/20"
                         value={form.text}
-                        onChange={(e) => setForm({ ...form, text: e.target.value })}
+                        onChange={(e) => setForm({ ...form, text: e.target.value.replace(/^(\s*)([a-z])/, (_, lead, letter) => `${lead}${letter.toUpperCase()}`) })}
                         required
                       />
                     </label>

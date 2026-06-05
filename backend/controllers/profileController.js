@@ -8,6 +8,7 @@ const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const { sendAdminNotification } = require('../utils/workflowEmailer');
 const { getEvaluationAdminEmails, getSuperAdminEmails } = require('../utils/adminRoleEmails');
 const sendEmail = require('../utils/sendEmail');
+const { ensureCandidateIdForUser } = require('../utils/candidateId');
 
 const clampSavedStep = (value, fallback = 1) => {
   const numeric = Number(value);
@@ -80,6 +81,7 @@ const ensureEligible = async (userId) => {
     error.statusCode = 403;
     throw error;
   }
+  return eligibility;
 };
 
 const getProfileByAccess = async ({ userId = null, email = '', eligibilityId = '' }) => {
@@ -306,6 +308,9 @@ const saveDraftProfile = async ({ profile, body }) => {
 const finalizeOrDraftProfile = async ({ req, body, userId, profile, isNewProfile, eligibility = null }) => {
   if (body.status === 'draft') {
     const draftProfile = await saveDraftProfile({ profile, body });
+    if (eligibility) {
+      await ensureCandidateIdForUser({ userId, profile: draftProfile, eligibility });
+    }
     return { profile: draftProfile, statusCode: isNewProfile ? 201 : 200 };
   }
 
@@ -320,13 +325,14 @@ const finalizeOrDraftProfile = async ({ req, body, userId, profile, isNewProfile
   if (eligibility) {
     eligibility.profileSubmittedAt = eligibility.profileSubmittedAt || new Date();
     await eligibility.save();
+    await ensureCandidateIdForUser({ userId, profile: savedProfile, eligibility });
   }
 
   return { profile: savedProfile, statusCode };
 };
 
 const createOrUpdateProfileForUser = async ({ req, body, userId }) => {
-  await ensureEligible(userId);
+  const eligibility = await ensureEligible(userId);
   const existingProfile = await Profile.findOne({ userId }).sort({ createdAt: -1 });
   const profile = existingProfile || new Profile({ userId });
   applyProfileFields(profile, body);
@@ -335,6 +341,7 @@ const createOrUpdateProfileForUser = async ({ req, body, userId }) => {
     profile.status = 'draft';
     profile.generatedPdfUrl = '';
     await profile.save();
+    await ensureCandidateIdForUser({ userId, profile, eligibility });
     return { profile, statusCode: 201 };
   }
 
@@ -344,6 +351,7 @@ const createOrUpdateProfileForUser = async ({ req, body, userId }) => {
     userId,
     profile,
     isNewProfile: !existingProfile,
+    eligibility,
   });
 };
 
@@ -427,7 +435,7 @@ const getPublicProfile = async (req, res) => {
 
 const updateMyProfile = async (req, res) => {
   try {
-    await ensureEligible(req.user._id);
+    const eligibility = await ensureEligible(req.user._id);
     const profile = await getProfileByAccess({ userId: req.user._id });
     if (!profile) {
       return res.status(404).json({ message: 'Profile not found' });
@@ -439,6 +447,7 @@ const updateMyProfile = async (req, res) => {
       userId: req.user._id,
       profile,
       isNewProfile: false,
+      eligibility,
     });
 
     res.json(savedProfile);
