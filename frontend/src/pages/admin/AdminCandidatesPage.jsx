@@ -3,18 +3,27 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { fetchAdminCandidates } from '../../api/adminApi';
 import usePermissions from '../../hooks/usePermissions';
 
-const stageOptions = ['', 'profile_review', 'initial_payment', 'document_verification', 'hiring', 'selection', 'final_payment', 'testimonial'];
-const profileStatusOptions = ['', 'submitted', 'under_review', 'accepted', 'rejected'];
+const stageOptions = ['', 'profile_review', 'initial_payment', 'document_verification', 'program_payment', 'hiring', 'selection', 'final_payment'];
+const stageOptionLabels = {
+  profile_review: 'Pending',
+  initial_payment: '$500 Payment',
+  document_verification: 'Document Verification',
+  program_payment: 'First Installment',
+  hiring: 'Hiring Partner',
+  selection: 'Selection Status',
+  final_payment: 'Final Payment',
+};
 const paymentStatusOptions = ['', 'not_started', 'pending_verification', 'verified', 'partially_verified'];
 const documentStatusOptions = ['', 'not_uploaded', 'uploaded', 'under_review', 'needs_revision', 'verified'];
-const selectionStatusOptions = ['', 'pending', 'under_review', 'selected', 'rejected'];
 const DEFAULT_FORCED_FILTERS = Object.freeze({});
 
 const humanize = (value) => String(value || '—').replaceAll('_', ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+const formatStageLabel = (value) => (String(value || '') === 'Profile Review' ? 'Pending' : value || '—');
+const formatPaymentLabel = (value) => (String(value || '') === 'Not Started' ? 'Pending' : value || '—');
 
 export default function AdminCandidatesPage({
   pageTitle = 'Candidates',
-  pageSubtitle = 'Track all candidates and pending actions in one place.',
+  pageSubtitle = '',
   forcedFilters = DEFAULT_FORCED_FILTERS,
 }) {
   const { can, role } = usePermissions();
@@ -29,11 +38,8 @@ export default function AdminCandidatesPage({
     const base = {
       q: searchParams.get('q') || '',
       stage: searchParams.get('stage') || '',
-      profileStatus: searchParams.get('profileStatus') || '',
       paymentStatus: searchParams.get('paymentStatus') || '',
       documentStatus: searchParams.get('documentStatus') || '',
-      selectionStatus: searchParams.get('selectionStatus') || '',
-      pendingFrom: searchParams.get('pendingFrom') || '',
       page: Number(searchParams.get('page') || 1),
     };
     return { ...base, ...forcedFilters };
@@ -47,6 +53,7 @@ export default function AdminCandidatesPage({
       stageOptions.filter((stage) => {
         if (!stage) return true;
         if (stage === 'document_verification') return showDocumentAccess;
+        if (stage === 'program_payment') return showPaymentAccess;
         if (stage === 'selection') return showSelectionAccess;
         if (stage === 'hiring') return can('candidates:update');
         if (stage === 'profile_review') return can('evaluation:approve');
@@ -96,11 +103,8 @@ export default function AdminCandidatesPage({
     const next = new URLSearchParams();
     if (draftFilters.q) next.set('q', draftFilters.q);
     if (draftFilters.stage) next.set('stage', draftFilters.stage);
-    if (draftFilters.profileStatus) next.set('profileStatus', draftFilters.profileStatus);
     if (showPaymentAccess && draftFilters.paymentStatus) next.set('paymentStatus', draftFilters.paymentStatus);
     if (showDocumentAccess && draftFilters.documentStatus) next.set('documentStatus', draftFilters.documentStatus);
-    if (showSelectionAccess && draftFilters.selectionStatus) next.set('selectionStatus', draftFilters.selectionStatus);
-    if (draftFilters.pendingFrom) next.set('pendingFrom', draftFilters.pendingFrom);
     Object.entries(forcedFilters || {}).forEach(([key, value]) => {
       if (value !== undefined && value !== null && String(value) !== '') {
         next.set(key, String(value));
@@ -114,11 +118,8 @@ export default function AdminCandidatesPage({
     setDraftFilters({
       q: '',
       stage: '',
-      profileStatus: '',
       paymentStatus: '',
       documentStatus: '',
-      selectionStatus: '',
-      pendingFrom: '',
       page: 1,
     });
     const next = new URLSearchParams({ page: '1' });
@@ -160,11 +161,14 @@ export default function AdminCandidatesPage({
         <div className="grid gap-2 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-4">
           <input className="rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Search name/email/phone" value={draftFilters.q} onChange={(e) => setDraftFilter('q', e.target.value)} />
           {forcedFilters?.stage ? null : (
-            <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.stage} onChange={(e) => setDraftFilter('stage', e.target.value)}>{availableStageOptions.map((item) => <option key={item} value={item}>{item ? humanize(item) : 'All Stages'}</option>)}</select>
+            <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.stage} onChange={(e) => setDraftFilter('stage', e.target.value)}>
+              {availableStageOptions.map((item) => (
+                <option key={item} value={item}>
+                  {item ? stageOptionLabels[item] || humanize(item) : 'All Stages'}
+                </option>
+              ))}
+            </select>
           )}
-          <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.profileStatus} onChange={(e) => setDraftFilter('profileStatus', e.target.value)}>
-            {profileStatusOptions.map((item) => <option key={item || 'all-profile'} value={item}>{item ? humanize(item) : 'All Profile Statuses'}</option>)}
-          </select>
           {showPaymentAccess && (
             <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.paymentStatus} onChange={(e) => setDraftFilter('paymentStatus', e.target.value)}>
               {paymentStatusOptions.map((item) => <option key={item || 'all-payment'} value={item}>{item ? humanize(item) : 'All Payment Statuses'}</option>)}
@@ -173,16 +177,6 @@ export default function AdminCandidatesPage({
           {showDocumentAccess && (
             <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.documentStatus} onChange={(e) => setDraftFilter('documentStatus', e.target.value)}>
               {documentStatusOptions.map((item) => <option key={item || 'all-document'} value={item}>{item ? humanize(item) : 'All Document Statuses'}</option>)}
-            </select>
-          )}
-          {showSelectionAccess && (
-            <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.selectionStatus} onChange={(e) => setDraftFilter('selectionStatus', e.target.value)}>
-              {selectionStatusOptions.map((item) => <option key={item || 'all-selection'} value={item}>{item ? humanize(item) : 'All Selection Statuses'}</option>)}
-            </select>
-          )}
-          {forcedFilters?.pendingFrom ? null : (
-            <select className="rounded border border-slate-300 px-3 py-2 text-sm" value={draftFilters.pendingFrom} onChange={(e) => setDraftFilter('pendingFrom', e.target.value)}>
-              <option value="">All Pending Types</option><option value="admin">Pending From Admin</option><option value="candidate">Pending From Candidate</option>
             </select>
           )}
           <button type="button" className="rounded border border-[#c8a96b] bg-[#c8a96b] px-3 py-2 text-sm font-semibold text-black hover:bg-[#d4b87e]" onClick={applyFilters}>
@@ -201,9 +195,9 @@ export default function AdminCandidatesPage({
       {!loading && !error && rows.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Candidate</th><th className="px-3 py-2">Stage</th><th className="px-3 py-2">Profile</th>{showPaymentAccess ? <th className="px-3 py-2">Payment</th> : null}{showDocumentAccess ? <th className="px-3 py-2">Documents</th> : null}{showSelectionAccess ? <th className="px-3 py-2">Selection</th> : null}<th className="px-3 py-2">Next Action</th><th className="px-3 py-2">Pending From</th><th className="px-3 py-2">Updated</th></tr></thead>
+            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Candidate</th><th className="px-3 py-2">Stage</th>{showPaymentAccess ? <th className="px-3 py-2">Payment</th> : null}{showDocumentAccess ? <th className="px-3 py-2">Documents</th> : null}{showSelectionAccess ? <th className="px-3 py-2">Selection</th> : null}<th className="px-3 py-2">Next Action</th><th className="px-3 py-2">Updated</th></tr></thead>
             <tbody>
-              {rows.map((row) => <tr key={row._id} className="border-t border-slate-100"><td className="px-3 py-2"><Link className="font-semibold text-[#d7c08a] hover:underline" to={`/admin/candidates/${row._id}`}>{row.name}</Link><div className="text-xs text-slate-500">{row.email} {row.phone ? `• ${row.phone}` : ''}</div></td><td className="px-3 py-2">{row.currentStage}</td><td className="px-3 py-2">{humanize(row.profileStatus)}</td>{showPaymentAccess ? <td className="px-3 py-2">{row.paymentSummaryLabel}</td> : null}{showDocumentAccess ? <td className="px-3 py-2">{row.documentStatusLabel}</td> : null}{showSelectionAccess ? <td className="px-3 py-2">{row.interviewSelectionStatusLabel}</td> : null}<td className="px-3 py-2">{row.nextPendingAction}</td><td className="px-3 py-2">{humanize(row.pendingFrom)}</td><td className="px-3 py-2">{row.lastUpdatedAt ? new Date(row.lastUpdatedAt).toLocaleDateString() : '—'}</td></tr>)}
+              {rows.map((row) => <tr key={row._id} className="border-t border-slate-100"><td className="px-3 py-2"><Link className="font-semibold text-[#d7c08a] hover:underline" to={`/admin/candidates/${row._id}`}>{row.name}</Link><div className="text-xs text-slate-500">{row.email} {row.phone ? `• ${row.phone}` : ''}</div></td><td className="px-3 py-2">{formatStageLabel(row.currentStage)}</td>{showPaymentAccess ? <td className="px-3 py-2">{formatPaymentLabel(row.paymentSummaryLabel)}</td> : null}{showDocumentAccess ? <td className="px-3 py-2">{row.documentStatusLabel}</td> : null}{showSelectionAccess ? <td className="px-3 py-2">{row.interviewSelectionStatusLabel}</td> : null}<td className="px-3 py-2">{row.nextPendingAction}</td><td className="px-3 py-2">{row.lastUpdatedAt ? new Date(row.lastUpdatedAt).toLocaleDateString() : '—'}</td></tr>)}
             </tbody>
           </table>
         </div>

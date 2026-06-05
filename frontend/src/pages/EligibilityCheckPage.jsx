@@ -268,21 +268,21 @@ export default function EligibilityCheckPage() {
                   </div>
                   <div className="relative flex items-center justify-between gap-6 text-white">
                     <div className="max-w-2xl">
-                      <p className="text-xs uppercase tracking-widest text-[#f4dfb2]">Global Reach</p>
+                      {/* <p className="text-xs uppercase tracking-widest text-[#f4dfb2]">International Reach</p> */}
                       <h2 className="nst-display text-3xl font-bold">Global Opportunities</h2>
-                      <p className="mt-1 text-sm text-[#dbe8f7]">
+                      {/* <p className="mt-1 text-sm text-[#dbe8f7]">
                         International roles beyond Europe for candidates with strong IT and English readiness.
-                      </p>
+                      </p> */}
                     </div>
                     <div className="pointer-events-none relative flex h-24 w-24 flex-none items-center justify-center sm:h-28 sm:w-28">
                       <div className="absolute inset-0 rounded-full border border-[#8fc9ff]/35 bg-[#8fc9ff]/10 backdrop-blur-sm" />
                       <div className="absolute inset-3 rounded-full border border-[#c8a96b]/25" />
-                      <svg viewBox="0 0 24 24" aria-hidden="true" className="relative h-14 w-14 text-[#dbe8f7]/80 sm:h-16 sm:w-16">
-                        <path
-                          fill="currentColor"
-                          d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm7.75 9h-2.12a16.7 16.7 0 0 0-1.3-5.08A8.02 8.02 0 0 1 19.75 11ZM12 4.02c.7.94 1.34 2.13 1.82 3.55H10.2c.48-1.42 1.12-2.61 1.8-3.55ZM4.25 13h2.12c.2 1.77.7 3.52 1.3 5.08A8.02 8.02 0 0 1 4.25 13Zm2.12-2H4.25a8.02 8.02 0 0 1 3.42-5.08A16.7 16.7 0 0 0 6.37 11Zm5.63 7.98c-.7-.94-1.34-2.13-1.82-3.55h3.64c-.48 1.42-1.12 2.61-1.82 3.55ZM9.7 13h4.6c-.18 1.44-.6 2.84-1.18 4.05h-2.24c-.58-1.21-1-2.61-1.18-4.05Zm4.92-2H9.38c.18-1.44.6-2.84 1.18-4.05h2.88c.58 1.21 1 2.61 1.18 4.05Zm1.08 7.08c.6-1.56 1.1-3.31 1.3-5.08h2.12a8.02 8.02 0 0 1-3.42 5.08Zm1.3-7.08c-.2-1.77-.7-3.52-1.3-5.08A8.02 8.02 0 0 1 19.75 11Z"
-                        />
-                      </svg>
+                      <img
+                        src="/globe.png"
+                        alt=""
+                        aria-hidden="true"
+                        className="relative h-14 w-14 object-contain drop-shadow-[0_0_12px_rgba(143,201,255,0.45)] sm:h-16 sm:w-16"
+                      />
                     </div>
                   </div>
                 </div>

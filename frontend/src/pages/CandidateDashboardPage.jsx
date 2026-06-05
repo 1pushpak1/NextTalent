@@ -6,6 +6,7 @@ import StatusBadge from '../components/StatusBadge';
 import Button from '../components/Button';
 import CandidatePortalSidebar from '../components/CandidatePortalSidebar';
 import api from '../api/axios';
+import { getAdminPossessiveName } from '../utils/adminDisplay';
 import { useAuth } from '../context/AuthContext';
 import { getCandidateNextRoute } from '../utils/pathwayFlow';
 
@@ -200,8 +201,8 @@ export default function CandidateDashboardPage() {
 
           {internalEvaluationPassed && !progressionApproved && !journeyLocked && (
             <section className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-              <p className="text-sm font-semibold text-amber-900">Your profile passed internal assessment and is pending Admin 1 progression approval.</p>
-              <p className="mt-1 text-sm text-amber-800">Payment, documentation, and next-stage actions will unlock after Admin 1 manually approves progression.</p>
+              <p className="text-sm font-semibold text-amber-900">Your profile passed internal assessment and is pending {getAdminPossessiveName('super_admin')} progression approval.</p>
+              <p className="mt-1 text-sm text-amber-800">Payment, documentation, and next-stage actions will unlock after {getAdminPossessiveName('super_admin')} manually approves progression.</p>
             </section>
           )}
 

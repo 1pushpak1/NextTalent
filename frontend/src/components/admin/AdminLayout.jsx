@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import AdminSidebar from './AdminSidebar';
 import usePermissions from '../../hooks/usePermissions';
+import { getAdminDisplayName } from '../../utils/adminDisplay';
 
 export default function AdminLayout() {
   const { logout, user } = useAuth();
@@ -13,7 +14,6 @@ export default function AdminLayout() {
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mainContentRef = useRef(null);
-
   const canAccessAdminPath = useCallback((path) => {
     if (path.startsWith('/admin/payments')) return can('payments:verify');
     if (path.startsWith('/admin/evaluation')) return can('evaluation:approve');
@@ -50,29 +50,28 @@ export default function AdminLayout() {
       />
 
       <div className="lg:pl-72">
-        <button
-          type="button"
-          className="fixed left-4 top-4 z-30 rounded-md border border-[rgba(200,169,107,0.35)] bg-[rgba(255,255,255,0.08)] p-2 text-[#f7f3ea] shadow-sm lg:hidden"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Open admin sidebar"
-        >
-          <span className="material-symbols-outlined text-base">menu</span>
-        </button>
-
-        <header className="sticky top-0 z-20 border-b border-[rgba(200,169,107,0.24)] bg-[rgba(8,8,9,0.9)] px-4 py-4 backdrop-blur">
+        <header className="relative sticky top-0 z-20 border-b border-[rgba(200,169,107,0.24)] bg-[rgba(8,8,9,0.9)] px-4 py-4 backdrop-blur">
+          <button
+            type="button"
+            className="absolute right-4 top-1/2 z-30 -translate-y-1/2 rounded-2xl border border-[rgba(200,169,107,0.35)] bg-[rgba(255,255,255,0.08)] p-2 text-[#f7f3ea] shadow-sm lg:hidden"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open admin sidebar"
+          >
+            <span className="material-symbols-outlined text-base leading-none">menu</span>
+          </button>
           <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-3">
             <div className="hidden md:block" />
             <div className="text-center">
               <p className="text-xs uppercase tracking-[0.22em] text-[#c8a96b]">NextStep Talent Admin</p>
             </div>
-            <div className="flex justify-start md:justify-end">
+            <div className="hidden justify-start md:flex md:justify-end">
               <div className="flex items-center gap-3 rounded-2xl border border-[rgba(200,169,107,0.24)] bg-[rgba(255,255,255,0.04)] px-4 py-2">
                 <div className="h-10 w-10 rounded-full bg-[#c8a96b]/90 text-center text-sm font-bold leading-10 text-black">
                   {String(user?.name || 'A').charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-[#f7f3ea]">{user?.name || 'Admin'}</p>
-                  <p className="text-xs text-[#bdbdc3]">{String(user?.adminRole || '').replaceAll('_', ' ') || 'admin'}</p>
+                  <p className="text-xs text-[#bdbdc3]">{getAdminDisplayName(user?.adminRole, 'Admin')}</p>
                 </div>
               </div>
             </div>

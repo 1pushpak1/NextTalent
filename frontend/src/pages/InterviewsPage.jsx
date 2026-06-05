@@ -4,6 +4,7 @@ import Footer from '../components/Footer';
 import Button from '../components/Button';
 import CandidatePortalSidebar from '../components/CandidatePortalSidebar';
 import api from '../api/axios';
+import { getAdminPossessiveName } from '../utils/adminDisplay';
 
 const formatDate = (value) => {
   const date = new Date(value);
@@ -63,7 +64,7 @@ export default function InterviewsPage() {
           <div className="nst-card rounded-xl p-8">
             <h1 className="mb-2 text-3xl font-bold text-[#002147]">Interview Booking</h1>
             <p className="mb-5 text-[#44474e]">
-              Candidates can book a 15-minute interview slot only after Admin 3 marks interview required and Sterling background verification is completed.
+              Candidates can book a 15-minute interview slot only after {getAdminPossessiveName('operations_admin')} marks interview required and Sterling background verification is completed.
             </p>
 
             <div className="mb-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">

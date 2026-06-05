@@ -19,19 +19,44 @@ import {
   initiateCandidateRefund,
 } from '../../api/adminApi';
 import usePermissions from '../../hooks/usePermissions';
+import { getAdminDisplayName, getAdminPossessiveName } from '../../utils/adminDisplay';
 
 const tabs = ['overview', 'profile', 'eligibility', 'payments', 'documents', 'hiring', 'selection', 'notes', 'history'];
+const EMPTY_VALUE = 'NA';
 
 const humanize = (value) =>
-  String(value || '—')
+  String(value === null || value === undefined || value === '' ? EMPTY_VALUE : value)
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (match) => match.toUpperCase());
 
 const formatDate = (value) => {
-  if (!value) return '—';
+  if (!value) return EMPTY_VALUE;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
+  if (Number.isNaN(date.getTime())) return EMPTY_VALUE;
   return date.toLocaleString();
+};
+
+const formatFileDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'unknown-date';
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${month}-${day}-${date.getFullYear()}`;
+};
+
+const sanitizeFilePart = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/[\s_]+/g, '-')
+    .replace(/[^a-zA-Z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const formatEligibilityResponse = (value) => {
+  if (value === true) return 'Yes';
+  if (value === false) return 'No';
+  if (value === null || value === undefined || value === '') return EMPTY_VALUE;
+  return String(value);
 };
 
 const getBackendBaseUrl = () => {
@@ -82,10 +107,10 @@ const KeyValueGrid = ({ rows = [] }) => (
         {String(row.label || '').toLowerCase().includes('additional information') || String(row.label || '').toLowerCase() === 'additional information' ? (
           <div className="mt-1 rounded-lg bg-white p-4 text-sm">
             <p className="text-slate-500">Notes</p>
-            <p className="whitespace-pre-wrap font-medium text-slate-900 break-words break-all">{row.value || '—'}</p>
+            <p className="whitespace-pre-wrap font-medium text-slate-900 break-words break-all">{row.value || EMPTY_VALUE}</p>
           </div>
         ) : (
-          <p className="mt-1 break-words text-sm font-medium text-slate-800">{row.value || '—'}</p>
+          <p className="mt-1 break-words text-sm font-medium text-slate-800">{row.value || EMPTY_VALUE}</p>
         )}
       </div>
     ))}
@@ -115,6 +140,7 @@ export default function AdminCandidateProfilePage() {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const contentRef = useRef(null);
+  const profilePdfSequenceRef = useRef(0);
   const { can, role } = usePermissions();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -122,10 +148,6 @@ export default function AdminCandidateProfilePage() {
   const [activeReview, setActiveReview] = useState(null);
   const [notesDraft, setNotesDraft] = useState('');
   const [notesSaving, setNotesSaving] = useState(false);
-  const [profileReviewNote, setProfileReviewNote] = useState('');
-  const [profileReviewConfirmed, setProfileReviewConfirmed] = useState(false);
-  const [profileReviewSubmitting, setProfileReviewSubmitting] = useState('');
-  const [allowReviewedProfileEditor, setAllowReviewedProfileEditor] = useState(false);
   const [hiringPartnerDraft, setHiringPartnerDraft] = useState('');
   const [stageSaving, setStageSaving] = useState('');
   const [operationsSaving, setOperationsSaving] = useState('');
@@ -144,6 +166,7 @@ export default function AdminCandidateProfilePage() {
     time: '',
     meetingLink: '',
   });
+  const [workspaceSummaryOpen, setWorkspaceSummaryOpen] = useState(false);
 
   const canViewAuditHistory = String(role || '') === 'super_admin';
   const visibleTabs = useMemo(() => {
@@ -161,7 +184,6 @@ export default function AdminCandidateProfilePage() {
   }, [canViewAuditHistory, role]);
   const activeTabParam = searchParams.get('tab');
   const activeTab = visibleTabs.includes(activeTabParam) ? activeTabParam : 'profile';
-  const reviewParam = searchParams.get('review');
   const canReviewSelection = can('selection:publish');
 
   useEffect(() => {
@@ -215,7 +237,7 @@ export default function AdminCandidateProfilePage() {
   const selectionAnnounced =
     ['accepted', 'rejected'].includes(selectionDecision) ||
     ['selected', 'rejected'].includes(String(progress?.selectionStatus || '').toLowerCase());
-  // Admin 3 (operations_admin) can approve evaluation as the final approver
+  // Arna Bose can approve evaluation as the final approver
   const isAdmin3PendingEvaluation =
     String(role || '') === 'operations_admin' &&
     Boolean(candidate?.admin2EvaluationApproved) &&
@@ -224,12 +246,6 @@ export default function AdminCandidateProfilePage() {
     readStageDecision(candidate, 'evaluation') !== 'rejected';
 
   const filteredHistory = (types) => approvalHistory.filter((item) => types.includes(item.approvalType));
-  const isInlineProfileReview =
-    activeTab === 'profile' &&
-    reviewParam === 'evaluation' &&
-    Boolean(profile) &&
-    can('evaluation:approve') &&
-    (profile?.status !== 'rejected' ? true : allowReviewedProfileEditor);
   const profileReviewHistory = filteredHistory(['profile_evaluation']);
   const lastProfileReview = profileReviewHistory[0] || null;
   const profileAlreadyReviewed =
@@ -298,14 +314,6 @@ export default function AdminCandidateProfilePage() {
     setActiveReview(null);
   }, [data, searchParams, documents, can, canReviewSelection, evaluationAdminDocumentReviewUnlocked]);
 
-  useEffect(() => {
-    if (!isInlineProfileReview) {
-      setProfileReviewNote('');
-      setProfileReviewConfirmed(false);
-      setProfileReviewSubmitting('');
-    }
-  }, [isInlineProfileReview]);
-
   const setTab = (tab) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -316,17 +324,10 @@ export default function AdminCandidateProfilePage() {
   };
 
   const openProfileReview = () => {
-    setAllowReviewedProfileEditor(true);
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('tab', 'profile');
-      next.set('review', 'evaluation');
-      return next;
-    });
+    setActiveReview({ type: 'profile' });
   };
 
   const closeReview = () => {
-    setAllowReviewedProfileEditor(false);
     setActiveReview(null);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -338,22 +339,27 @@ export default function AdminCandidateProfilePage() {
   const stageIndex = stageSequence.indexOf(progress?.currentStageKey);
   const allStagesCompleted = String(progress?.currentStageKey || '').toLowerCase() === 'completed';
 
-  const profileRows = useMemo(() => {
-    if (!profile) return [];
-    return [
-      { label: 'Candidate Name', value: candidate?.name || candidate?.email },
-      { label: 'Profile Status', value: humanize(profile.status) },
-      { label: 'Email Verified', value: candidate?.emailVerified ? 'Yes' : 'No' },
-      { label: 'Mobile No Provided', value: candidate?.phoneVerified ? 'Yes' : 'No' },
-      { label: 'Financial Disclosure', value: profile.financialDisclosureAccepted ? 'Accepted' : 'Pending' },
-      { label: 'Signature', value: profile.signature ? 'Submitted' : 'Pending' },
-    ];
-  }, [candidate, profile]);
-
   const profileSectionRows = useMemo(() => {
-    if (!profile) return { personal: [], education: [], skills: [] };
+    if (!profile) return { personal: [], education: [], certifications: [], experience: [], skills: [], additional: [], languages: [] };
+
+    const certifications = (profile.certifications || []).filter((item) =>
+      [item.certificationName, item.issuingOrganization, item.yearCompleted].some((value) => String(value || '').trim()),
+    );
+    const workExperience = (profile.workExperience || []).filter((item) =>
+      [item.organizationName, item.jobTitle, item.responsibilities, item.startDate, item.endDate, item.country, item.currentlyWorkingHere].some((value) => String(value || '').trim()),
+    );
+    const languages = (profile.languages || []).filter((item) =>
+      [item.language, item.proficiencyLevel, item.certificateTitle, item.certified].some((value) => String(value || '').trim()),
+    );
+
     return {
       personal: [
+        { label: 'Candidate Name', value: candidate?.name || candidate?.email },
+        { label: 'Profile Status', value: humanize(profile.status) },
+        { label: 'Email Verified', value: candidate?.emailVerified ? 'Yes' : 'No' },
+        { label: 'Mobile No Provided', value: candidate?.phoneVerified ? 'Yes' : 'No' },
+        { label: 'Financial Disclosure', value: profile.financialDisclosureAccepted ? 'Accepted' : 'Pending' },
+        { label: 'Signature', value: profile.signature ? 'Submitted' : 'Pending' },
         { label: 'First Name', value: profile.personalDetails?.firstName },
         { label: 'Middle Name', value: profile.personalDetails?.middleName },
         { label: 'Last Name', value: profile.personalDetails?.lastName },
@@ -375,13 +381,52 @@ export default function AdminCandidateProfilePage() {
         { label: "Master's Field", value: profile.education?.masters?.field },
         { label: "Master's Country", value: profile.education?.masters?.country },
       ],
+      certifications: certifications.map((item) => ([
+        { label: 'Certification Name', value: item.certificationName },
+        { label: 'Issuing Organization', value: item.issuingOrganization },
+        { label: 'Year Completed', value: item.yearCompleted },
+      ])),
+      experience: workExperience.map((item) => ([
+        { label: 'Experience Type', value: item.experienceType },
+        { label: 'Organization Name', value: item.organizationName },
+        { label: 'Job Title', value: item.jobTitle },
+        { label: 'Responsibilities', value: item.responsibilities },
+        { label: 'Start Date', value: item.startDate },
+        { label: 'End Date', value: item.endDate },
+        { label: 'Currently Working Here', value: item.currentlyWorkingHere ? 'Yes' : 'No' },
+        { label: 'Country', value: item.country },
+      ])),
+      languages: languages.map((item) => ([
+        { label: 'Language', value: item.language },
+        { label: 'Proficiency Level', value: item.proficiencyLevel },
+        { label: 'Certified', value: item.certified === 'Yes' ? item.certified : '' },
+        { label: 'Certificate Title', value: item.certificateTitle },
+      ])),
       skills: [
         { label: 'Technical Skills', value: profile.skills?.technical },
         { label: 'Soft Skills', value: profile.skills?.soft },
+      ],
+      additional: [
         { label: 'Additional Information', value: profile.additionalInfo },
       ],
     };
-  }, [profile]);
+  }, [candidate, profile]);
+
+  const eligibilityRows = useMemo(() => {
+    if (!eligibility) return [];
+    return [
+      { label: 'Destination', value: eligibility.destination },
+      { label: 'Country', value: eligibility.country },
+      { label: 'IT Background', value: eligibility.hasITBackground ? 'Yes' : 'No' },
+      { label: 'Qualification', value: eligibility.qualification },
+      { label: 'Language', value: eligibility.languageAnswer },
+      { label: 'Current Location', value: eligibility.currentLocation },
+      { label: 'Willing To Relocate', value: formatEligibilityResponse(eligibility.willingToRelocate) },
+      { label: 'Comfortable With Fees', value: formatEligibilityResponse(eligibility.comfortableWithFees) },
+      { label: 'Eligible', value: eligibility.isEligible ? 'Yes' : 'No' },
+      { label: 'Rejection Reason', value: eligibility.rejectionReason },
+    ];
+  }, [eligibility]);
 
   const saveNotes = async () => {
     setNotesSaving(true);
@@ -395,33 +440,13 @@ export default function AdminCandidateProfilePage() {
     }
   };
 
-  const submitInlineProfileReview = async (decision) => {
-    if (!profileReviewNote.trim() || !profileReviewConfirmed) return;
-    setProfileReviewSubmitting(decision);
-    try {
-      await reviewCandidateProfile(id, {
-        status: decision,
-        reasonNote: profileReviewNote.trim(),
-        reviewConfirmed: true,
-        evidenceViewed: true,
-        sourcePage: '/admin/candidates/profile',
-      });
-      closeReview();
-      await load();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit profile review');
-    } finally {
-      setProfileReviewSubmitting('');
-    }
-  };
-
   const submitReview = async ({ decision, reasonNote, reviewConfirmed, evidenceViewed }) => {
     if (!activeReview) return;
 
     if (activeReview.type === 'profile') {
       await reviewCandidateProfile(id, {
         status: decision,
-        reasonNote,
+        reasonNote: reasonNote || 'Profile decision recorded via popup.',
         reviewConfirmed,
         evidenceViewed,
         sourcePage: '/admin/candidates/profile',
@@ -668,6 +693,34 @@ export default function AdminCandidateProfilePage() {
   const reviewConfig = (() => {
     if (!activeReview) return null;
 
+    if (activeReview.type === 'profile') {
+      return {
+        title: 'Profile Decision',
+        currentStage: 'Profile Review',
+        currentStatus: profile?.status,
+        summaryRows: [
+          { label: 'Candidate', value: candidate?.name || candidate?.email || EMPTY_VALUE },
+          { label: 'Profile Status', value: humanize(profile?.status) },
+          { label: 'Current Stage', value: progress?.currentStage || EMPTY_VALUE },
+        ],
+        evidenceItems: [],
+        history: canViewAuditHistory ? filteredHistory(['profile_evaluation']) : [],
+        decisionOptions: [
+          { label: 'Reject Profile', value: 'rejected', variant: 'danger' },
+          { label: 'Approve Profile', value: 'accepted', variant: 'primary' },
+        ],
+        warningText: 'Confirm that you have reviewed the profile before choosing a decision.',
+        showReasonNote: false,
+        requireNote: false,
+        showEvidence: false,
+        showHistory: false,
+        showCancel: false,
+        hideClose: true,
+        confirmationText: 'I have reviewed this candidate profile.',
+        defaultReasonNote: 'Profile decision recorded via popup.',
+      };
+    }
+
     if (activeReview.type === 'document') {
       return {
         title: 'Document Verification Review',
@@ -706,8 +759,8 @@ export default function AdminCandidateProfilePage() {
         summaryRows: [
           { label: 'Payment Type', value: humanize(activeReview.item?.type) },
           { label: 'Amount', value: `${activeReview.item?.currency || 'USD'} ${activeReview.item?.amount || 0}` },
-          { label: 'Transaction ID', value: activeReview.item?.transactionId || '—' },
-          { label: 'Bank Reference', value: activeReview.item?.bankReference || '—' },
+          { label: 'Transaction ID', value: activeReview.item?.transactionId || EMPTY_VALUE },
+          { label: 'Bank Reference', value: activeReview.item?.bankReference || EMPTY_VALUE },
         ],
         evidenceItems: [
           ...(activeReview.item?.receiptUrl
@@ -742,8 +795,8 @@ export default function AdminCandidateProfilePage() {
         summaryRows: [
           { label: 'Current Selection Status', value: humanize(progress?.selectionStatus) },
           { label: 'Hiring Stage', value: hiringAccepted ? 'Completed' : 'Pending' },
-          { label: 'Hiring Partner', value: candidate?.assignedHiringPartner || '—' },
-          { label: 'Candidate Current Stage', value: progress?.currentStage || '—' },
+          { label: 'Hiring Partner', value: candidate?.assignedHiringPartner || EMPTY_VALUE },
+          { label: 'Candidate Current Stage', value: progress?.currentStage || EMPTY_VALUE },
         ],
         evidenceItems: [],
         history: filteredHistory(['final_selection', 'interview_selection']),
@@ -770,7 +823,7 @@ export default function AdminCandidateProfilePage() {
     const rowGap = 12;
     let y = topMargin;
 
-    const safe = (value) => String(value || '—');
+    const safe = (value) => String(value || EMPTY_VALUE);
 
     const addPageHeader = () => {
       doc.setFillColor(15, 23, 42);
@@ -868,14 +921,16 @@ export default function AdminCandidateProfilePage() {
       { label: 'Name', value: candidate?.name || candidate?.email },
       { label: 'Email', value: candidate?.email },
       { label: 'Phone', value: candidate?.phone },
-      { label: 'Status', value: humanize(candidate?.status) },
-      { label: 'Current Stage', value: progress?.currentStage || '—' },
     ]);
 
-    addSection('Profile Summary', profileRows);
     addSection('Personal Details', profileSectionRows.personal);
+    addSection('Initial Eligibility Details', eligibilityRows);
     addSection('Education', profileSectionRows.education);
-    addSection('Skills and Additional Information', profileSectionRows.skills);
+    profileSectionRows.certifications.forEach((rows, index) => addSection(`Certification ${index + 1}`, rows));
+    profileSectionRows.experience.forEach((rows, index) => addSection(`Experience ${index + 1}`, rows));
+    profileSectionRows.languages.forEach((rows, index) => addSection(`Language ${index + 1}`, rows));
+    addSection('Skills', profileSectionRows.skills);
+    addSection('Additional Information', profileSectionRows.additional);
 
     const pageCount = doc.getNumberOfPages();
     for (let page = 1; page <= pageCount; page += 1) {
@@ -886,17 +941,15 @@ export default function AdminCandidateProfilePage() {
       doc.text(`Page ${page} of ${pageCount}`, pageWidth - marginX, pageHeight - 14, { align: 'right' });
     }
 
-    const safeName = String(candidate?.name || candidate?.email || 'candidate')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    return { doc, fileName: `${safeName || 'candidate'}-profile.pdf` };
-  };
-
-  const exportProfile = () => {
-    const pdf = buildProfilePdf();
-    if (!pdf) return;
-    pdf.doc.save(pdf.fileName);
+    const firstName = sanitizeFilePart(profile?.personalDetails?.firstName || candidate?.name?.split?.(' ')?.[0] || candidate?.email?.split?.('@')?.[0] || 'candidate');
+    const candidateId = sanitizeFilePart(candidate?._id || id || 'candidate');
+    const appliedCountry = sanitizeFilePart(eligibility?.country || eligibility?.destination || 'country');
+    const exportedDate = formatFileDate(profile?.updatedAt || profile?.createdAt || candidate?.createdAt || candidate?.updatedAt || new Date());
+    const sequence = String(profilePdfSequenceRef.current + 1).padStart(2, '0');
+    const fileName = `${candidateId}-${firstName}-${exportedDate}-${appliedCountry}-${sequence}.pdf`;
+    profilePdfSequenceRef.current += 1;
+    doc.setProperties({ title: fileName });
+    return { doc, fileName };
   };
 
   const openProfilePdf = () => {
@@ -940,6 +993,9 @@ export default function AdminCandidateProfilePage() {
   };
   const latestReviewableDocument = documents.find((document) => canReviewDocument(document)) || null;
   const showProgramPaymentPendingMessage = String(role || '') === 'evaluation_admin' && !evaluationAdminDocumentReviewUnlocked;
+  const evaluationAdminName = getAdminDisplayName('evaluation_admin');
+  const evaluationAdminPossessiveName = getAdminPossessiveName('evaluation_admin');
+  const operationsAdminPossessiveName = getAdminPossessiveName('operations_admin');
 
   const latestActionCard = useMemo(() => {
     const currentStageKey = String(progress?.currentStageKey || '').toLowerCase();
@@ -951,7 +1007,7 @@ export default function AdminCandidateProfilePage() {
       stageLabel: humanize(currentStageKey || 'overview'),
       pendingFrom: String(progress?.pendingFrom || 'completed').toLowerCase(),
       nextAction: progress?.nextAction || 'No pending action',
-      latestUpdate: candidate?.updatedAt ? formatDate(candidate.updatedAt) : '—',
+      latestUpdate: candidate?.updatedAt ? formatDate(candidate.updatedAt) : EMPTY_VALUE,
       buttonLabel: '',
       onClick: null,
       helperText: '',
@@ -961,13 +1017,13 @@ export default function AdminCandidateProfilePage() {
       const isOperationsApproval = currentStageKey === 'operations_approval' || isAdmin3PendingEvaluation;
       return {
         ...base,
-        buttonLabel: isOperationsApproval ? 'Open Operations Approval' : profileAlreadyReviewed ? 'Edit Response' : 'Review Internal Evaluation',
-        onClick: isOperationsApproval ? () => setTab('hiring') : openProfileReview,
+        buttonLabel: isOperationsApproval ? `Open ${operationsAdminPossessiveName} Approval` : profileAlreadyReviewed ? null : 'Decision',
+        onClick: isOperationsApproval ? () => setTab('hiring') : profileAlreadyReviewed ? null : openProfileReview,
         helperText: isAdmin3PendingEvaluation
-          ? 'Admin 2 has approved this candidate. Operations approval is required before account creation can begin.'
+          ? `${evaluationAdminName} has approved this candidate. ${operationsAdminPossessiveName} approval is required before account creation can begin.`
           : currentStageKey === 'operations_approval'
-            ? 'Admin 2 has approved this candidate. Operations approval is required before account creation can begin.'
-            : 'Profile review is the current required admin action.',
+            ? `${evaluationAdminName} has approved this candidate. ${operationsAdminPossessiveName} approval is required before account creation can begin.`
+            : `${evaluationAdminPossessiveName} approval is the current required admin action.`,
       };
     }
 
@@ -1044,68 +1100,6 @@ export default function AdminCandidateProfilePage() {
 
   return (
     <section ref={contentRef} className="space-y-5">
-      <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(200,169,107,0.18),_transparent_28%),linear-gradient(135deg,#0f172a,#1e293b)] p-6 text-white shadow-xl">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-[#c8a96b]">Admin Review Workspace</p>
-            <h1 className="mt-2 text-3xl font-bold">{candidate?.name || candidate?.email || 'Candidate Review'}</h1>
-            <p className="mt-2 text-sm text-slate-300">{candidate?.email || '—'} {candidate?.phone ? `• ${candidate.phone}` : ''}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {profile ? (
-                <Button variant="adminSecondary" onClick={openProfilePdf} className="px-3 py-2 text-xs text-white">
-                  Open Profile
-                </Button>
-              ) : null}
-              {profile ? (
-                <Button variant="adminSecondary" onClick={exportProfile} className="px-3 py-2 text-xs text-white">
-                  Export Profile
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Pending From</p>
-            <p className="mt-1 text-sm font-semibold text-white">{humanize(progress?.pendingFrom)}</p>
-            <p className="mt-2 text-xs text-slate-400">{humanize(role)}</p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Current Stage</p>
-            <p className="mt-1 text-sm font-semibold">{progress?.currentStage || '—'}</p>
-          </div>
-          <div className="rounded-2xl bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Next Required Action</p>
-            <p className="mt-1 text-sm font-semibold">{progress?.nextAction || '—'}</p>
-          </div>
-          <div className="rounded-2xl bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Recommended Admin Action</p>
-            <p className="mt-1 text-sm font-semibold">{progress?.recommendedAdminAction || '—'}</p>
-          </div>
-          <div className="rounded-2xl bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Candidate Status</p>
-            <p className="mt-1 text-sm font-semibold">{humanize(candidate?.status)}</p>
-          </div>
-        </div>
-
-        <div className="mt-5 flex flex-wrap gap-2">
-          {stageSequence.map((stage, index) => (
-            <span
-              key={stage}
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                allStagesCompleted ? 'bg-emerald-500/20 text-emerald-100' :
-                index < stageIndex ? 'bg-emerald-500/20 text-emerald-100' :
-                index === stageIndex ? 'bg-[#c8a96b] text-black' :
-                'bg-white/5 text-slate-400'
-              }`}
-            >
-              {humanize(stage)}
-            </span>
-          ))}
-        </div>
-      </div>
-
       <div className="flex flex-wrap gap-2">
         {visibleTabs.map((tab) => (
           <button
@@ -1166,89 +1160,88 @@ export default function AdminCandidateProfilePage() {
 
       {!loading && !error && candidate && activeTab === 'profile' && (
         <div className="space-y-5">
-          {isInlineProfileReview ? (
-            <Card
-              title="Internal Evaluation Review"
-              subtitle="Complete-page review workspace for profile evaluation. Review the full submitted profile below before making a decision."
-              actions={<Button variant="adminGhost" onClick={closeReview}>Exit Review</Button>}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[rgba(200,169,107,0.35)] bg-[rgba(255,255,255,0.08)] text-[#f7f3ea] shadow-sm transition hover:bg-[rgba(255,255,255,0.14)] hover:text-white"
+              onClick={() => setWorkspaceSummaryOpen((value) => !value)}
+              aria-label={workspaceSummaryOpen ? 'Collapse admin review workspace' : 'Expand admin review workspace'}
+              aria-expanded={workspaceSummaryOpen}
+              title={workspaceSummaryOpen ? 'Collapse admin review workspace' : 'Expand admin review workspace'}
             >
-              <div className="space-y-5">
-                <div className="rounded-2xl border border-[rgba(200,169,107,0.28)] bg-[rgba(200,169,107,0.1)] p-4">
-                  <p className="text-sm font-semibold text-slate-900">{candidate?.name || candidate?.email}</p>
-                  <p className="mt-1 text-sm text-slate-600">{candidate?.email || '—'}</p>
-                  <p className="mt-3 text-sm text-slate-700">This page is the full internal evaluation workspace. Review the submitted profile below, add a reason, then record your decision.</p>
-                </div>
+              <span className="material-symbols-outlined text-[22px] leading-none">
+                {workspaceSummaryOpen ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
+          </div>
 
-                <KeyValueGrid rows={profileRows} />
-
+          {workspaceSummaryOpen ? (
+            <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(200,169,107,0.18),_transparent_28%),linear-gradient(135deg,#0f172a,#1e293b)] p-6 text-white shadow-xl">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-900" htmlFor="profile-review-note">Decision Reason / Note</label>
-                  <textarea
-                    id="profile-review-note"
-                    className="mt-2 min-h-32 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-[rgba(200,169,107,0.5)]"
-                    placeholder="Explain what you reviewed and why you are approving, rejecting, or keeping this profile under review."
-                    value={profileReviewNote}
-                    onChange={(event) => setProfileReviewNote(event.target.value)}
-                  />
+                  <h1 className="mt-2 text-3xl font-bold">{candidate?.name || candidate?.email || 'Candidate Review'}</h1>
+                  <p className="mt-2 text-sm text-slate-300">{candidate?.email || EMPTY_VALUE} {candidate?.phone ? `• ${candidate.phone}` : ''}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {profile ? (
+                      <Button variant="adminSecondary" onClick={openProfilePdf} className="px-3 py-2 text-xs text-white">
+                        Open Profile
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
-
-                <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={profileReviewConfirmed}
-                    onChange={(event) => setProfileReviewConfirmed(event.target.checked)}
-                  />
-                  <span>I have reviewed the submitted candidate profile on this page and understand this action will be recorded in the audit history.</span>
-                </label>
-
-                {(!profileReviewNote.trim() || !profileReviewConfirmed) && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                    <p className="font-semibold">Before you can submit a decision:</p>
-                    <ul className="mt-2 space-y-1">
-                      {!profileReviewNote.trim() ? <li>Add a decision reason or note.</li> : null}
-                      {!profileReviewConfirmed ? <li>Confirm that you reviewed the profile.</li> : null}
-                    </ul>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
+                    <p className="text-xs uppercase tracking-wide text-slate-400">Pending From</p>
+                    <p className="mt-1 text-sm font-semibold text-white">{humanize(progress?.pendingFrom)}</p>
+                    <p className="mt-2 text-xs text-slate-400">{humanize(role)}</p>
                   </div>
-                )}
-
-                {canViewAuditHistory ? (
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-900">Previous Approval History</h3>
-                    <div className="mt-3">
-                      <AuditHistoryPanel history={filteredHistory(['profile_evaluation'])} />
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="flex flex-wrap justify-end gap-3">
-                  <Button variant="adminSecondary" onClick={() => submitInlineProfileReview('under_review')} disabled={!profileReviewNote.trim() || !profileReviewConfirmed || Boolean(profileReviewSubmitting)} className="text-white">
-                    {profileReviewSubmitting === 'under_review' ? 'Saving...' : 'Keep Under Review'}
-                  </Button>
-                  <Button variant="danger" onClick={() => submitInlineProfileReview('rejected')} disabled={!profileReviewNote.trim() || !profileReviewConfirmed || Boolean(profileReviewSubmitting)}>
-                    {profileReviewSubmitting === 'rejected' ? 'Saving...' : 'Reject Profile'}
-                  </Button>
-                  <Button variant="adminPrimary" onClick={() => submitInlineProfileReview('accepted')} disabled={!profileReviewNote.trim() || !profileReviewConfirmed || Boolean(profileReviewSubmitting)}>
-                    {profileReviewSubmitting === 'accepted' ? 'Saving...' : 'Approve Profile'}
-                  </Button>
                 </div>
               </div>
-            </Card>
-          ) : null}
 
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Current Stage</p>
+                  <p className="mt-1 text-sm font-semibold">{progress?.currentStage || EMPTY_VALUE}</p>
+                </div>
+                <div className="rounded-2xl bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Next Required Action</p>
+                  <p className="mt-1 text-sm font-semibold">{progress?.nextAction || EMPTY_VALUE}</p>
+                </div>
+                <div className="rounded-2xl bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Recommended Admin Action</p>
+                  <p className="mt-1 text-sm font-semibold">{progress?.recommendedAdminAction || EMPTY_VALUE}</p>
+                </div>
+                <div className="rounded-2xl bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Candidate Status</p>
+                  <p className="mt-1 text-sm font-semibold">{humanize(candidate?.status)}</p>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                {stageSequence.map((stage, index) => (
+                  <span
+                    key={stage}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      allStagesCompleted ? 'bg-emerald-500/20 text-emerald-100' :
+                      index < stageIndex ? 'bg-emerald-500/20 text-emerald-100' :
+                      index === stageIndex ? 'bg-[#c8a96b] text-black' :
+                      'bg-white/5 text-slate-400'
+                    }`}
+                  >
+                    {humanize(stage)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <Card
-            title="Submitted Profile"
-            subtitle="Full candidate profile submission for evaluation review."
+            title="Profile Details"
+            subtitle=""
             actions={
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {profile ? (
                   <Button variant="adminSecondary" onClick={openProfilePdf} className="px-3 py-2 text-xs !text-white">
                     Open Profile
-                  </Button>
-                ) : null}
-                {profile ? (
-                  <Button variant="adminSecondary" onClick={exportProfile} className="px-3 py-2 text-xs !text-white">
-                    Export Profile
                   </Button>
                 ) : null}
                 {can('evaluation:approve') && profile ? (
@@ -1261,12 +1254,11 @@ export default function AdminCandidateProfilePage() {
                       }`}>
                         {profileDecisionState === 'approved' ? '✓ Profile Approved' :
                          profileDecisionState === 'rejected' ? '✗ Profile Rejected' :
-                         '— Under Review'}
+                         `${EMPTY_VALUE} Under Review`}
                       </div>
-                      <Button variant="adminSecondary" onClick={openProfileReview} className="px-3 py-2 text-xs !text-white">Edit Response</Button>
                     </>
                   ) : (
-                    <Button variant="adminPrimary" onClick={openProfileReview}>{isInlineProfileReview ? 'Review In Progress' : 'Review & Decide'}</Button>
+                    <Button variant="adminPrimary" onClick={openProfileReview}>Decision</Button>
                   )
                 ) : null}
               </div>
@@ -1275,20 +1267,69 @@ export default function AdminCandidateProfilePage() {
             {profile ? (
               <div className="space-y-5">
                 <div>
-                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Profile Summary</h3>
-                  <KeyValueGrid rows={profileRows} />
-                </div>
-                <div>
                   <h3 className="mb-3 text-sm font-semibold text-slate-900">Personal Details</h3>
                   <KeyValueGrid rows={profileSectionRows.personal} />
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Initial Eligibility Details</h3>
+                  <KeyValueGrid rows={eligibilityRows} />
                 </div>
                 <div>
                   <h3 className="mb-3 text-sm font-semibold text-slate-900">Education</h3>
                   <KeyValueGrid rows={profileSectionRows.education} />
                 </div>
                 <div>
-                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Skills and Additional Information</h3>
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Certifications</h3>
+                  {!profileSectionRows.certifications.length ? (
+                    <p className="text-sm text-slate-500">No certifications submitted.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {profileSectionRows.certifications.map((rows, index) => (
+                        <div key={`certification-${index}`} className="rounded-2xl border border-slate-100 p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Certification {index + 1}</p>
+                          <KeyValueGrid rows={rows} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Experience</h3>
+                  {!profileSectionRows.experience.length ? (
+                    <p className="text-sm text-slate-500">No work experience submitted.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {profileSectionRows.experience.map((rows, index) => (
+                        <div key={`experience-${index}`} className="rounded-2xl border border-slate-100 p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Experience {index + 1}</p>
+                          <KeyValueGrid rows={rows} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Languages</h3>
+                  {!profileSectionRows.languages.length ? (
+                    <p className="text-sm text-slate-500">No languages submitted.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {profileSectionRows.languages.map((rows, index) => (
+                        <div key={`language-${index}`} className="rounded-2xl border border-slate-100 p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Language {index + 1}</p>
+                          <KeyValueGrid rows={rows} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Skills</h3>
                   <KeyValueGrid rows={profileSectionRows.skills} />
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Additional Information</h3>
+                  <KeyValueGrid rows={profileSectionRows.additional} />
                 </div>
               </div>
             ) : <p className="text-sm text-slate-500">No profile submitted yet.</p>}
@@ -1551,7 +1592,7 @@ export default function AdminCandidateProfilePage() {
 
               {String(role || '') === 'operations_admin' && (currentStageKey === 'operations_approval' || (String(candidate?.evaluationStatus || '').toLowerCase() === 'approved' && String(candidate?.operationsStatus || '').toLowerCase() === 'pending')) ? (
                 <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm font-semibold text-slate-800">Operations Admin Actions</p>
+                  <p className="text-sm font-semibold text-slate-800">{operationsAdminPossessiveName} Actions</p>
                   <div className="flex flex-wrap gap-2">
                     <Button variant="adminPrimary" onClick={submitOperationsApproval} disabled={Boolean(operationsSaving)}>
                       {operationsSaving === 'approved' ? 'Saving...' : 'Approve Candidate'}
@@ -1619,7 +1660,7 @@ export default function AdminCandidateProfilePage() {
                 { label: 'Hiring Stage', value: hiringAccepted ? 'Completed' : 'Pending' },
                 { label: 'Assigned Hiring Partner', value: candidate?.assignedHiringPartner || 'Not assigned' },
                 { label: 'Selection Status', value: humanize(progress?.selectionStatus) },
-                { label: 'Current Stage', value: progress?.currentStage || '—' },
+                { label: 'Current Stage', value: progress?.currentStage || EMPTY_VALUE },
               ]} />
 
               <div className="flex flex-wrap gap-2">
@@ -1667,7 +1708,7 @@ export default function AdminCandidateProfilePage() {
       )}
 
       <ApprovalReviewModal
-        isOpen={Boolean(reviewConfig) && activeReview?.type !== 'profile'}
+        isOpen={Boolean(reviewConfig)}
         onClose={closeReview}
         title={reviewConfig?.title}
         candidate={candidate}
@@ -1678,6 +1719,12 @@ export default function AdminCandidateProfilePage() {
         history={canViewAuditHistory ? reviewConfig?.history || [] : []}
         decisionOptions={reviewConfig?.decisionOptions || []}
         onSubmit={submitReview}
+        showReasonNote={reviewConfig?.showReasonNote !== false}
+        requireNote={reviewConfig?.requireNote !== false}
+        showEvidence={reviewConfig?.showEvidence !== false}
+        showHistory={reviewConfig?.showHistory !== false}
+        confirmationText={reviewConfig?.confirmationText}
+        defaultReasonNote={reviewConfig?.defaultReasonNote || ''}
       />
     </section>
   );

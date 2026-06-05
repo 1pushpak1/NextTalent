@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { adminMainNav, adminPaymentNav } from './adminNav';
+import { useAuth } from '../../context/AuthContext';
 import usePermissions from '../../hooks/usePermissions';
 import { fetchAdminDashboardSummary } from '../../api/adminApi';
+import { getAdminDisplayName } from '../../utils/adminDisplay';
 
 export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen, setMobileOpen, onLogout }) {
   const location = useLocation();
+  const { user } = useAuth();
   const { can, role } = usePermissions();
   const [summaryCards, setSummaryCards] = useState({
     profilesPendingReview: 0,
@@ -77,19 +80,20 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
       )}
 
       <aside
-        className={`fixed left-0 top-0 z-40 h-screen w-72 bg-[linear-gradient(180deg,#050505,#0b0b0c)] text-slate-200 transition-transform lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-40 flex h-screen w-72 flex-col bg-[linear-gradient(180deg,#050505,#0b0b0c)] text-slate-200 transition-transform lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="border-b border-[rgba(200,169,107,0.24)] px-5 py-5">
           {/* <p className="text-xs uppercase tracking-[0.24em] text-[#c8a96b]">Control Center</p> */}
           <h1 className="mt-2 text-xl font-bold text-white">Admin Console</h1>
+          <p className="mt-2 text-xs uppercase tracking-[0.18em] text-[#c8a96b]">Admin</p>
+          <p className="text-sm font-semibold text-[#f7f3ea]">{getAdminDisplayName(user?.adminRole, 'Admin')}</p>
           {/* <p className="text-xs tracking-wide text-[#bdbdc3]">Review-first workflow and audit trail</p> */}
         </div>
 
-        <div className="flex h-[calc(100vh-92px)] flex-col px-3 py-4">
-          <nav className="flex-1 overflow-y-auto pr-1">
-            <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#9f9fa7]">Pipeline</p>
+        <div className="flex min-h-0 flex-1 flex-col px-3 py-4">
+          <nav className="min-h-0 flex-1 overflow-y-auto pr-1">
             {visibleMainNav.map((item) => (
               <NavLink
                 key={item.to}
@@ -162,7 +166,7 @@ export default function AdminSidebar({ paymentsOpen, setPaymentsOpen, mobileOpen
             )}
           </nav>
 
-          <div className="pt-4">
+          <div className="shrink-0 pt-4">
             <button
               type="button"
               onClick={() => {

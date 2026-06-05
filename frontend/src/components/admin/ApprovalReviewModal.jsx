@@ -18,10 +18,18 @@ export default function ApprovalReviewModal({
   summaryRows = [],
   evidenceItems = [],
   history = [],
-  warningText = 'You must review the submitted evidence before making a decision.',
+  warningText = '',
   decisionOptions = [],
   onSubmit,
   initialViewedEvidenceKeys = [],
+  showReasonNote = true,
+  requireNote = true,
+  showEvidence = true,
+  showHistory = true,
+  showCancel = true,
+  hideClose = false,
+  confirmationText = 'I have reviewed the submission and I understand this action will be recorded in the audit history.',
+  defaultReasonNote = '',
 }) {
   const [note, setNote] = useState('');
   const [confirmed, setConfirmed] = useState(false);
@@ -58,7 +66,7 @@ export default function ApprovalReviewModal({
     : true;
   const pendingChecks = [
     !evidenceViewed ? 'Open and review the required evidence.' : null,
-    !note.trim() ? 'Add a decision reason or note.' : null,
+    requireNote && !note.trim() ? 'Add a decision reason or note.' : null,
     !confirmed ? 'Confirm that you reviewed the submission.' : null,
   ].filter(Boolean);
 
@@ -69,12 +77,13 @@ export default function ApprovalReviewModal({
   };
 
   const submitDecision = async (decision) => {
-    if (!note.trim() || !confirmed || !evidenceViewed) return;
+    const reasonNote = showReasonNote ? note.trim() : String(defaultReasonNote || '').trim();
+    if ((requireNote && !reasonNote) || !confirmed || !evidenceViewed) return;
     setSubmittingDecision(decision);
     try {
       await onSubmit?.({
         decision,
-        reasonNote: note.trim(),
+        reasonNote,
         reviewConfirmed: true,
         evidenceViewed: true,
       });
@@ -85,7 +94,7 @@ export default function ApprovalReviewModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={() => !submittingDecision && onClose?.()} title={title}>
+    <Modal isOpen={isOpen} onClose={() => !submittingDecision && onClose?.()} title={title} hideClose={hideClose}>
       <div className="space-y-5">
         <div className="rounded-2xl border border-[rgba(200,169,107,0.3)] bg-[rgba(200,169,107,0.08)] p-4 text-sm text-slate-100">
           <p className="font-semibold text-white">{candidate?.name || candidate?.email}</p>
@@ -133,16 +142,18 @@ export default function ApprovalReviewModal({
           </div>
         )}
 
-        <div>
-          <label className="block text-sm font-medium text-white" htmlFor="approval-note">Decision Reason / Note</label>
-          <textarea
-            id="approval-note"
-            className="mt-2 min-h-28 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-[rgba(200,169,107,0.5)]"
-            placeholder="Explain what you reviewed and why you are approving or rejecting this submission."
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-          />
-        </div>
+        {showReasonNote ? (
+          <div>
+            <label className="block text-sm font-medium text-white" htmlFor="approval-note">Decision Reason / Note</label>
+            <textarea
+              id="approval-note"
+              className="mt-2 min-h-28 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-[rgba(200,169,107,0.5)]"
+              placeholder="Explain what you reviewed and why you are approving or rejecting this submission."
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </div>
+        ) : null}
 
         <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200">
           <input
@@ -151,7 +162,7 @@ export default function ApprovalReviewModal({
             checked={confirmed}
             onChange={(event) => setConfirmed(event.target.checked)}
           />
-          <span>I have reviewed the submitted profile, documents, or payment proof and I understand this action will be recorded in the audit history.</span>
+          <span>{confirmationText}</span>
         </label>
 
         {!!pendingChecks.length && (
@@ -165,24 +176,28 @@ export default function ApprovalReviewModal({
           </div>
         )}
 
-        <div>
-          <h4 className="text-sm font-semibold text-white">Previous Approval History</h4>
-          <div className="mt-3 max-h-64 overflow-auto pr-1">
-            <AuditHistoryPanel history={history} />
+        {showHistory ? (
+          <div>
+            <h4 className="text-sm font-semibold text-white">Previous Approval History</h4>
+            <div className="mt-3 max-h-64 overflow-auto pr-1">
+              <AuditHistoryPanel history={history} />
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div className="flex flex-wrap justify-end gap-3">
-          <Button variant="adminGhost" type="button" onClick={onClose} disabled={Boolean(submittingDecision)}>
-            Cancel
-          </Button>
+          {showCancel ? (
+            <Button variant="adminGhost" type="button" onClick={onClose} disabled={Boolean(submittingDecision)}>
+              Cancel
+            </Button>
+          ) : null}
           {decisionOptions.map((option) => (
             <Button
               key={option.value}
               variant={option.variant || 'primary'}
               className={['Keep Under Review', 'Keep Pending'].includes(option.label) ? 'text-white' : ''}
               type="button"
-              disabled={!note.trim() || !confirmed || !evidenceViewed || Boolean(submittingDecision)}
+              disabled={(requireNote && !note.trim()) || !confirmed || !evidenceViewed || Boolean(submittingDecision)}
               onClick={() => submitDecision(option.value)}
             >
               {submittingDecision === option.value ? 'Saving...' : option.label}

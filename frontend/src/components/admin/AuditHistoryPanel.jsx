@@ -1,3 +1,5 @@
+import { getAdminDisplayName } from '../../utils/adminDisplay';
+
 const formatDateTime = (value) => {
   if (!value) return '—';
   const date = new Date(value);
@@ -36,7 +38,7 @@ export default function AuditHistoryPanel({ history = [], emptyMessage = 'No aud
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-400">Handled By</p>
-              <p className="mt-1 text-sm text-slate-700">{item.adminName || 'Admin'} ({humanize(item.adminRole)})</p>
+              <p className="mt-1 text-sm text-slate-700">{item.adminName || getAdminDisplayName(item.adminRole)}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-400">Admin Email</p>

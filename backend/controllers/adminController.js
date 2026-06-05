@@ -582,14 +582,15 @@ const deriveAdminStageKey = (snapshot) => {
 
 const stageMatcher = (stageKey, snapshot) => {
   const derivedStage = deriveAdminStageKey(snapshot);
+  const progress = snapshot.progress || {};
 
   switch (stageKey) {
     case 'dashboard':
       return true;
     case 'evaluation':
-      return derivedStage === 'evaluation';
+      return progress.currentStageKey === 'profile_review' && progress.pendingFrom === 'admin';
     case 'operations_approval':
-      return derivedStage === 'operations_approval';
+      return progress.currentStageKey === 'operations_approval' && progress.pendingFrom === 'admin';
     case 'declaration':
       return derivedStage === 'declaration';
     case 'documents':
@@ -673,6 +674,15 @@ const fetchAllSnapshots = async () => {
       payments: paymentsByUser.get(userId) || [],
     });
     snapshot.testimonial = testimonialByUser.get(userId) || null;
+    snapshot.progress = deriveCandidateProgress({
+      candidate: snapshot.candidate,
+      profile: snapshot.profile,
+      eligibility: snapshot.eligibility,
+      documents: snapshot.documents,
+      interviews: snapshot.interviews,
+      payments: snapshot.payments,
+      testimonial: snapshot.testimonial,
+    });
     return snapshot;
   });
 };
@@ -831,8 +841,12 @@ const getDashboardSummary = async (req, res) => {
 
     const totalApplications = rows.length;
     const eligibleCandidates = snapshots.filter((snapshot) => Boolean(snapshot.eligibility?.isEligible) || normalize(snapshot.candidate.status) === 'eligibility_approved').length;
-    const awaitingEvaluationApproval = snapshots.filter((snapshot) => ['awaiting_evaluation_review', 'profile_submitted'].includes(normalize(snapshot.candidate.status)) || normalize(snapshot.candidate.evaluationStatus) === 'pending').length;
-    const awaitingOperationsApproval = snapshots.filter((snapshot) => normalize(snapshot.candidate.status) === 'evaluation_approved' || (normalize(snapshot.candidate.evaluationStatus) === 'approved' && normalize(snapshot.candidate.operationsStatus) === 'pending')).length;
+    const awaitingEvaluationApproval = snapshots.filter(
+      (snapshot) => snapshot.progress?.currentStageKey === 'profile_review' && snapshot.progress?.pendingFrom === 'admin',
+    ).length;
+    const awaitingOperationsApproval = snapshots.filter(
+      (snapshot) => snapshot.progress?.currentStageKey === 'operations_approval' && snapshot.progress?.pendingFrom === 'admin',
+    ).length;
     const awaitingAccountCreation = snapshots.filter((snapshot) => normalize(snapshot.candidate.status) === 'fully_approved' && normalize(snapshot.candidate.accountStatus) === 'not_invited').length;
     const awaitingEmailVerification = snapshots.filter((snapshot) => normalize(snapshot.candidate.accountStatus) === 'created' || normalize(snapshot.candidate.status) === 'account_created').length;
     const awaiting500Payment = snapshots.filter((snapshot) => normalize(snapshot.candidate.accountStatus) === 'email_verified' && latestPaymentStatus(snapshot, 'initial') !== 'completed').length;
@@ -851,7 +865,11 @@ const getDashboardSummary = async (req, res) => {
     const isAccountCreated = (candidate) => {
       const accountStatus = normalize(candidate?.accountStatus);
       const workflowStatus = normalize(candidate?.status);
-      return ['created', 'email_verified'].includes(accountStatus) || ['account_created', 'email_verified'].includes(workflowStatus);
+      return (
+        Boolean(candidate?.passwordHash) ||
+        ['created', 'email_verified'].includes(accountStatus) ||
+        ['account_created', 'email_verified'].includes(workflowStatus)
+      );
     };
 
     const recentApplications = snapshots

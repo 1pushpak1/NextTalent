@@ -2,16 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchAdminDashboardSummary } from '../../api/adminApi';
 import usePermissions from '../../hooks/usePermissions';
+import { getAdminPossessiveName } from '../../utils/adminDisplay';
 
 const cardConfig = [
   { key: 'totalApplications', label: 'Total Candidates', to: '/admin/candidates', requiredPermission: 'candidates:read' },
-  { key: 'awaitingEvaluationApproval', label: 'Awaiting Evaluation Approval', to: '/admin/candidates?stage=profile_review&pendingFrom=admin', requiredPermission: 'evaluation:approve' },
-  { key: 'awaitingOperationsApproval', label: 'Awaiting Operations Approval', to: '/admin/candidates?stage=operations_approval&pendingFrom=admin', requiredPermission: 'operations:approve' },
+  { key: 'awaitingEvaluationApproval', label: `Awaiting ${getAdminPossessiveName('evaluation_admin')} Approval`, to: '/admin/candidates?stage=profile_review&pendingFrom=admin', requiredPermission: 'evaluation:approve' },
+  { key: 'awaitingOperationsApproval', label: `Awaiting ${getAdminPossessiveName('operations_admin')} Approval`, to: '/admin/candidates?stage=operations_approval&pendingFrom=admin', requiredPermission: 'operations:approve' },
   { key: 'awaitingAccountCreation', label: 'Awaiting Account Creation', to: '/admin/candidates?stage=selection', requiredPermission: 'selection:publish' },
   { key: 'awaiting500Payment', label: 'Awaiting $500 Payment', to: '/admin/candidates?stage=selection', requiredPermission: 'payments:verify' },
   { key: 'awaitingDocumentUpload', label: 'Awaiting Document Upload', to: '/admin/candidates?stage=document_upload', requiredPermission: 'documents:verify' },
   { key: 'awaitingProgramFeeVerification', label: 'Awaiting First Installment', to: '/admin/candidates?stage=program_payment', requiredPermission: 'payments:verify' },
-  { key: 'awaitingDocumentVerification', label: 'Awaiting Document Verification', to: '/admin/candidates?stage=document_verification', requiredPermission: 'documents:verify' },
+  { key: 'awaitingDocumentVerification', label: 'Awaiting Sterling Verification', to: '/admin/candidates?stage=document_verification', requiredPermission: 'documents:verify' },
   { key: 'assignedToHiringPartner', label: 'Assigned to Hiring Partner', to: '/admin/candidates?stage=hiring', requiredPermission: 'candidates:update' },
   { key: 'selectedCandidates', label: 'Selected Candidates', to: '/admin/candidates?selectionStatus=selected', requiredPermission: 'selection:publish' },
   { key: 'rejectedCandidates', label: 'Declined Candidates', to: '/admin/candidates?selectionStatus=rejected', requiredPermission: 'selection:publish' },

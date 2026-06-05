@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import usePermissions from '../../hooks/usePermissions';
+import { getAdminDisplayName, getAdminPossessiveName } from '../../utils/adminDisplay';
 
 const formatDate = (value) => {
   if (!value) return '—';
@@ -67,23 +68,29 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
                   <div className="flex flex-col gap-1">
                     <span>{row.status || '—'}</span>
                     {stageKey === 'evaluation' && row.admin2EvaluationApproved && !row.admin3EvaluationApproved ? (
-                      <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Admin 2 Approved · Awaiting Admin 3</span>
+                      <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                        {`${getAdminDisplayName('evaluation_admin')} Approved · Awaiting ${getAdminPossessiveName('operations_admin')} Approval`}
+                      </span>
                     ) : null}
                     {stageKey === 'evaluation' && !row.admin2EvaluationApproved ? (
-                      <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Pending Admin 2 Review</span>
+                      <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                        Pending {getAdminPossessiveName('evaluation_admin')} Review
+                      </span>
                     ) : null}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-slate-700 group-hover:text-black">{formatDate(row.date)}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="rounded-xl border border-[rgba(200,169,107,0.36)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)] group-hover:text-black"
-                      onClick={() => navigate(`/admin/candidates/${row._id}?tab=${stageReviewMap[stageKey] || 'overview'}${canReviewStage ? `&review=${stageKey}` : ''}`)}
-                    >
-                      {canReviewStage ? (String(row.stepStatus || '').toLowerCase() === 'accepted' ? 'Edit Response' : 'Review & Decide') : 'Open Candidate'}
-                    </button>
+                    {canReviewStage && !['accepted', 'rejected', 'under_review'].includes(String(row.stepStatus || '').toLowerCase()) ? (
+                      <button
+                        type="button"
+                        className="rounded-xl border border-[rgba(200,169,107,0.36)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)] group-hover:text-black"
+                        onClick={() => navigate(`/admin/candidates/${row._id}?tab=${stageReviewMap[stageKey] || 'overview'}${canReviewStage ? `&review=${stageKey}` : ''}`)}
+                      >
+                        Decision
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="inline-flex items-center gap-1 rounded-xl border border-[rgba(200,169,107,0.28)] px-3 py-2 text-xs font-semibold text-[#d7c08a] transition hover:bg-[rgba(200,169,107,0.1)] group-hover:text-black"
