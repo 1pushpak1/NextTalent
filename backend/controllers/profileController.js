@@ -274,7 +274,7 @@ This is an automated email. Please do not reply to this email.`;
           `Submission Time: ${applicationSubmittedAt.toISOString()}`,
           ``,
           `Action Required: Evaluation Admin must review and approve/reject this profile.`,
-          `Review Link: ${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')}/admin/candidates/${String(userId)}`,
+          `Review Link: ${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')}/admin/candidates/${String(user.candidateId || userId)}`,
         ],
         fromType: 'noreply',
         templateKey: 'admin_profile_submission_notification',
@@ -381,12 +381,17 @@ const createOrUpdateProfileForPublicAccess = async ({ req, body }) => {
     eligibility,
   });
 
-  await User.findByIdAndUpdate(user._id, {
-    status: body.status === 'draft' ? 'profile_submitted' : 'profile_submitted',
-    applicationSubmittedAt: body.status === 'draft' ? null : new Date(),
-    evaluationStatus: 'submitted',
+  const userUpdate = {
+    evaluationStatus: body.status === 'draft' ? 'pending' : 'submitted',
     accountCreationInviteSent: false,
-  });
+  };
+
+  if (body.status !== 'draft') {
+    userUpdate.status = 'profile_submitted';
+    userUpdate.applicationSubmittedAt = new Date();
+  }
+
+  await User.findByIdAndUpdate(user._id, userUpdate);
 
   return result;
 };

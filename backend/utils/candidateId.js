@@ -48,9 +48,9 @@ const getCandidateIdentityParts = ({ user = null, profile = null, eligibility = 
     '';
 
   const country =
+    eligibility?.destination ||
     eligibility?.country ||
     profile?.personalDetails?.currentCountryOfResidence ||
-    eligibility?.destination ||
     profile?.personalDetails?.countryOfBirth ||
     '';
 

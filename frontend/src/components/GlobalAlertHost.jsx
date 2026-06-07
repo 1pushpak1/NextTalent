@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Button from './Button';
+import capitalizeFirstLetter from '../utils/capitalizeFirstLetter';
 
 export default function GlobalAlertHost() {
   const [queue, setQueue] = useState([]);
@@ -8,7 +9,7 @@ export default function GlobalAlertHost() {
     const nativeAlert = window.alert;
 
     window.alert = (message = '') => {
-      setQueue((prev) => [...prev, String(message)]);
+      setQueue((prev) => [...prev, capitalizeFirstLetter(message)]);
     };
 
     return () => {

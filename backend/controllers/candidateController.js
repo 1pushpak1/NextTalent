@@ -30,7 +30,10 @@ const assertCandidate = (req, res) => {
   return true;
 };
 
-const candidateAdminLink = (candidateId) => `${FRONTEND_BASE}/admin/candidates/${candidateId}`;
+const candidateAdminLink = (candidate) => {
+  if (typeof candidate === 'string') return `${FRONTEND_BASE}/admin/candidates/${candidate}`;
+  return `${FRONTEND_BASE}/admin/candidates/${candidate?.candidateId || candidate?._id || ''}`;
+};
 
 const getStageFromPayment = (payment) => payment.stage || LEGACY_PAYMENT_TYPE_TO_STAGE[payment.type] || PAYMENT_STAGES.INITIAL_ONBOARDING_FEE;
 
@@ -123,7 +126,7 @@ const submitCandidateApplication = async (req, res) => {
       `Candidate ID: ${candidate.candidateId || String(candidate._id)}`,
       `Submission Timestamp: ${now.toISOString()}`,
       `Current Status: ${candidate.status}`,
-      `Admin Review Link: ${candidateAdminLink(candidate._id)}`,
+      `Admin Review Link: ${candidateAdminLink(candidate)}`,
     ];
 
     await sendTransactionalEmailSafe({

@@ -360,7 +360,7 @@ const submitBankTransferPayment = async (req, res) => {
       const adminRecipients = [...new Set([...getPaymentsAdminEmails(), ...getEvaluationAdminEmails()])];
       const candidateName = user?.name || user?.email?.split('@')?.[0] || 'Candidate';
       const frontendBaseUrl = String(process.env.FRONTEND_URL || process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
-      const adminCandidateUrl = `${frontendBaseUrl}/admin/candidates/${String(user?._id || '')}`;
+      const adminCandidateUrl = `${frontendBaseUrl}/admin/candidates/${String(user?.candidateId || user?._id || '')}`;
 
       await sendTransactionalEmailSafe({
         to: adminRecipients,

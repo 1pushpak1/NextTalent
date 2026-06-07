@@ -25,13 +25,20 @@ const { wrapHtml, applicationStatusUpdate, websiteUrl } = require('../services/e
 const { candidateInterviewEligible } = require('./candidateController');
 
 const FRONTEND_BASE = String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
-const adminCandidateLink = (candidateId) => `${FRONTEND_BASE}/admin/candidates/${candidateId}`;
+const adminCandidateLink = (candidate) => `${FRONTEND_BASE}/admin/candidates/${candidate?.candidateId || candidate?._id || candidate}`;
 const workflowFromEmail = String(process.env.SMTP_FROM_EMAIL || process.env.SMTP_USERNAME || 'noreply@nextsteptalent.net').trim();
 const workflowFromName = String(process.env.SMTP_FROM_NAME || 'NextStep Talent').trim();
 
 const resolveCandidate = async (candidateId) => {
-  if (!mongoose.Types.ObjectId.isValid(candidateId)) return null;
-  return User.findOne({ _id: candidateId, role: 'candidate' });
+  const identifier = String(candidateId || '').trim();
+  if (!identifier) return null;
+  const query = { role: 'candidate' };
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    query.$or = [{ _id: identifier }, { candidateId: identifier }];
+  } else {
+    query.candidateId = identifier;
+  }
+  return User.findOne(query);
 };
 
 const paymentStageFromInput = (input) => {
@@ -77,7 +84,7 @@ const evaluationApprove = async (req, res) => {
           `Languages Entries: ${Array.isArray(profile.languages) ? profile.languages.length : 0}`,
         ].join('\n')
       : 'Profile summary not available';
-    const profileUrl = `${FRONTEND_BASE}/admin/candidates/${String(candidate._id)}`;
+    const profileUrl = adminCandidateLink(candidate);
     const resumeUrl = `${FRONTEND_BASE}/api/profile/generated-pdf`;
     await sendTransactionalEmailSafe({
       to: operationsAdmins,
@@ -392,11 +399,11 @@ This is an official communication from NextStep Talent.`;
         `Timestamp: ${candidate.operationsCompletedAt.toISOString()}`,
         `Candidate Name: ${candidate.name || 'N/A'}`,
         `Candidate ID: ${candidate.candidateId || String(candidate._id)}`,
-        `Backend Review Link: ${adminCandidateLink(candidate._id)}`,
+        `Backend Review Link: ${adminCandidateLink(candidate)}`,
       ].join('\n'),
       html: wrapHtml({
         title: 'Admin 3 Review Completed',
-        bodyHtml: `<p><b>Approved / Rejected:</b> ${admin3Outcome}<br/><b>Interview Conducted:</b> ${interviewConducted}<br/><b>Reviewer Notes:</b> ${reviewerNotes}<br/><b>Timestamp:</b> ${candidate.operationsCompletedAt.toISOString()}<br/><b>Candidate Name:</b> ${candidate.name || 'N/A'}<br/><b>Candidate ID:</b> ${candidate.candidateId || String(candidate._id)}<br/><b>Backend Review Link:</b> <a href="${adminCandidateLink(candidate._id)}">${adminCandidateLink(candidate._id)}</a></p>`,
+        bodyHtml: `<p><b>Approved / Rejected:</b> ${admin3Outcome}<br/><b>Interview Conducted:</b> ${interviewConducted}<br/><b>Reviewer Notes:</b> ${reviewerNotes}<br/><b>Timestamp:</b> ${candidate.operationsCompletedAt.toISOString()}<br/><b>Candidate Name:</b> ${candidate.name || 'N/A'}<br/><b>Candidate ID:</b> ${candidate.candidateId || String(candidate._id)}<br/><b>Backend Review Link:</b> <a href="${adminCandidateLink(candidate)}">${adminCandidateLink(candidate)}</a></p>`,
       }),
       templateKey: 'internal_admin3_review_completed',
       relatedCandidateId: candidate._id,
@@ -896,7 +903,7 @@ This is an automated email. Please do not reply to this message.`;
           `Payment Type: Program Fee (First Installment)`,
           `Approved By: ${req.user?.name || req.user?.email || 'Admin 1'}`,
           `Approved At: ${new Date().toISOString()}`,
-          `Review Link: ${adminCandidateLink(candidate._id)}?tab=documents&review=document-verification`,
+          `Review Link: ${adminCandidateLink(candidate)}?tab=documents&review=document-verification`,
           'Next Action: Review candidate documents and approve/reject verification from admin panel.',
         ].join('\n'),
         html: wrapHtml({
@@ -908,7 +915,7 @@ This is an automated email. Please do not reply to this message.`;
 <b>Payment Type:</b> Program Fee (First Installment)<br/>
 <b>Approved By:</b> ${req.user?.name || req.user?.email || 'Admin 1'}<br/>
 <b>Approved At:</b> ${new Date().toISOString()}<br/>
-<b>Review Link:</b> <a href="${adminCandidateLink(candidate._id)}?tab=documents&review=document-verification">${adminCandidateLink(candidate._id)}?tab=documents&review=document-verification</a></p>
+<b>Review Link:</b> <a href="${adminCandidateLink(candidate)}?tab=documents&review=document-verification">${adminCandidateLink(candidate)}?tab=documents&review=document-verification</a></p>
 <p>Next Action: Review candidate documents and approve/reject verification from admin panel.</p>`,
         }),
         templateKey: 'document_verification_pending_admin2',

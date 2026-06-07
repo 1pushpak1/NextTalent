@@ -343,12 +343,17 @@ export default function AdminCandidateProfilePage() {
   const allStagesCompleted = String(progress?.currentStageKey || '').toLowerCase() === 'completed';
 
   const profileSectionRows = useMemo(() => {
-    if (!profile) return { personal: [], education: [], certifications: [], experience: [], skills: [], additional: [], languages: [] };
+    if (!profile) return { personal: [], education: [], additionalQualifications: [], certifications: [], workExperience: [], internships: [], skills: [], additional: [], languages: [], metadata: [] };
 
     const certifications = (profile.certifications || []).filter((item) =>
       [item.certificationName, item.issuingOrganization, item.yearCompleted].some((value) => String(value || '').trim()),
     );
     const workExperience = (profile.workExperience || []).filter((item) =>
+      item?.experienceType !== 'internship' &&
+      [item.organizationName, item.jobTitle, item.responsibilities, item.startDate, item.endDate, item.country, item.currentlyWorkingHere].some((value) => String(value || '').trim()),
+    );
+    const internships = (profile.workExperience || []).filter((item) =>
+      item?.experienceType === 'internship' &&
       [item.organizationName, item.jobTitle, item.responsibilities, item.startDate, item.endDate, item.country, item.currentlyWorkingHere].some((value) => String(value || '').trim()),
     );
     const languages = (profile.languages || []).filter((item) =>
@@ -358,7 +363,7 @@ export default function AdminCandidateProfilePage() {
     return {
       personal: [
         { label: 'Candidate Name', value: candidate?.name || candidate?.email },
-        { label: 'Email Verified', value: candidate?.emailVerified ? 'Yes' : 'No' },
+        { label: 'Mobile Number', value: profile.personalDetails?.mobileNumber },
         { label: 'First Name', value: profile.personalDetails?.firstName },
         { label: 'Middle Name', value: profile.personalDetails?.middleName },
         { label: 'Last Name', value: profile.personalDetails?.lastName },
@@ -367,26 +372,55 @@ export default function AdminCandidateProfilePage() {
         { label: 'Citizenship', value: profile.personalDetails?.citizenship },
         { label: 'Current Country of Residence', value: profile.personalDetails?.currentCountryOfResidence },
         { label: 'Current Visa Status', value: profile.personalDetails?.currentVisaStatus },
+        { label: 'Current Visa Status Details', value: profile.personalDetails?.currentVisaStatusDetails },
       ],
       education: [
-        { label: 'High School Track', value: profile.education?.highSchool?.track },
+        { label: 'High School Start Date', value: profile.education?.highSchool?.startDate },
+        { label: 'High School End Date', value: profile.education?.highSchool?.endDate },
         { label: 'High School Country', value: profile.education?.highSchool?.country },
-        { label: 'High School Start', value: profile.education?.highSchool?.startDate },
-        { label: 'High School End', value: profile.education?.highSchool?.endDate },
+        { label: 'Academic Track', value: profile.education?.highSchool?.track },
+        { label: 'Diploma Not Applicable', value: profile.education?.diploma?.notApplicable ? 'Yes' : 'No' },
+        { label: 'Diploma Duration', value: profile.education?.diploma?.duration },
+        { label: 'Diploma Includes Training', value: profile.education?.diploma?.hasTraining },
+        { label: 'Diploma Start Date', value: profile.education?.diploma?.startDate },
+        { label: 'Diploma End Date', value: profile.education?.diploma?.endDate },
         { label: 'Diploma Field', value: profile.education?.diploma?.field },
         { label: 'Diploma Country', value: profile.education?.diploma?.country },
+        { label: "Bachelor's Start Date", value: profile.education?.bachelors?.startDate },
+        { label: "Bachelor's End Date", value: profile.education?.bachelors?.endDate },
         { label: "Bachelor's Field", value: profile.education?.bachelors?.field },
         { label: "Bachelor's Country", value: profile.education?.bachelors?.country },
+        { label: "Master's Not Applicable", value: profile.education?.masters?.notApplicable ? 'Yes' : 'No' },
+        { label: "Master's Start Date", value: profile.education?.masters?.startDate },
+        { label: "Master's End Date", value: profile.education?.masters?.endDate },
         { label: "Master's Field", value: profile.education?.masters?.field },
         { label: "Master's Country", value: profile.education?.masters?.country },
       ],
+      additionalQualifications: (profile.education?.additionalQualifications || [])
+        .filter((item) => [item?.qualificationName, item?.field, item?.startDate, item?.endDate, item?.country].some((value) => String(value || '').trim()))
+        .map((item, index) => ([
+          { label: 'Qualification Name', value: item.qualificationName },
+          { label: 'Field', value: item.field },
+          { label: 'Start Date', value: item.startDate },
+          { label: 'End Date', value: item.endDate },
+          { label: 'Country', value: item.country },
+          { label: 'Entry', value: index + 1 },
+        ])),
       certifications: certifications.map((item) => ([
         { label: 'Certification Name', value: item.certificationName },
         { label: 'Issuing Organization', value: item.issuingOrganization },
         { label: 'Year Completed', value: item.yearCompleted },
       ])),
-      experience: workExperience.map((item) => ([
-        { label: 'Experience Type', value: item.experienceType },
+      workExperience: workExperience.map((item) => ([
+        { label: 'Organization Name', value: item.organizationName },
+        { label: 'Job Title', value: item.jobTitle },
+        { label: 'Responsibilities', value: item.responsibilities },
+        { label: 'Start Date', value: item.startDate },
+        { label: 'End Date', value: item.endDate },
+        { label: 'Currently Working Here', value: item.currentlyWorkingHere ? 'Yes' : 'No' },
+        { label: 'Country', value: item.country },
+      ])),
+      internships: internships.map((item) => ([
         { label: 'Organization Name', value: item.organizationName },
         { label: 'Job Title', value: item.jobTitle },
         { label: 'Responsibilities', value: item.responsibilities },
@@ -407,6 +441,15 @@ export default function AdminCandidateProfilePage() {
       ],
       additional: [
         { label: 'Additional Information', value: profile.additionalInfo },
+      ],
+      metadata: [
+        { label: 'Profile Status', value: profile.status },
+        { label: 'Saved Step', value: profile.savedStep },
+        { label: 'Profile Created', value: formatDate(profile.createdAt) },
+        { label: 'Profile Updated', value: formatDate(profile.updatedAt) },
+        { label: 'Financial Disclosure Accepted', value: profile.financialDisclosureAccepted ? 'Yes' : 'No' },
+        { label: 'Acknowledgement Signed', value: profile.acknowledgementSigned ? 'Yes' : 'No' },
+        { label: 'Generated PDF', value: profile.generatedPdfUrl || EMPTY_VALUE },
       ],
     };
   }, [candidate, profile]);
@@ -704,8 +747,8 @@ export default function AdminCandidateProfilePage() {
         evidenceItems: [],
         history: canViewAuditHistory ? filteredHistory(['profile_evaluation']) : [],
         decisionOptions: [
-          { label: 'Reject Profile', value: 'rejected', variant: 'danger' },
-          { label: 'Approve Profile', value: 'accepted', variant: 'primary' },
+          { label: 'Decline', value: 'rejected', variant: 'danger' },
+          { label: 'Accept', value: 'accepted', variant: 'primary' },
         ],
         warningText: 'Confirm that you have reviewed the profile before choosing a decision.',
         showReasonNote: false,
@@ -833,16 +876,12 @@ export default function AdminCandidateProfilePage() {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(18);
         doc.text(safe(candidate?.name || candidate?.email), marginX + 16, 54);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.text(`Generated: ${new Date().toLocaleString()}`, marginX + 16, 72);
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
         doc.text(safe(candidate?.email), pageWidth - marginX - 16, 54, { align: 'right' });
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
-        doc.text(safe(candidate?.email), pageWidth - marginX - 16, 72, { align: 'right' });
         doc.setTextColor(17, 24, 39);
         y = 118;
         return;
@@ -922,17 +961,28 @@ export default function AdminCandidateProfilePage() {
     addPageHeader();
 
     addSection('Candidate Details', [
-      { label: 'Candidate ID', value: candidate?._id },
       { label: 'Name', value: candidate?.name || candidate?.email },
       { label: 'Email', value: candidate?.email },
       { label: 'Phone', value: candidate?.phone },
+      { label: 'Mobile Number', value: profile?.personalDetails?.mobileNumber },
+      { label: 'First Name', value: profile?.personalDetails?.firstName },
+      { label: 'Middle Name', value: profile?.personalDetails?.middleName },
+      { label: 'Last Name', value: profile?.personalDetails?.lastName },
+      { label: 'Date of Birth', value: formatDisplayDate(profile?.personalDetails?.dateOfBirth) },
+      { label: 'Country of Birth', value: profile?.personalDetails?.countryOfBirth },
+      { label: 'Citizenship', value: profile?.personalDetails?.citizenship },
+      { label: 'Current Country of Residence', value: profile?.personalDetails?.currentCountryOfResidence },
+      { label: 'Current Visa Status', value: profile?.personalDetails?.currentVisaStatus },
+      { label: 'Current Visa Status Details', value: profile?.personalDetails?.currentVisaStatusDetails },
+      { label: 'Destination', value: eligibility?.destination },
+      { label: 'Eligible', value: eligibility?.isEligible ? 'Yes' : 'No' },
+      { label: 'Rejection Reason', value: eligibility?.rejectionReason },
     ]);
 
-    addSection('Personal Details', profileSectionRows.personal);
-    addSection('Initial Eligibility Details', eligibilityRows);
     addSection('Education', profileSectionRows.education);
     profileSectionRows.certifications.forEach((rows, index) => addSection(`Certification ${index + 1}`, rows));
-    profileSectionRows.experience.forEach((rows, index) => addSection(`Experience ${index + 1}`, rows));
+    profileSectionRows.workExperience.forEach((rows, index) => addSection(`Work Experience ${index + 1}`, rows));
+    profileSectionRows.internships.forEach((rows, index) => addSection(`Internship ${index + 1}`, rows));
     profileSectionRows.languages.forEach((rows, index) => addSection(`Language ${index + 1}`, rows));
     addSection('Skills', profileSectionRows.skills);
     addSection('Additional Information', profileSectionRows.additional);
@@ -1183,8 +1233,11 @@ export default function AdminCandidateProfilePage() {
             <div className="rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(200,169,107,0.18),_transparent_28%),linear-gradient(135deg,#0f172a,#1e293b)] p-6 text-white shadow-xl">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h1 className="mt-2 text-3xl font-bold">{candidate?.name || candidate?.email || 'Candidate Review'}</h1>
-                  <p className="mt-2 text-sm text-slate-300">{candidate?.email || EMPTY_VALUE} {candidate?.phone ? `• ${candidate.phone}` : ''}</p>
+                  <h1 className="mt-2 text-3xl font-bold">{candidate?.name || 'Candidate Review'}</h1>
+                  <p className="mt-2 text-sm text-slate-300">
+                    {candidate?.email || EMPTY_VALUE}
+                    {candidate?.phone ? ` • ${candidate.phone}` : ''}
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {profile ? (
                       <Button variant="adminSecondary" onClick={openProfilePdf} className="px-3 py-2 text-xs text-white">
@@ -1275,12 +1328,23 @@ export default function AdminCandidateProfilePage() {
                   <KeyValueGrid rows={profileSectionRows.personal} />
                 </div>
                 <div>
-                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Initial Eligibility Details</h3>
-                  <KeyValueGrid rows={eligibilityRows} />
-                </div>
-                <div>
                   <h3 className="mb-3 text-sm font-semibold text-slate-900">Education</h3>
                   <KeyValueGrid rows={profileSectionRows.education} />
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Additional Qualifications</h3>
+                  {!profileSectionRows.additionalQualifications.length ? (
+                    <p className="text-sm text-slate-500">No additional qualifications submitted.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {profileSectionRows.additionalQualifications.map((rows, index) => (
+                        <div key={`additional-qualification-${index}`} className="rounded-2xl border border-slate-100 p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Qualification {index + 1}</p>
+                          <KeyValueGrid rows={rows} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <h3 className="mb-3 text-sm font-semibold text-slate-900">Certifications</h3>
@@ -1298,14 +1362,29 @@ export default function AdminCandidateProfilePage() {
                   )}
                 </div>
                 <div>
-                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Experience</h3>
-                  {!profileSectionRows.experience.length ? (
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Work Experience</h3>
+                  {!profileSectionRows.workExperience.length ? (
                     <p className="text-sm text-slate-500">No work experience submitted.</p>
                   ) : (
                     <div className="space-y-2">
-                      {profileSectionRows.experience.map((rows, index) => (
-                        <div key={`experience-${index}`} className="rounded-2xl border border-slate-100 p-3">
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Experience {index + 1}</p>
+                      {profileSectionRows.workExperience.map((rows, index) => (
+                        <div key={`work-experience-${index}`} className="rounded-2xl border border-slate-100 p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Work Experience {index + 1}</p>
+                          <KeyValueGrid rows={rows} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Internships</h3>
+                  {!profileSectionRows.internships.length ? (
+                    <p className="text-sm text-slate-500">No internships submitted.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {profileSectionRows.internships.map((rows, index) => (
+                        <div key={`internship-${index}`} className="rounded-2xl border border-slate-100 p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Internship {index + 1}</p>
                           <KeyValueGrid rows={rows} />
                         </div>
                       ))}
@@ -1334,6 +1413,10 @@ export default function AdminCandidateProfilePage() {
                 <div>
                   <h3 className="mb-3 text-sm font-semibold text-slate-900">Additional Information</h3>
                   <KeyValueGrid rows={profileSectionRows.additional} />
+                </div>
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">Submission Metadata</h3>
+                  <KeyValueGrid rows={profileSectionRows.metadata} />
                 </div>
               </div>
             ) : <p className="text-sm text-slate-500">No profile submitted yet.</p>}

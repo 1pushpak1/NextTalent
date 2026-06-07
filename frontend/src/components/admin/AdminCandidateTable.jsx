@@ -86,7 +86,7 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
                       <button
                         type="button"
                         className="rounded-xl border border-[rgba(200,169,107,0.36)] px-3 py-2 text-xs font-semibold text-[#f7f3ea] transition hover:bg-[rgba(200,169,107,0.12)] group-hover:text-black"
-                        onClick={() => navigate(`/admin/candidates/${row._id}?tab=${stageReviewMap[stageKey] || 'overview'}${canReviewStage ? `&review=${stageKey}` : ''}`)}
+                        onClick={() => navigate(`/admin/candidates/${row.candidateId || row._id}?tab=${stageReviewMap[stageKey] || 'overview'}${canReviewStage ? `&review=${stageKey}` : ''}`)}
                       >
                         Decision
                       </button>
@@ -94,7 +94,7 @@ export default function AdminCandidateTable({ rows = [], loading = false, stageK
                     <button
                       type="button"
                       className="inline-flex items-center gap-1 rounded-xl border border-[rgba(200,169,107,0.28)] px-3 py-2 text-xs font-semibold text-[#d7c08a] transition hover:bg-[rgba(200,169,107,0.1)] group-hover:text-black"
-                      onClick={() => navigate(`/admin/candidates/${row._id}`)}
+                      onClick={() => navigate(`/admin/candidates/${row.candidateId || row._id}`)}
                     >
                       View Profile
                       <span className="material-symbols-outlined text-sm leading-none group-hover:text-black">arrow_forward</span>

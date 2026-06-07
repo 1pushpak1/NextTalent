@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Button from '../Button';
 import Modal from '../Modal';
 import AuditHistoryPanel from './AuditHistoryPanel';
+import capitalizeFirstLetter from '../../utils/capitalizeFirstLetter';
 
 const humanize = (value) =>
   String(value || '—')
@@ -109,7 +110,7 @@ export default function ApprovalReviewModal({
               <p className="mt-1 text-sm text-white">{humanize(currentStatus)}</p>
             </div>
           </div>
-          <p className="mt-3 text-sm text-[#d7c08a]">{warningText}</p>
+          <p className="mt-3 text-sm text-[#d7c08a]">{capitalizeFirstLetter(warningText)}</p>
         </div>
 
         {!!summaryRows.length && (
@@ -170,7 +171,7 @@ export default function ApprovalReviewModal({
             <p className="font-semibold">Before you can submit a decision:</p>
             <ul className="mt-2 space-y-1">
               {pendingChecks.map((item) => (
-                <li key={item}>{item}</li>
+                <li key={item}>{capitalizeFirstLetter(item)}</li>
               ))}
             </ul>
           </div>

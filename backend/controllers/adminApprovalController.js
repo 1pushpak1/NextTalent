@@ -61,7 +61,7 @@ const evaluationApprove = async (req, res) => {
     }
 
     if (notificationRecipients.length) {
-      const reviewUrl = `${getFrontendBaseUrl()}/admin/candidates/${String(candidate._id)}`;
+      const reviewUrl = `${getFrontendBaseUrl()}/admin/candidates/${candidate.candidateId || String(candidate._id)}`;
       const notificationResult = await sendAdminNotification({
         to: notificationRecipients,
         subject: 'Candidate Awaiting Operations Approval',

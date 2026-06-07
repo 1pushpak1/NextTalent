@@ -1,5 +1,6 @@
 const fs = require('fs');
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Document = require('../models/Document');
@@ -74,6 +75,20 @@ const stagePageLabelMap = {
 };
 
 const normalizeDocumentAdminComment = (value = '') => String(value || '').trim().slice(0, 1000);
+const resolveCandidateByIdentifier = async (identifier, projection = null) => {
+  const candidateIdentifier = String(identifier || '').trim();
+  if (!candidateIdentifier) return null;
+
+  const query = { role: 'candidate', candidateId: candidateIdentifier };
+  if (mongoose.Types.ObjectId.isValid(candidateIdentifier)) {
+    query.$or = [{ candidateId: candidateIdentifier }, { _id: candidateIdentifier }];
+    delete query.candidateId;
+  }
+
+  let candidateQuery = User.findOne(query);
+  if (projection) candidateQuery = candidateQuery.select(projection);
+  return candidateQuery;
+};
 
 const getFrontendBaseUrl = () => String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
 const isAdmin1Role = (role = '') => ['evaluation_admin', 'operations_admin', 'super_admin'].includes(String(role || '').trim().toLowerCase());
@@ -206,7 +221,7 @@ This is an official communication from NextStep Talent.`;
 
 const initiateDocumentationStage = async (req, res) => {
   try {
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    const candidate = await resolveCandidateByIdentifier(req.params.id);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
     if (!candidate.admin1ProgressionApproved) {
       return res.status(409).json({ message: 'Progression must be approved by Admin 1 before documentation stage initiation.' });
@@ -269,7 +284,7 @@ This is an automated email. Please do not reply to this message.`;
 
 const initiateCandidatePaymentInstruction = async (req, res) => {
   try {
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    const candidate = await resolveCandidateByIdentifier(req.params.id);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
     const type = String(req.body?.type || '').trim().toLowerCase();
@@ -471,8 +486,10 @@ const readStageDecision = (candidate, stageKey) => {
 const isPaymentConfirmed = (payment) =>
   ['completed', 'verified', 'paid'].includes(String(payment?.status || '').toLowerCase());
 
+const submittedProfileStatuses = new Set(['submitted', 'under_review', 'accepted', 'rejected']);
+const hasSubmittedProfile = (profile) => submittedProfileStatuses.has(String(profile?.status || '').toLowerCase());
+
 const buildCandidateSnapshot = ({ candidate, profile, eligibility, documents, interviews, payments }) => {
-  const hasSubmittedProfile = Boolean(profile) && profile.status !== 'draft';
   const paymentByType = {
     initial: payments.find((p) => p.type === 'initial' && isPaymentConfirmed(p)),
     program:
@@ -627,6 +644,7 @@ const formatCandidateRow = (snapshot, stageKey = '') => {
   const displayName = profile?.personalDetails?.firstName || candidate.name || candidate.email?.split('@')?.[0] || 'N/A';
   return {
     _id: candidate._id,
+    candidateId: candidate.candidateId || '',
     name: displayName,
     email: candidate.email,
     country: profile?.personalDetails?.currentCountryOfResidence || 'N/A',
@@ -700,6 +718,12 @@ const toHumanLabel = (value) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ') || 'N/A';
 
+const toDocumentListLabel = (value) => {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized === 'not_uploaded') return 'Pending';
+  return toHumanLabel(value);
+};
+
 const mapCandidateListRow = (snapshot) => {
   const progress = deriveCandidateProgress({
     candidate: snapshot.candidate,
@@ -719,6 +743,7 @@ const mapCandidateListRow = (snapshot) => {
 
   return {
     _id: snapshot.candidate._id,
+    candidateId: snapshot.candidate.candidateId || '',
     name: displayName,
     email: snapshot.candidate.email || '',
     phone: snapshot.candidate.phone || '',
@@ -745,7 +770,7 @@ const mapCandidateListRow = (snapshot) => {
             ? 'partially_verified'
             : 'not_started'
     ),
-    documentStatusLabel: toHumanLabel(progress.documentStatus),
+    documentStatusLabel: toDocumentListLabel(progress.documentStatus),
     interviewSelectionStatusLabel: toHumanLabel(progress.selectionStatus),
   };
 };
@@ -785,7 +810,9 @@ const listAllCandidates = async (req, res) => {
       return sortOrder * (aValue - bValue);
     });
 
-    const filtered = rows.filter((row) => {
+    const visibleRows = rows.filter((row) => submittedProfileStatuses.has(String(row.profileStatus || '').toLowerCase()));
+
+    const filtered = visibleRows.filter((row) => {
       if (q && !(`${row.name} ${row.email} ${row.phone}`.toLowerCase().includes(q))) return false;
       if (req.query.stage && row.currentStageKey !== String(req.query.stage).trim()) return false;
       if (req.query.profileStatus && row.profileStatus !== String(req.query.profileStatus).trim()) return false;
@@ -1020,7 +1047,7 @@ const listPaymentsByType = async (req, res) => {
 
 const getCandidateDetails = async (req, res) => {
   try {
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' }).select('-passwordHash').lean();
+    const candidate = await resolveCandidateByIdentifier(req.params.id, '-passwordHash').lean();
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
     const [profile, documents, interviews, payments, eligibility, testimonial] = await Promise.all([
@@ -1051,7 +1078,7 @@ const getCandidateDetails = async (req, res) => {
 
 const getAdminCandidateProfile = async (req, res) => {
   try {
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' }).select('-passwordHash').lean();
+    const candidate = await resolveCandidateByIdentifier(req.params.id, '-passwordHash').lean();
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
     const [profile, documents, interviews, payments, eligibility, testimonial] = await Promise.all([
       Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 }).lean(),
@@ -1080,7 +1107,7 @@ const getApprovalAuditHistory = async (req, res) => {
     if (!permissions.includes('approval:read_audit_full') && !permissions.includes('approval:read_audit_limited')) {
       return res.status(403).json({ message: 'Audit history access is not allowed for this admin role.' });
     }
-    const candidate = await User.findOne({ _id: req.params.candidateId, role: 'candidate' }).select('_id email').lean();
+    const candidate = await resolveCandidateByIdentifier(req.params.candidateId, '_id email').lean();
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
     const approvalHistory = await loadApprovalHistory(candidate._id, req);
     return res.json({ candidateId: candidate._id, candidateEmail: candidate.email || '', approvalHistory });
@@ -1102,7 +1129,7 @@ const updateCandidateProfileStatus = async (req, res) => {
     const isAdmin2Actor = actorRoleNormalized === 'evaluation_admin';
     const isAdmin3Actor = actorRoleNormalized === 'operations_admin';
 
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    const candidate = await resolveCandidateByIdentifier(req.params.id);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
     const profile = await Profile.findOne({ userId: candidate._id }).sort({ createdAt: -1 });
@@ -1175,7 +1202,7 @@ const updateCandidateProfileStatus = async (req, res) => {
           `Candidate: ${candidate.name || candidate.email?.split('@')[0] || 'N/A'}`,
           `Email: ${candidate.email || 'N/A'}`,
           `Candidate ID: ${String(candidate._id)}`,
-          `Review Link: ${getFrontendBaseUrl()}/admin/candidates/${String(candidate._id)}?tab=profile&review=evaluation`,
+          `Review Link: ${getFrontendBaseUrl()}/admin/candidates/${candidate.candidateId || String(candidate._id)}?tab=profile&review=evaluation`,
         ],
         fromType: 'noreply',
       });
@@ -1285,7 +1312,7 @@ const updateCandidateDocumentStatus = async (req, res) => {
       return res.status(400).json({ message: 'Invalid document status' });
     }
 
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    const candidate = await resolveCandidateByIdentifier(req.params.id);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
     const document = await Document.findOne({ _id: req.params.documentId, userId: candidate._id });
@@ -1351,7 +1378,7 @@ const updateCandidateDocumentStatus = async (req, res) => {
 
 const addCandidateInterview = async (req, res) => {
   try {
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    const candidate = await resolveCandidateByIdentifier(req.params.id);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
     const hiringPartner = String(req.body?.hiringPartner || '').trim();
@@ -1611,7 +1638,7 @@ This is an automated email. Please do not reply to this message.`;
           `Payment Type: Program Fee (First Installment)`,
           `Approved By: ${req.user?.name || req.user?.email || 'Admin 1'}`,
           `Approved At: ${new Date().toISOString()}`,
-          `Review Link: ${getFrontendBaseUrl()}/admin/candidates/${String(candidate?._id || '')}?tab=documents&review=document-verification`,
+          `Review Link: ${getFrontendBaseUrl()}/admin/candidates/${candidate.candidateId || String(candidate?._id || '')}?tab=documents&review=document-verification`,
           'Next Action: Review candidate documents and approve/reject verification from admin panel.',
         ],
         fromType: 'noreply',
@@ -1648,7 +1675,7 @@ This is an automated email. Please do not reply to this message.`;
 const updateCandidateNotes = async (req, res) => {
   try {
     const notes = String(req.body?.notes || '').trim();
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' }).select('-passwordHash');
+    const candidate = await resolveCandidateByIdentifier(req.params.id, '-passwordHash');
 
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
     const previousNotes = String(candidate.adminNotes || '').trim();
@@ -1704,7 +1731,7 @@ const updateCandidateStageDecision = async (req, res) => {
       return res.status(403).json({ message: 'Only authorized admins can publish final selection decisions.' });
     }
 
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    const candidate = await resolveCandidateByIdentifier(req.params.id);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
     const previousCandidateStatus = candidate.status;
     const previousStageStatus = readStageDecision(candidate, stageKey);
@@ -1744,7 +1771,7 @@ const updateCandidateStageDecision = async (req, res) => {
               `Candidate: ${candidate.name || candidate.email?.split('@')[0] || 'N/A'}`,
               `Email: ${candidate.email || 'N/A'}`,
               `Candidate ID: ${String(candidate._id)}`,
-              `Review Link: ${getFrontendBaseUrl()}/admin/candidates/${String(candidate._id)}?tab=profile&review=evaluation`,
+              `Review Link: ${getFrontendBaseUrl()}/admin/candidates/${candidate.candidateId || String(candidate._id)}?tab=profile&review=evaluation`,
             ],
             fromType: 'noreply',
           });
@@ -2047,7 +2074,7 @@ const initiateCandidateRefund = async (req, res) => {
     if (!isAdmin1Role(req.user?.adminRole)) {
       return res.status(403).json({ message: 'Only Admin 1 can initiate refunds.' });
     }
-    const candidate = await User.findOne({ _id: req.params.id, role: 'candidate' });
+    const candidate = await resolveCandidateByIdentifier(req.params.id);
     if (!candidate) return res.status(404).json({ message: 'Candidate not found' });
 
     const paymentIds = Array.isArray(req.body?.paymentIds) ? req.body.paymentIds.map(String).filter(Boolean) : [];

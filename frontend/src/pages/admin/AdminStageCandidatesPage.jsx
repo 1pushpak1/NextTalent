@@ -151,7 +151,7 @@ export default function AdminStageCandidatesPage({ title, stageKey }) {
             >
               <option value="">Select candidate</option>
               {rows.map((row) => (
-                <option key={row._id} value={row._id}>
+                <option key={row.candidateId || row._id} value={row.candidateId || row._id}>
                   {row.name || 'Candidate'} • {row.email || '—'}
                 </option>
               ))}
