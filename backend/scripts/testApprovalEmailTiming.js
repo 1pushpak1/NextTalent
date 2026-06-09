@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
-const crypto = require('crypto');
 const fetch = global.fetch;
 const connectDB = require('../config/db');
 const User = require('../models/User');
@@ -32,15 +31,8 @@ const run = async () => {
     candidate.operationsStatus = 'pending';
     candidate.accountStatus = 'not_invited';
     candidate.accountCreationInviteSent = false;
-    candidate.accountInviteToken = '';
-    candidate.accountInviteExpiresAt = null;
     await candidate.save();
   }
-
-  const token = crypto.createHash('sha256').update('timing-token').digest('hex');
-  candidate.accountInviteToken = token;
-  candidate.accountInviteExpiresAt = new Date(Date.now() + 24 * 3600 * 1000);
-  await candidate.save();
 
   const adminToken = require('jsonwebtoken').sign(
     { isEnvAdmin: true, role: 'admin', email: process.env.EVALUATION_ADMIN_EMAIL || process.env.SUPER_ADMIN_EMAIL },

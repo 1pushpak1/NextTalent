@@ -15,6 +15,7 @@ const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmai
 const { buildStoredAttachment } = require('../utils/storage');
 const { sendTransactionalEmailSafe } = require('../services/emailService');
 const { createAuditLog } = require('../services/auditService');
+const { createActivationForCandidate } = require('../utils/accountActivation');
 const {
   generateInvoiceForStage,
   generateReceiptForPayment,
@@ -309,13 +310,19 @@ This is an automated email. Please do not reply to this message.`;
       candidate.operationsStatus = 'approved';
       candidate.status = 'account_invited';
       candidate.accountStatus = 'invited';
-
-      const inviteToken = crypto.randomBytes(32).toString('hex');
-      candidate.accountInviteToken = crypto.createHash('sha256').update(inviteToken).digest('hex');
-      candidate.accountInviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       candidate.accountCreationInviteSent = true;
       candidate.accountCreationInviteSentAt = new Date();
+      candidate.accountInviteToken = '';
+      candidate.accountInviteExpiresAt = null;
       await candidate.save();
+
+      const { token: inviteToken } = await createActivationForCandidate({
+        email: candidate.email,
+        candidateName: candidate.name || '',
+        issuedBy: req.user?.email || '',
+        issuedForCandidateId: String(candidate._id),
+        issuedForUserId: candidate._id,
+      });
 
       const eligibility = await Eligibility.findOne({ userId: candidate._id }).sort({ createdAt: -1 });
       if (eligibility) {
@@ -333,9 +340,8 @@ You may now create your candidate account using the same email address used for 
 
 Next steps:
 1. Create your account using the link below.
-2. Verify your email address after account creation.
-3. Verify your mobile number after email verification.
-4. Continue to your candidate dashboard for the next steps.
+2. Verify your mobile number after account creation.
+3. Continue to your candidate dashboard for the next steps.
 
 Email: ${candidate.email}
 Create Account Link: ${inviteUrl}

@@ -69,6 +69,7 @@ export default function App() {
         />
 
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/create-account" element={<SignupPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/verify-phone" element={<VerifyPhonePage />} />
         <Route path="/login" element={<LoginPage />} />

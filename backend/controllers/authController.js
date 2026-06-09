@@ -7,6 +7,13 @@ const { sendStepUpdateEmail } = require('../utils/stepEmailer');
 const { getConfiguredAdminUsers, getPermissionsForRole } = require('../utils/adminPermissions');
 const { normalizeAdminRole } = require('../constants/workflow');
 const sendEmail = require('../utils/sendEmail');
+const AccountActivation = require('../models/AccountActivation');
+const {
+  buildCandidateAccountContext,
+  describeActivationState,
+  getLatestActiveActivation,
+  normalizeEmail,
+} = require('../utils/accountActivation');
 
 const findConfiguredAdminByEmail = (email) =>
   getConfiguredAdminUsers().find((entry) => entry.email === String(email || '').toLowerCase().trim());
@@ -115,6 +122,12 @@ const getOrCreateCandidateForEmail = async ({ email, name = '' }) => {
   return user;
 };
 
+const getActivationForSignup = async ({ email, inviteToken }) => {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail || !inviteToken) return null;
+  return getLatestActiveActivation({ email: normalizedEmail, token: inviteToken });
+};
+
 const signup = async (req, res) => {
   try {
     const { email, password, confirmPassword, inviteToken } = req.body;
@@ -132,72 +145,124 @@ const signup = async (req, res) => {
       return res.status(400).json({ message: 'Passwords do not match' });
     }
 
-    let invitedUser = null;
-    if (inviteToken) {
-      // Verify invitation token when present
-      const tokenHash = crypto.createHash('sha256').update(String(inviteToken).trim()).digest('hex');
-      invitedUser = await User.findOne({
-        email: normalizedEmail,
-        accountInviteToken: tokenHash,
-        accountInviteExpiresAt: { $gt: new Date() },
-        role: 'candidate',
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.',
       });
+    }
 
-      if (!invitedUser) {
-        return res.status(403).json({ message: 'Invalid or expired invitation token. Please contact support.' });
-      }
-    } else {
+    if (!inviteToken) {
       // Require explicit invitation token for account creation.
       return res.status(403).json({ message: 'Account creation requires an invitation token. Please use the link sent to your email.' });
     }
 
-    const evaluationApproved = String(invitedUser.evaluationStatus || '').toLowerCase() === 'approved' || String(invitedUser.status || '').toLowerCase() === 'evaluation_approved' || Boolean(invitedUser.admin2EvaluationApproved);
-    const operationsApproved = String(invitedUser.operationsStatus || '').toLowerCase() === 'approved' || String(invitedUser.status || '').toLowerCase() === 'fully_approved' || Boolean(invitedUser.admin3EvaluationApproved);
+    const activation = await getActivationForSignup({ email: normalizedEmail, inviteToken });
+    if (!activation) {
+      const expiredActivation = await AccountActivation.findOne({ email: normalizedEmail }).sort({ createdAt: -1 });
+      const state = describeActivationState(expiredActivation);
+      if (state.code === 'expired') {
+        return res.status(403).json({ message: state.message });
+      }
+      if (state.code === 'used') {
+        return res.status(409).json({ message: 'Account already created. Please log in instead.' });
+      }
+      return res.status(403).json({ message: 'Invalid or expired invitation token. Please contact support.' });
+    }
+
+    const accountContext = await buildCandidateAccountContext(normalizedEmail);
+    const invitedUser = accountContext?.user || (await User.findOne({ email: normalizedEmail, role: 'candidate' }));
+    const evaluationApproved = String(invitedUser?.evaluationStatus || '').toLowerCase() === 'approved' || String(invitedUser?.status || '').toLowerCase() === 'evaluation_approved' || Boolean(invitedUser?.admin2EvaluationApproved);
+    const operationsApproved = String(invitedUser?.operationsStatus || '').toLowerCase() === 'approved' || String(invitedUser?.status || '').toLowerCase() === 'fully_approved' || Boolean(invitedUser?.admin3EvaluationApproved);
 
     if (!evaluationApproved || !operationsApproved) {
       return res.status(403).json({ message: 'Account creation is not available until evaluation and operations approvals are complete.' });
     }
 
-    const accountStatus = String(invitedUser.accountStatus || '').toLowerCase();
-    const workflowStatus = String(invitedUser.status || '').toLowerCase();
+    const accountStatus = String(invitedUser?.accountStatus || '').toLowerCase();
+    const workflowStatus = String(invitedUser?.status || '').toLowerCase();
     const accountAlreadyCreated = ['created', 'email_verified'].includes(accountStatus) || ['account_created', 'email_verified'].includes(workflowStatus);
     if (accountAlreadyCreated) {
       return res.status(409).json({ message: 'An account with this email already exists. Please log in instead.' });
     }
 
-    if (inviteToken) {
-      if (invitedUser.accountStatus !== 'invited' || invitedUser.status !== 'account_invited') {
-        return res.status(403).json({ message: 'This invitation has already been used or is no longer valid.' });
-      }
+    if (accountContext?.profile?.status === 'rejected' || accountContext?.eligibility?.isEligible === false) {
+      return res.status(403).json({ message: 'Account creation is not available for this candidate.' });
     }
 
-    // Create account
+    // Create or complete the candidate account only at this moment.
     const passwordHash = await bcrypt.hash(password, 10);
-    invitedUser.passwordHash = passwordHash;
-    invitedUser.accountStatus = 'created';
-    invitedUser.status = 'account_created';
-    invitedUser.accountInviteToken = ''; // Clear token after use
-    invitedUser.emailVerified = false;
-    invitedUser.phoneVerified = false;
-    await invitedUser.save();
+    let candidateUser = invitedUser;
 
-    await sendVerificationEmail(invitedUser);
+    if (!candidateUser) {
+      candidateUser = new User({
+        name: accountContext?.candidateName || normalizedEmail.split('@')[0] || 'Candidate',
+        email: normalizedEmail,
+        role: 'candidate',
+        status: 'eligibility_approved',
+        evaluationStatus: 'approved',
+        operationsStatus: 'approved',
+        accountStatus: 'not_invited',
+        emailVerified: false,
+        phoneVerified: false,
+      });
+    }
+
+    candidateUser.passwordHash = passwordHash;
+    candidateUser.accountStatus = 'created';
+    candidateUser.status = 'account_created';
+    candidateUser.accountInviteToken = '';
+    candidateUser.accountInviteExpiresAt = null;
+    candidateUser.emailVerified = true;
+    candidateUser.phoneVerified = false;
+    await candidateUser.save();
+
+    activation.usedAt = new Date();
+    activation.usedByUserId = candidateUser._id;
+    await activation.save();
 
     res.status(201).json({
       message: 'Account created successfully',
-      token: tokenFor({ id: String(invitedUser._id) }),
+      token: tokenFor({ id: String(candidateUser._id) }),
       user: {
-        id: invitedUser._id,
-        name: invitedUser.name,
-        email: invitedUser.email,
-        emailVerified: invitedUser.emailVerified,
-        phoneVerified: invitedUser.phoneVerified,
-        role: invitedUser.role,
-        status: invitedUser.status,
+        id: candidateUser._id,
+        name: candidateUser.name,
+        email: candidateUser.email,
+        emailVerified: candidateUser.emailVerified,
+        phoneVerified: candidateUser.phoneVerified,
+        role: candidateUser.role,
+        status: candidateUser.status,
       },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+const validateActivation = async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email || req.query?.email || '');
+    const token = String(req.body?.token || req.query?.token || '').trim();
+
+    if (!email || !token) {
+      return res.status(400).json({ message: 'Email and token are required' });
+    }
+
+    const activation = await getLatestActiveActivation({ email, token });
+    const state = describeActivationState(activation);
+    if (!state.valid) {
+      return res.status(state.code === 'expired' ? 403 : state.code === 'used' ? 409 : 403).json({ message: state.message });
+    }
+
+    const context = await buildCandidateAccountContext(email);
+    return res.json({
+      valid: true,
+      email,
+      candidateName: activation.candidateName || context?.candidateName || '',
+      expiresAt: activation.expiresAt,
+      usedAt: activation.usedAt,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -457,4 +522,4 @@ const resetPassword = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, verifyEmail, resendVerificationEmail, sendProfileEmailVerification, verifyPhone, forgotPassword, resetPassword };
+module.exports = { signup, login, validateActivation, verifyEmail, resendVerificationEmail, sendProfileEmailVerification, verifyPhone, forgotPassword, resetPassword };

@@ -25,6 +25,7 @@ const { getWorkflowConfig, sendAdminNotification, normalizeEmail } = require('..
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
 const { ensureCandidateIdForUser } = require('../utils/candidateId');
 const { buildStoredAttachment } = require('../utils/storage');
+const { createActivationForCandidate } = require('../utils/accountActivation');
 const {
   generateInvoiceForStage,
   generateReceiptForPayment,
@@ -515,11 +516,11 @@ const buildCandidateSnapshot = ({ candidate, profile, eligibility, documents, in
   const currentStage =
     stageLabelMap[candidate.status] ||
     (hasSubmittedProfile
-      ? profile.status === 'submitted' || profile.status === 'under_review'
+      ? profile?.status === 'submitted' || profile?.status === 'under_review'
         ? 'Internal Evaluation'
-        : profile.status === 'accepted'
+        : profile?.status === 'accepted'
           ? 'Initial Payment'
-          : profile.status === 'rejected'
+          : profile?.status === 'rejected'
             ? 'Internal Evaluation'
             : 'Profile Submitted'
       : 'Eligibility Applications');
@@ -1205,19 +1206,19 @@ const updateCandidateProfileStatus = async (req, res) => {
     if (status === 'accepted' && isAdmin3Actor) {
       const frontendBaseUrl = String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
       const candidateEmail = String(candidate.email || '').toLowerCase().trim();
-      let inviteToken = '';
-      if (candidate.accountInviteToken && candidate.accountInviteExpiresAt && candidate.accountInviteExpiresAt > new Date()) {
-        inviteToken = candidate.accountInviteToken;
-      } else {
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        inviteToken = rawToken;
-        candidate.accountInviteToken = crypto.createHash('sha256').update(rawToken).digest('hex');
-        candidate.accountInviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        candidate.accountCreationInviteSent = true;
-        candidate.accountCreationInviteSentAt = new Date();
-        await candidate.save();
-      }
-      const signupUrl = `${frontendBaseUrl}/signup?invite=1&email=${encodeURIComponent(candidateEmail)}&token=${encodeURIComponent(inviteToken)}&next=${encodeURIComponent('/candidate-dashboard')}`;
+      const { token: inviteToken } = await createActivationForCandidate({
+        email: candidateEmail,
+        candidateName: candidate.name || '',
+        issuedBy: req.user?.email || '',
+        issuedForCandidateId: String(candidate._id),
+        issuedForUserId: candidate._id,
+      });
+      candidate.accountCreationInviteSent = true;
+      candidate.accountCreationInviteSentAt = new Date();
+      candidate.accountInviteToken = '';
+      candidate.accountInviteExpiresAt = null;
+      await candidate.save();
+      const signupUrl = `${frontendBaseUrl}/create-account?invite=1&email=${encodeURIComponent(candidateEmail)}&token=${encodeURIComponent(inviteToken)}&next=${encodeURIComponent('/candidate-dashboard')}`;
       const loginUrl = `${frontendBaseUrl}/login?next=${encodeURIComponent('/candidate-dashboard')}`;
       await sendStepUpdateEmail({
         to: candidate.email,
@@ -1240,19 +1241,19 @@ const updateCandidateProfileStatus = async (req, res) => {
     if (status === 'accepted' && isAdmin1Role(req.user?.adminRole) && !isAdmin2Actor && !isAdmin3Actor) {
       const frontendBaseUrl = String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
       const candidateEmail = String(candidate.email || '').toLowerCase().trim();
-      let inviteToken = '';
-      if (candidate.accountInviteToken && candidate.accountInviteExpiresAt && candidate.accountInviteExpiresAt > new Date()) {
-        inviteToken = candidate.accountInviteToken;
-      } else {
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        inviteToken = rawToken;
-        candidate.accountInviteToken = crypto.createHash('sha256').update(rawToken).digest('hex');
-        candidate.accountInviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        candidate.accountCreationInviteSent = true;
-        candidate.accountCreationInviteSentAt = new Date();
-        await candidate.save();
-      }
-      const signupUrl = `${frontendBaseUrl}/signup?invite=1&email=${encodeURIComponent(candidateEmail)}&token=${encodeURIComponent(inviteToken)}&next=${encodeURIComponent('/candidate-dashboard')}`;
+      const { token: inviteToken } = await createActivationForCandidate({
+        email: candidateEmail,
+        candidateName: candidate.name || '',
+        issuedBy: req.user?.email || '',
+        issuedForCandidateId: String(candidate._id),
+        issuedForUserId: candidate._id,
+      });
+      candidate.accountCreationInviteSent = true;
+      candidate.accountCreationInviteSentAt = new Date();
+      candidate.accountInviteToken = '';
+      candidate.accountInviteExpiresAt = null;
+      await candidate.save();
+      const signupUrl = `${frontendBaseUrl}/create-account?invite=1&email=${encodeURIComponent(candidateEmail)}&token=${encodeURIComponent(inviteToken)}&next=${encodeURIComponent('/candidate-dashboard')}`;
       const loginUrl = `${frontendBaseUrl}/login?next=${encodeURIComponent('/candidate-dashboard')}`;
       await sendStepUpdateEmail({
         to: candidate.email,
@@ -1826,7 +1827,7 @@ const updateCandidateStageDecision = async (req, res) => {
       candidate.accountCreationInviteSentAt = new Date();
       if (shouldSend) {
         const inviteUrl = `${getFrontendBaseUrl()}/signup?email=${encodeURIComponent(candidate.email)}&invite=1`;
-        const inviteText = `Dear ${String(candidate.name || 'Candidate').trim()},\n\nYour profile has been reviewed and approved.\n\nYou may now create your candidate account using the link below.\n\nEmail: ${candidate.email}\nCreate Account Link: ${inviteUrl}\n\nAfter creating your account, you will receive email verification instructions and can then access your dashboard.\n\nRegards,\nNextStep Talent Team\n\nThis is an official communication from NextStep Talent.`;
+      const inviteText = `Dear ${String(candidate.name || 'Candidate').trim()},\n\nYour profile has been reviewed and approved.\n\nYou may now create your candidate account using the link below.\n\nEmail: ${candidate.email}\nCreate Account Link: ${inviteUrl}\n\nAfter creating your account, you can continue directly to your dashboard.\n\nRegards,\nNextStep Talent Team\n\nThis is an official communication from NextStep Talent.`;
         await sendEmail({
           to: candidate.email,
           subject: 'NextStep Talent – Account Creation Invitation',

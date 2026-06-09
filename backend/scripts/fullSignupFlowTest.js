@@ -2,9 +2,10 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const connectDB = require('../config/db');
-const crypto = require('crypto');
 const fetch = global.fetch;
 const User = require('../models/User');
+const AccountActivation = require('../models/AccountActivation');
+const { createActivationForCandidate } = require('../utils/accountActivation');
 
 const API_BASE = `http://localhost:${process.env.PORT || 5001}/api`;
 
@@ -37,13 +38,18 @@ const run = async () => {
     await candidate.save();
   }
 
-  // Set known invite token
-  const rawToken = 'TESTINVITETOKEN123';
-  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-  candidate.accountInviteToken = tokenHash;
-  candidate.accountInviteExpiresAt = new Date(Date.now() + 24 * 3600 * 1000);
+  await AccountActivation.deleteMany({ email: candidate.email.toLowerCase().trim() });
+  const { token: rawToken } = await createActivationForCandidate({
+    email: candidate.email,
+    candidateName: candidate.name,
+    issuedBy: 'full-signup-flow-test',
+    issuedForCandidateId: String(candidate._id),
+    issuedForUserId: candidate._id,
+  });
   candidate.accountCreationInviteSent = true;
   candidate.accountCreationInviteSentAt = new Date();
+  candidate.accountInviteToken = '';
+  candidate.accountInviteExpiresAt = null;
   await candidate.save();
   console.log('Set invite token for candidate (raw token):', rawToken);
 

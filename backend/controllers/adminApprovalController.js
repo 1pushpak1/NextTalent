@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Eligibility = require('../models/Eligibility');
@@ -7,6 +6,9 @@ const sendEmail = require('../utils/sendEmail');
 const { sendAdminNotification } = require('../utils/workflowEmailer');
 const { getOperationsAdminEmails } = require('../utils/adminRoleEmails');
 const { createApprovalAuditLog } = require('../utils/approvalAudit');
+const {
+  createActivationForCandidate,
+} = require('../utils/accountActivation');
 
 const getFrontendBaseUrl = () => String(process.env.FRONTEND_BASE_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
@@ -225,18 +227,22 @@ const operationsApprove = async (req, res) => {
     candidate.admin1ProgressionApprovedAt = new Date();
     candidate.admin1ProgressionApprovedBy = req.user?.email || '';
     
-    // Generate account invitation token
-    const inviteToken = crypto.randomBytes(32).toString('hex');
-    candidate.accountInviteToken = crypto.createHash('sha256').update(inviteToken).digest('hex');
-    candidate.accountInviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
     candidate.accountCreationInviteSent = true;
     candidate.accountCreationInviteSentAt = new Date();
     
     await candidate.save();
 
+    const { token: inviteToken } = await createActivationForCandidate({
+      email: candidate.email,
+      candidateName: candidate.name || '',
+      issuedBy: req.user?.email || '',
+      issuedForCandidateId: String(candidate._id),
+      issuedForUserId: candidate._id,
+    });
+
     // Send account creation invitation email
     const inviteUrl = `${getFrontendBaseUrl()}/create-account?token=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(candidate.email)}`;
-    const inviteText = `Dear ${candidate.name || 'Candidate'},\r\n\r\nProfile approved\r\nYour profile has been approved. Please complete the next steps from your dashboard.\r\n\r\nStatus: Approved\r\nProfile Status: accepted\r\nNext Step: Complete the next dashboard step\r\n\r\nYou may now create your candidate account using the link below.\r\n\r\nCreate Account Link: ${inviteUrl}\r\nEmail: ${candidate.email}\r\n\r\nThis invitation link will expire in 7 days and can be used only once. After creating your account, you will need to verify your email, then continue to your dashboard.\r\n\r\nRegards,  \r\nNextStep Talent Team\r\n\r\nThis is an automated email. Please do not reply to this message.`;
+    const inviteText = `Dear ${candidate.name || 'Candidate'},\r\n\r\nProfile approved\r\nYour profile has been approved. Please complete the next steps from your dashboard.\r\n\r\nStatus: Approved\r\nProfile Status: accepted\r\nNext Step: Complete the next dashboard step\r\n\r\nYou may now create your candidate account using the link below.\r\n\r\nCreate Account Link: ${inviteUrl}\r\nEmail: ${candidate.email}\r\n\r\nThis invitation link will expire in 7 days and can be used only once. After creating your account, you can continue directly to your dashboard.\r\n\r\nRegards,  \r\nNextStep Talent Team\r\n\r\nThis is an automated email. Please do not reply to this message.`;
 
     await sendEmail({
       to: candidate.email,

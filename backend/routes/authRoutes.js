@@ -2,6 +2,7 @@ const express = require('express');
 const {
   signup,
   login,
+  validateActivation,
   verifyEmail,
   resendVerificationEmail,
   sendProfileEmailVerification,
@@ -14,6 +15,8 @@ const router = express.Router();
 
 router.post('/signup', signup);
 router.post('/login', login);
+router.get('/account-activation', validateActivation);
+router.post('/account-activation/validate', validateActivation);
 router.post('/verify-email', verifyEmail);
 router.post('/resend-verification-email', resendVerificationEmail);
 router.post('/send-profile-email-verification', sendProfileEmailVerification);

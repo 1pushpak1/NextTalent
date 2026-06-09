@@ -11,6 +11,8 @@ export default function SignupPage() {
   const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' });
   const [lockedEligibilityEmail, setLockedEligibilityEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [activationLoading, setActivationLoading] = useState(false);
+  const [activationState, setActivationState] = useState({ valid: true, message: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
@@ -39,6 +41,28 @@ export default function SignupPage() {
     setLockedEligibilityEmail(resolvedEmail);
     setForm((prev) => ({ ...prev, email: resolvedEmail }));
   }, [inviteEmail]);
+
+  useEffect(() => {
+    const validateInvite = async () => {
+      if (!inviteToken || !inviteEmail) return;
+      setActivationLoading(true);
+      try {
+        const { data } = await api.get('/auth/account-activation', {
+          params: { email: inviteEmail, token: inviteToken },
+        });
+        setActivationState({ valid: true, message: data?.candidateName ? `Welcome, ${data.candidateName}. Your activation link is valid.` : 'Your activation link is valid.' });
+      } catch (error) {
+        setActivationState({
+          valid: false,
+          message: error.response?.data?.message || 'Activation link is invalid or expired.',
+        });
+      } finally {
+        setActivationLoading(false);
+      }
+    };
+
+    validateInvite();
+  }, [inviteEmail, inviteToken]);
 
   useEffect(() => {
     if (!isPasswordFocused) return;
@@ -95,7 +119,11 @@ export default function SignupPage() {
       localStorage.setItem('nst_signup_email', normalizedEmail);
       localStorage.removeItem('nst_eligibility_email');
       await claimEligibilityIfPresent();
-      navigate(`/verify-email?next=${encodeURIComponent(next)}`);
+      if (data?.user?.phoneVerified) {
+        navigate(next, { replace: true });
+      } else {
+        navigate(`/verify-phone?next=${encodeURIComponent(next)}`, { replace: true });
+      }
     } catch (error) {
       if (error.response?.status === 409) {
         alert(error.response?.data?.message || 'Account already exists. Please log in.');
@@ -111,6 +139,13 @@ export default function SignupPage() {
   return (
     <AuthSplitLayout title="Join NextStep" subtitle="Create your candidate profile to begin the elite pathway.">
       <form className="space-y-4" onSubmit={submit}>
+        {inviteToken && (
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm ${activationState.valid ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-50' : 'border-rose-500/40 bg-rose-500/10 text-rose-50'}`}
+          >
+            {activationLoading ? 'Validating activation link...' : activationState.message || 'Your activation link is ready.'}
+          </div>
+        )}
         <div>
           <Input
             label="Email Address"
@@ -228,7 +263,9 @@ export default function SignupPage() {
           }
           aria-invalid={passwordsMismatch}
         />
-        <Button className="w-full" disabled={loading}>{loading ? 'Creating account...' : 'Create Account'}</Button>
+        <Button className="w-full" disabled={loading || (Boolean(inviteToken) && (!activationState.valid || activationLoading))}>
+          {loading ? 'Creating account...' : 'Create Account'}
+        </Button>
       </form>
       <div className="mt-6 border-t border-slate-100 pt-6 text-center text-sm text-[#44474e]">
         Already have an account? <Link className="font-semibold text-[#3a5f94]" to={`/login?next=${encodeURIComponent(next)}`}>Log in</Link>
