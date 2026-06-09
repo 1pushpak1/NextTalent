@@ -159,7 +159,10 @@ const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
   const documentationStageInitiated = hasDocumentationStageInitiated(user);
   const evaluationApproved = String(user?.evaluationStatus || '').toLowerCase() === 'approved' || status === 'evaluation_approved' || Boolean(user?.admin2EvaluationApproved);
   const operationsApproved = String(user?.operationsStatus || '').toLowerCase() === 'approved' || status === 'fully_approved' || Boolean(user?.admin3EvaluationApproved);
-  const accountCreated = ['created', 'email_verified'].includes(String(user?.accountStatus || '').toLowerCase()) || ['account_created', 'email_verified'].includes(status);
+  const accountCreated =
+    Boolean(user?.passwordHash) ||
+    ['created', 'email_verified'].includes(String(user?.accountStatus || '').toLowerCase()) ||
+    ['account_created', 'email_verified'].includes(status);
   const accountInvited = String(user?.accountStatus || '').toLowerCase() === 'invited' || status === 'account_invited';
   const docsReceived =
     user.status === 'documents_received' ||
@@ -179,8 +182,15 @@ const deriveNextRoute = ({ eligibility, profile, user, docs, payments }) => {
   if (!eligibility || (!eligibility.isEligible && status !== 'eligibility_approved')) return '/eligibility-check';
   if (status === 'eligibility_approved' || status === 'profile_submitted' || status === 'awaiting_evaluation_review') return '/profile-submission';
   if (status === 'evaluation_approved' || status === 'awaiting_operations_approval' || (evaluationApproved && !operationsApproved)) return '/candidate-dashboard';
-  if (accountInvited && operationsApproved) return '/signup';
   if (accountCreated && operationsApproved && !user.emailVerified) return '/verify-email';
+  if (accountCreated && operationsApproved && user.emailVerified && !hasInitial) return '/initial-payment';
+  if (accountCreated && operationsApproved && user.emailVerified && hasInitial && !declarationDone) return '/declaration';
+  if (accountCreated && operationsApproved && user.emailVerified && hasInitial && declarationDone && !onboardingDone) return '/onboarding';
+  if (accountCreated && operationsApproved && user.emailVerified && hasInitial && onboardingDone && !documentationStageInitiated) return '/candidate-dashboard';
+  if (accountCreated && operationsApproved && user.emailVerified && hasInitial && onboardingDone && !docsUploaded) return '/documents';
+  if (accountCreated && operationsApproved && user.emailVerified && hasInitial && onboardingDone && docsUploaded && !hasProgram && !hasProgramPending) return '/candidate-dashboard';
+  if (accountCreated && operationsApproved && user.emailVerified && hasInitial && onboardingDone && docsUploaded && hasProgramFailed) return '/candidate-dashboard';
+  if (accountInvited && operationsApproved && !accountCreated) return '/signup';
   if (status === 'email_verified' && !hasInitial) return '/initial-payment';
   if (status === 'onboarding_fee_paid' && !docsUploaded) return '/documents';
   if ((status === 'documents_uploaded' || docsUploaded) && !hasProgram && !hasProgramPending && !hasProgramFailed) return '/payment/program-fee';

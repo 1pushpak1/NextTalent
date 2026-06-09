@@ -75,7 +75,7 @@ const stagePageLabelMap = {
 };
 
 const normalizeDocumentAdminComment = (value = '') => String(value || '').trim().slice(0, 1000);
-const resolveCandidateByIdentifier = async (identifier, projection = null) => {
+const resolveCandidateByIdentifier = (identifier, projection = null) => {
   const candidateIdentifier = String(identifier || '').trim();
   if (!candidateIdentifier) return null;
 

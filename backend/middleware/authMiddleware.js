@@ -98,6 +98,10 @@ const requireAdminPermission = (permission) => (req, res, next) => {
   if (!req.user || req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Admin access required' });
   }
+  const currentRole = normalizeAdminRole(req.user.adminRole);
+  if (currentRole === 'super_admin') {
+    return next();
+  }
   const permissions = Array.isArray(req.user.permissions) ? req.user.permissions : [];
   if (!permissions.includes(permission)) {
     return res.status(403).json({ message: `Missing permission: ${permission}` });
@@ -112,6 +116,9 @@ const requireAdminRoles = (roles = []) => {
       return res.status(403).json({ message: 'Admin access required' });
     }
     const currentRole = normalizeAdminRole(req.user.adminRole);
+    if (currentRole === 'super_admin') {
+      return next();
+    }
     if (!normalizedRoles.includes(currentRole)) {
       return res.status(403).json({ message: `Admin role ${currentRole || 'unknown'} cannot perform this action` });
     }

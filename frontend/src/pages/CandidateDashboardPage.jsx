@@ -186,7 +186,7 @@ export default function CandidateDashboardPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              {!journeyLocked && internalEvaluationPassed && progressionApproved && !hasInitial && (
+              {!journeyLocked && internalEvaluationPassed && progressionApproved && requiredRoute === '/initial-payment' && (
                 <Link to="/initial-payment">
                   <Button>Pay USD 500</Button>
                 </Link>

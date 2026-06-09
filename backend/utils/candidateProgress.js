@@ -3,7 +3,7 @@ const stageLabels = {
   account: 'Account Created',
   profile_submitted: 'Profile Submitted',
   profile_review: 'Profile Review',
-  operations_approval: 'Awaiting Operations Approval',
+  operations_approval: "Awaiting Arna's Approval",
   initial_payment: 'Initial Payment',
   declaration: 'Declaration & Contract',
   documents_upload: 'Document Uploads',
@@ -137,7 +137,7 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
       ...base,
       currentStageKey: 'operations_approval',
       currentStage: stageLabels.operations_approval,
-      nextAction: 'Awaiting Operations Approval',
+      nextAction: "Awaiting Arna's Approval",
       pendingFrom: 'admin',
       recommendedAdminAction: 'Approve Candidate',
     };
@@ -192,7 +192,7 @@ const deriveCandidateProgress = ({ candidate, profile, eligibility, documents = 
       key: 'operations_approval',
       done: !evaluationApproved || operationsApproved,
       pendingFrom: evaluationApproved && !operationsApproved ? 'admin' : 'completed',
-      action: 'Awaiting Operations Approval',
+      action: "Awaiting Arna's Approval",
       recommendation: 'Approve Candidate',
     },
     {
