@@ -12,6 +12,7 @@ const InterviewBooking = require('../models/InterviewBooking');
 const { ADMIN_ROLES, PAYMENT_STAGES, EMAIL_TEMPLATE_KEYS, LEGACY_PAYMENT_TYPE_TO_STAGE, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 const { normalizeAdminRole } = require('../constants/workflow');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
+const { buildStoredAttachment } = require('../utils/storage');
 const { sendTransactionalEmailSafe } = require('../services/emailService');
 const { createAuditLog } = require('../services/auditService');
 const {
@@ -630,9 +631,11 @@ const generateInvoiceForCandidate = async (req, res) => {
       stage: paymentStage,
       amountReceived,
     });
-    const invoiceAttachments = invoice?.pdfPath && fs.existsSync(invoice.pdfPath)
-      ? [{ filename: `${invoice.invoiceNumber}.pdf`, path: invoice.pdfPath, contentType: 'application/pdf' }]
-      : [];
+    const invoiceAttachments = (
+      await Promise.all([
+        buildStoredAttachment(invoice?.pdfPath || invoice?.pdfUrl, `${invoice?.invoiceNumber || invoice?._id || 'invoice'}.pdf`, 'application/pdf'),
+      ])
+    ).filter(Boolean);
 
     await sendTransactionalEmailSafe({
       to: candidate.email,
@@ -788,21 +791,12 @@ const verifyCandidatePayment = async (req, res) => {
     await candidate.save();
 
     if (receipt) {
-      const attachments = [];
-      if (receipt.pdfPath && fs.existsSync(receipt.pdfPath)) {
-        attachments.push({
-          filename: `${receipt.receiptNumber}.pdf`,
-          path: receipt.pdfPath,
-          contentType: 'application/pdf',
-        });
-      }
-      if (invoice?.pdfPath && fs.existsSync(invoice.pdfPath)) {
-        attachments.push({
-          filename: `${invoice.invoiceNumber}.pdf`,
-          path: invoice.pdfPath,
-          contentType: 'application/pdf',
-        });
-      }
+      const attachments = (
+        await Promise.all([
+          buildStoredAttachment(receipt?.pdfPath || receipt?.pdfUrl, `${receipt?.receiptNumber || receipt?._id || 'receipt'}.pdf`, 'application/pdf'),
+          buildStoredAttachment(invoice?.pdfPath || invoice?.pdfUrl, `${invoice?.invoiceNumber || invoice?._id || 'invoice'}.pdf`, 'application/pdf'),
+        ])
+      ).filter(Boolean);
 
       const receiptMail = await buildReceiptEmailForPayment({
         candidate,

@@ -1,26 +1,12 @@
-const fs = require('fs');
-const path = require('path');
 const multer = require('multer');
 const Testimonial = require('../models/Testimonial');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
-
-const uploadDir = path.join(__dirname, '..', 'uploads', 'testimonials');
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    fs.mkdirSync(uploadDir, { recursive: true });
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}-${file.originalname}`);
-  },
-});
+const { buildStorageKey, storeBuffer } = require('../utils/storage');
 
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
@@ -35,13 +21,27 @@ const createTestimonial = async (req, res) => {
     }
     const body = req.body || {};
     const { fullName = '', country = '', selectedDestination = '', role = '', text = '', consent, photoUrl = '' } = body;
-    const uploadedPhotoUrl = req.file ? `/uploads/testimonials/${req.file.filename}` : '';
 
     if (String(consent) !== 'true') {
       return res.status(400).json({ message: 'Consent is required' });
     }
     if (!fullName || !country || !selectedDestination || !role || !text) {
       return res.status(400).json({ message: 'Please complete all required testimonial fields' });
+    }
+
+    let uploadedPhotoUrl = '';
+    if (req.file) {
+      const storageKey = buildStorageKey({
+        folder: 'testimonials',
+        subfolder: String(req.user._id || 'candidate'),
+        filename: req.file.originalname,
+      });
+      const storedFile = await storeBuffer({
+        storageKey,
+        buffer: req.file.buffer,
+        contentType: req.file.mimetype || 'application/octet-stream',
+      });
+      uploadedPhotoUrl = storedFile.fileUrl;
     }
 
     const testimonial = await Testimonial.create({

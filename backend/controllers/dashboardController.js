@@ -11,6 +11,7 @@ const { deriveCandidateProgress } = require('../utils/candidateProgress');
 const sendEmail = require('../utils/sendEmail');
 const { generateDeclarationPdf } = require('../utils/declarationPdf');
 const { getWorkflowConfig } = require('../utils/workflowEmailer');
+const { buildStoredAttachment } = require('../utils/storage');
 
 const hasPassedInitialEligibility = ({ eligibility, user, profile, payments, docs, interviews }) =>
   Boolean(eligibility) ||
@@ -466,12 +467,7 @@ const completeDeclarationConsent = async (req, res) => {
 <b>IP Address:</b> ${ipAddress || 'N/A'}</p>`,
       fromEmail: workflow.noreplyFromEmail,
       fromName: 'NextStep Talent',
-      attachments: [
-        {
-          filename: fileName,
-          path: filePath,
-        },
-      ],
+      attachments: [await buildStoredAttachment(filePath, fileName, 'application/pdf')].filter(Boolean),
     });
 
     await sendStepUpdateEmail({

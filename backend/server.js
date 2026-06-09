@@ -18,6 +18,7 @@ const testimonialRoutes = require('./routes/testimonialRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const candidateRoutes = require('./routes/candidateRoutes');
 const { stripeWebhook } = require('./controllers/paymentController');
+const { serveStoredFile } = require('./utils/storage');
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.use(cors());
 app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.get(/^\/api\/files\/(.*)$/, serveStoredFile);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));

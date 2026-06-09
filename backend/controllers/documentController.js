@@ -1,12 +1,11 @@
-const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const Document = require('../models/Document');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const { sendStepUpdateEmail } = require('../utils/stepEmailer');
+const { buildStorageKey, storeBuffer } = require('../utils/storage');
 
-const uploadDir = path.join(__dirname, '..', 'uploads', 'documents');
 const MAX_DOCUMENT_SIZE_BYTES = 2 * 1024 * 1024; // limit each uploaded document to 2MB
 const ALLOWED_PDF_MIME_TYPES = new Set(['application/pdf']);
 const DOCUMENT_UPLOAD_OPEN_STATUSES = new Set([
@@ -30,19 +29,8 @@ const canAccessDocumentUpload = (user = {}) =>
   Boolean(user?.documentationStageInitiated) ||
   DOCUMENT_UPLOAD_OPEN_STATUSES.has(String(user?.status || '').toLowerCase());
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    fs.mkdirSync(uploadDir, { recursive: true });
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}-${file.originalname}`);
-  },
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: MAX_DOCUMENT_SIZE_BYTES },
   fileFilter: (req, file, cb) => {
     if (!isPdfFile(file)) {
@@ -84,10 +72,21 @@ const uploadDocument = async (req, res) => {
       return res.status(400).json({ message: 'Invalid documentType' });
     }
 
+    const storageKey = buildStorageKey({
+      folder: 'documents',
+      subfolder: String(req.user._id || 'candidate'),
+      filename: req.file.originalname,
+    });
+    const storedFile = await storeBuffer({
+      storageKey,
+      buffer: req.file.buffer,
+      contentType: req.file.mimetype || 'application/pdf',
+    });
+
     const record = await Document.create({
       userId: req.user._id,
       documentType,
-      fileUrl: `/uploads/documents/${req.file.filename}`,
+      fileUrl: storedFile.fileUrl,
       status: 'Uploaded',
     });
 

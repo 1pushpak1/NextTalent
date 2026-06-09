@@ -24,6 +24,7 @@ const sendEmail = require('../utils/sendEmail');
 const { getWorkflowConfig, sendAdminNotification, normalizeEmail } = require('../utils/workflowEmailer');
 const { getPaymentsAdminEmails, getEvaluationAdminEmails, getOperationsAdminEmails } = require('../utils/adminRoleEmails');
 const { ensureCandidateIdForUser } = require('../utils/candidateId');
+const { buildStoredAttachment } = require('../utils/storage');
 const {
   generateInvoiceForStage,
   generateReceiptForPayment,
@@ -110,15 +111,6 @@ const getReceiptTemplateKeyForStage = (stage) => {
 const getInvoiceTemplateKeyForStage = (stage) =>
   stage === PAYMENT_STAGES.FIRST_INSTALLMENT ? EMAIL_TEMPLATE_KEYS.INVOICE_STAGE_1 : EMAIL_TEMPLATE_KEYS.INVOICE_STAGE_2;
 
-const buildPdfAttachment = (document, numberField) => {
-  if (!document?.pdfPath || !fs.existsSync(document.pdfPath)) return null;
-  return {
-    filename: `${document[numberField] || document._id}.pdf`,
-    path: document.pdfPath,
-    contentType: 'application/pdf',
-  };
-};
-
 const getPaymentStage = (payment) => payment.stage || LEGACY_PAYMENT_TYPE_TO_STAGE[payment.type];
 
 const ensureInvoiceForPaymentStage = async ({ candidate, stage, amountReceived = 0 }) => {
@@ -151,10 +143,12 @@ const ensureReceiptForCompletedPayment = async ({ candidate, payment, stage }) =
 
 const sendPaymentReceiptDocumentEmail = async ({ candidate, payment, receipt, stage, invoice = null }) => {
   const mail = await buildReceiptEmailForPayment({ candidate, payment, receipt, stage, invoice });
-  const attachments = [
-    buildPdfAttachment(receipt, 'receiptNumber'),
-    invoice ? buildPdfAttachment(invoice, 'invoiceNumber') : null,
-  ].filter(Boolean);
+  const attachments = (
+    await Promise.all([
+      buildStoredAttachment(receipt?.pdfPath || receipt?.pdfUrl, `${receipt?.receiptNumber || receipt?._id || 'receipt'}.pdf`, 'application/pdf'),
+      invoice ? buildStoredAttachment(invoice?.pdfPath || invoice?.pdfUrl, `${invoice?.invoiceNumber || invoice?._id || 'invoice'}.pdf`, 'application/pdf') : null,
+    ])
+  ).filter(Boolean);
 
   return sendEmail({
     to: candidate.email,
@@ -167,7 +161,7 @@ const sendPaymentReceiptDocumentEmail = async ({ candidate, payment, receipt, st
 
 const sendInvoiceDocumentEmail = async ({ candidate, invoice, stage, amountReceived = 0 }) => {
   const mail = await buildInvoiceEmailForStage({ candidate, invoice, stage, amountReceived });
-  const attachment = buildPdfAttachment(invoice, 'invoiceNumber');
+  const attachment = await buildStoredAttachment(invoice?.pdfPath || invoice?.pdfUrl, `${invoice?.invoiceNumber || invoice?._id || 'invoice'}.pdf`, 'application/pdf');
   return sendEmail({
     to: candidate.email,
     ...mail,

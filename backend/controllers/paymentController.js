@@ -16,9 +16,8 @@ const {
 } = require('../services/billingPdfService');
 const { PAYMENT_STAGES, LEGACY_PAYMENT_TYPE_TO_STAGE, EMAIL_TEMPLATE_KEYS, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 const Stripe = require('stripe');
-const fs = require('fs');
-const path = require('path');
 const multer = require('multer');
+const { buildStorageKey, buildStoredAttachment, storeBuffer } = require('../utils/storage');
 
 const amountByType = {
   initial: Number(PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.INITIAL_ONBOARDING_FEE].amount || 0),
@@ -31,20 +30,8 @@ const statusByType = {
   final: 'final_payment_complete',
 };
 
-const paymentReceiptUploadDir = path.join(__dirname, '..', 'uploads', 'payment-receipts');
-const receiptStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    fs.mkdirSync(paymentReceiptUploadDir, { recursive: true });
-    cb(null, paymentReceiptUploadDir);
-  },
-  filename: (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}-${file.originalname}`);
-  },
-});
-
 const uploadReceipt = multer({
-  storage: receiptStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
@@ -67,15 +54,6 @@ const getTemplateKeyForStage = (stage) => {
   return EMAIL_TEMPLATE_KEYS.RECEIPT_FINAL;
 };
 
-const buildPdfAttachment = (document, numberField) => {
-  if (!document?.pdfPath || !fs.existsSync(document.pdfPath)) return null;
-  return {
-    filename: `${document[numberField] || document._id}.pdf`,
-    path: document.pdfPath,
-    contentType: 'application/pdf',
-  };
-};
-
 const ensureReceiptForPayment = async ({ payment, candidate, stage }) => {
   let receipt = payment.receiptId ? await Receipt.findById(payment.receiptId) : null;
   if (!receipt) {
@@ -95,10 +73,12 @@ const ensureReceiptForPayment = async ({ payment, candidate, stage }) => {
 
 const sendReceiptEmail = async ({ candidate, payment, receipt, stage, invoice = null }) => {
   const receiptMail = await buildReceiptEmailForPayment({ candidate, payment, receipt, stage, invoice });
-  const attachments = [
-    buildPdfAttachment(receipt, 'receiptNumber'),
-    invoice ? buildPdfAttachment(invoice, 'invoiceNumber') : null,
-  ].filter(Boolean);
+  const attachments = (
+    await Promise.all([
+      buildStoredAttachment(receipt?.pdfPath || receipt?.pdfUrl, `${receipt?.receiptNumber || receipt?._id || 'receipt'}.pdf`, 'application/pdf'),
+      invoice ? buildStoredAttachment(invoice?.pdfPath || invoice?.pdfUrl, `${invoice?.invoiceNumber || invoice?._id || 'invoice'}.pdf`, 'application/pdf') : null,
+    ])
+  ).filter(Boolean);
 
   return sendTransactionalEmailSafe({
     to: candidate.email,
@@ -327,8 +307,21 @@ const submitBankTransferPayment = async (req, res) => {
       bankReference: String(bankReference || '').trim(),
       bankTransactionReference: String(bankReference || '').trim(),
       stage: LEGACY_PAYMENT_TYPE_TO_STAGE[type],
-      receiptUrl: `/uploads/payment-receipts/${req.file.filename}`,
+      receiptUrl: null,
     });
+
+    const receiptKey = buildStorageKey({
+      folder: 'payment-receipts',
+      subfolder: String(req.user._id || 'candidate'),
+      filename: req.file.originalname,
+    });
+    const storedReceipt = await storeBuffer({
+      storageKey: receiptKey,
+      buffer: req.file.buffer,
+      contentType: req.file.mimetype || 'application/octet-stream',
+    });
+    payment.receiptUrl = storedReceipt.fileUrl;
+    await payment.save();
 
     // Bank-transfer receipts are generated only after admin verification.
 

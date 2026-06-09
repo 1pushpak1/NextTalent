@@ -19,6 +19,7 @@ const { nextConsentId, nextPdfReference } = require('../services/documentNumberS
 const { candidateSubmissionConfirmation, wrapHtml, applicationStatusUpdate, websiteUrl } = require('../services/emailTemplateService');
 const { generateDeclarationPdf } = require('../utils/declarationPdf');
 const { ensureCandidateIdForUser } = require('../utils/candidateId');
+const { buildStoredAttachment, readStoredFileBuffer } = require('../utils/storage');
 
 const FRONTEND_BASE = String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
@@ -299,15 +300,11 @@ const downloadCandidateInvoice = async (req, res) => {
     const invoice = await Invoice.findOne({ _id: invoiceId, candidateId: req.user._id }).lean();
     if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
 
-    if (invoice.pdfPath && path.isAbsolute(invoice.pdfPath)) {
-      return res.download(invoice.pdfPath, `${invoice.invoiceNumber}.pdf`);
-    }
-
-    const relativePath = String(invoice.pdfUrl || '').trim();
-    if (!relativePath.startsWith('/uploads/')) return res.status(404).json({ message: 'Invoice file path is unavailable' });
-
-    const absolutePath = path.join(__dirname, '..', relativePath.replace('/uploads/', 'uploads/'));
-    return res.download(absolutePath, `${invoice.invoiceNumber}.pdf`);
+    const buffer = await readStoredFileBuffer(invoice.pdfPath || invoice.pdfUrl);
+    if (!buffer) return res.status(404).json({ message: 'Invoice file path is unavailable' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.invoiceNumber}.pdf"`);
+    return res.send(buffer);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -321,15 +318,11 @@ const downloadCandidateReceipt = async (req, res) => {
     const receipt = await Receipt.findOne({ _id: receiptId, candidateId: req.user._id }).lean();
     if (!receipt) return res.status(404).json({ message: 'Receipt not found' });
 
-    if (receipt.pdfPath && path.isAbsolute(receipt.pdfPath)) {
-      return res.download(receipt.pdfPath, `${receipt.receiptNumber}.pdf`);
-    }
-
-    const relativePath = String(receipt.pdfUrl || '').trim();
-    if (!relativePath.startsWith('/uploads/')) return res.status(404).json({ message: 'Receipt file path is unavailable' });
-
-    const absolutePath = path.join(__dirname, '..', relativePath.replace('/uploads/', 'uploads/'));
-    return res.download(absolutePath, `${receipt.receiptNumber}.pdf`);
+    const buffer = await readStoredFileBuffer(receipt.pdfPath || receipt.pdfUrl);
+    if (!buffer) return res.status(404).json({ message: 'Receipt file path is unavailable' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${receipt.receiptNumber}.pdf"`);
+    return res.send(buffer);
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -455,10 +448,7 @@ const signCandidateConsents = async (req, res) => {
           title: 'Legal Consent Copy',
           bodyHtml: `<p>Your legal consent has been recorded successfully.</p><p>${textLines.join('<br/>')}</p>`,
         }),
-        attachments: [{
-          filename: pdfResult.fileName,
-          path: pdfResult.filePath,
-        }],
+        attachments: [await buildStoredAttachment(pdfResult.filePath, pdfResult.fileName, 'application/pdf')].filter(Boolean),
         templateKey: EMAIL_TEMPLATE_KEYS.CONSENT_COPY,
         relatedCandidateId: candidate._id,
       });

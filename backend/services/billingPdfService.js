@@ -1,16 +1,15 @@
 const fs = require('fs');
 const path = require('path');
-const PDFDocument = require('pdfkit');
 const Invoice = require('../models/Invoice');
 const Receipt = require('../models/Receipt');
 const Profile = require('../models/Profile');
 const { COMPANY_DETAILS, PAYMENT_STAGES, PAYMENT_STAGE_CONFIG } = require('../constants/workflow');
 const { nextInvoiceNumber, nextReceiptNumber, nextPdfReference } = require('./documentNumberService');
+const { buildStorageKey, renderPdfToBuffer, storeBuffer } = require('../utils/storage');
 
-const ensureDir = (dirPath) => fs.mkdirSync(dirPath, { recursive: true });
-
-const getBackendUploadsPath = (...parts) => path.join(__dirname, '..', 'uploads', ...parts);
 const getWebsiteUrl = () => String(process.env.WEBSITE_URL || process.env.FRONTEND_URL || 'https://nextsteptalent.net').replace(/\/+$/, '');
+const getBackendBaseUrl = () =>
+  String(process.env.BACKEND_BASE_URL || process.env.API_BASE_URL || process.env.BACKEND_URL || 'http://localhost:5001').replace(/\/+$/, '');
 const getLogoPath = () => process.env.COMPANY_LOGO_PATH || process.env.BRAND_LOGO_PATH || path.resolve(__dirname, '../../frontend/public/logo.png');
 const getLogoUrl = () => process.env.BRAND_LOGO_URL || `${getWebsiteUrl()}/logo.png`;
 const getCandidateDisplayId = (candidate) => candidate?.candidateId || String(candidate?._id || '');
@@ -294,15 +293,14 @@ const buildBillingHtml = ({ title, text, note = '' }) => `<!doctype html>
   </body>
 </html>`;
 
-const writeDocument = async ({ filePath, build }) => {
-  await new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 40, size: 'A4' });
-    const stream = fs.createWriteStream(filePath);
-    doc.pipe(stream);
+const writeDocument = async ({ storageKey, build }) => {
+  const buffer = await renderPdfToBuffer((doc) => {
     build(doc);
-    doc.end();
-    stream.on('finish', resolve);
-    stream.on('error', reject);
+  });
+  return storeBuffer({
+    storageKey,
+    buffer,
+    contentType: 'application/pdf',
   });
 };
 
@@ -345,18 +343,20 @@ const candidateContext = async (candidate) => {
 
 const generateInvoiceForStage = async ({ candidate, stage, amountReceived = 0 }) => {
   const details = await candidateContext(candidate);
-  const invoiceDir = getBackendUploadsPath('invoices', 'system');
-  ensureDir(invoiceDir);
 
   const invoiceNumber = await nextInvoiceNumber();
   const pdfReferenceNumber = await nextPdfReference('INV');
   const issueDate = new Date();
   const isStage1 = stage === PAYMENT_STAGES.FIRST_INSTALLMENT;
   const fileName = `${invoiceNumber}.pdf`;
-  const filePath = path.join(invoiceDir, fileName);
+  const storageKey = buildStorageKey({
+    folder: 'invoices',
+    subfolder: 'system',
+    filename: fileName,
+  });
 
-  await writeDocument({
-    filePath,
+  const storedFile = await writeDocument({
+    storageKey,
     build: (doc) => {
       const leftX = 40;
       const contentWidth = doc.page.width - 80;
@@ -438,8 +438,8 @@ const generateInvoiceForStage = async ({ candidate, stage, amountReceived = 0 })
     amountReceived: isStage1 ? 0 : Number(amountReceived || PAYMENT_STAGE_CONFIG[PAYMENT_STAGES.FINAL_PAYMENT].amount || 0),
     amountDue: PAYMENT_STAGE_CONFIG[stage] ? Number(PAYMENT_STAGE_CONFIG[stage].amount || 0) : 0,
     paymentStatus: isStage1 ? 'DUE' : 'FINAL PAYMENT DUE',
-    pdfUrl: `/uploads/invoices/system/${fileName}`,
-    pdfPath: filePath,
+    pdfUrl: storedFile.fileUrl,
+    pdfPath: storedFile.fileUrl,
     pdfReferenceNumber,
   });
 
@@ -448,19 +448,21 @@ const generateInvoiceForStage = async ({ candidate, stage, amountReceived = 0 })
 
 const generateReceiptForPayment = async ({ candidate, payment, stage }) => {
   const details = await candidateContext(candidate);
-  const receiptDir = getBackendUploadsPath('payment-receipts', 'system');
-  ensureDir(receiptDir);
 
   const receiptNumber = await nextReceiptNumber();
   const pdfReferenceNumber = await nextPdfReference('RCPT');
   const date = payment?.verifiedAt || payment?.createdAt || new Date();
   const fileName = `${receiptNumber}.pdf`;
-  const filePath = path.join(receiptDir, fileName);
+  const storageKey = buildStorageKey({
+    folder: 'payment-receipts',
+    subfolder: 'system',
+    filename: fileName,
+  });
 
   const stageTitle = getReceiptStageTitle(stage);
 
-  await writeDocument({
-    filePath,
+  const storedFile = await writeDocument({
+    storageKey,
     build: (doc) => {
       const leftX = 40;
       const contentWidth = doc.page.width - 80;
@@ -547,8 +549,8 @@ const generateReceiptForPayment = async ({ candidate, payment, stage }) => {
     amountReceived: Number(payment?.amount || 0),
     paymentMethod: payment?.method || '',
     transactionReferenceNumber: getPaymentReference(payment, stage),
-    pdfUrl: `/uploads/payment-receipts/system/${fileName}`,
-    pdfPath: filePath,
+    pdfUrl: storedFile.fileUrl,
+    pdfPath: storedFile.fileUrl,
     pdfReferenceNumber,
   });
 
@@ -559,7 +561,7 @@ const buildReceiptEmailForPayment = async ({ candidate, payment, receipt, stage,
   const details = await candidateContext(candidate);
   const receiptText = buildReceiptText({ candidate, details, payment, receipt, stage });
   const invoiceLine = invoice
-    ? `\n\nAttached Invoice:\nInvoice Number: ${invoice.invoiceNumber}\nInvoice Link: ${getWebsiteUrl()}${invoice.pdfUrl}`
+    ? `\n\nAttached Invoice:\nInvoice Number: ${invoice.invoiceNumber}\nInvoice Link: ${getBackendBaseUrl()}${invoice.pdfUrl}`
     : '';
   const text = `${receiptText}${invoiceLine}`;
   const subject =

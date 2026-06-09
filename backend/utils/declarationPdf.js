@@ -1,21 +1,15 @@
 const fs = require('fs');
 const path = require('path');
-const PDFDocument = require('pdfkit');
+const { buildStorageKey, renderPdfToBuffer, storeBuffer } = require('./storage');
 
 const generateDeclarationPdf = async ({ candidate, declarationAudit }) => {
-  const pdfDir = path.join(__dirname, '..', 'uploads', 'declarations');
-  if (!fs.existsSync(pdfDir)) {
-    fs.mkdirSync(pdfDir, { recursive: true });
-  }
-
   const fileName = `declaration-${declarationAudit?.consentId || Date.now()}.pdf`;
-  const filePath = path.join(pdfDir, fileName);
+  const storageKey = buildStorageKey({
+    folder: 'declarations',
+    filename: fileName,
+  });
 
-  await new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 40 });
-    const stream = fs.createWriteStream(filePath);
-
-    doc.pipe(stream);
+  const buffer = await renderPdfToBuffer((doc) => {
     doc.fontSize(16).text('NextStep Talent - Candidate Document Authenticity Declaration');
     doc.moveDown(0.5);
     doc.fontSize(10).text(`PDF Reference: ${declarationAudit?.pdfReference || 'N/A'}`);
@@ -35,16 +29,18 @@ const generateDeclarationPdf = async ({ candidate, declarationAudit }) => {
     doc.text(`Agree Checkbox: ${declarationAudit?.agreeChecked ? 'Yes' : 'No'}`);
     doc.text(`Read Completed: ${declarationAudit?.readCompleted ? 'Yes' : 'No'}`);
     doc.text(`Retention Until: ${declarationAudit?.retentionUntil || 'N/A'}`);
-    doc.end();
+  });
 
-    stream.on('finish', resolve);
-    stream.on('error', reject);
+  const storedFile = await storeBuffer({
+    storageKey,
+    buffer,
+    contentType: 'application/pdf',
   });
 
   return {
-    filePath,
+    filePath: storedFile.fileUrl,
     fileName,
-    fileUrl: `/uploads/declarations/${fileName}`,
+    fileUrl: storedFile.fileUrl,
   };
 };
 

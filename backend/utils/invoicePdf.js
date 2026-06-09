@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
+const { buildStorageKey, renderPdfToBuffer, storeBuffer } = require('./storage');
 
 const getFrontendBaseUrl = () =>
   String(process.env.FRONTEND_BASE_URL || process.env.FRONTEND_URL || 'https://nextsteptalent.net').replace(/\/+$/, '');
@@ -15,21 +16,19 @@ const uniqueInvoiceNo = () => {
 };
 
 const generateStage1InvoicePdf = async ({ candidate, profile }) => {
-  const invoiceDir = path.join(__dirname, '..', 'uploads', 'invoices');
-  fs.mkdirSync(invoiceDir, { recursive: true });
-
   const invoiceNumber = process.env.STAGE1_INVOICE_NUMBER || uniqueInvoiceNo();
   const fileName = `stage1-invoice-${String(candidate?._id || 'candidate')}.pdf`;
-  const filePath = path.join(invoiceDir, fileName);
+  const storageKey = buildStorageKey({
+    folder: 'invoices',
+    subfolder: 'system',
+    filename: fileName,
+  });
   const website = process.env.WEBSITE_URL || getFrontendBaseUrl();
   const officeAddress =
     process.env.COMPANY_OFFICE_ADDRESS ||
     '8735 Dunwoody Place, STE N, Atlanta, GA 30350, United States';
 
-  await new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 40 });
-    const stream = fs.createWriteStream(filePath);
-    doc.pipe(stream);
+  const buffer = await renderPdfToBuffer((doc) => {
 
     if (fs.existsSync(getLogoPath())) {
       try {
@@ -106,36 +105,36 @@ const generateStage1InvoicePdf = async ({ candidate, profile }) => {
     doc.fontSize(12).text('DISCLAIMER');
     doc.moveDown(0.2);
     doc.fontSize(11).text('This invoice is system-generated and valid without signature.');
-    doc.end();
+  });
 
-    stream.on('finish', resolve);
-    stream.on('error', reject);
+  const storedFile = await storeBuffer({
+    storageKey,
+    buffer,
+    contentType: 'application/pdf',
   });
 
   return {
     invoiceNumber,
-    invoiceUrl: `/uploads/invoices/${fileName}`,
+    invoiceUrl: storedFile.fileUrl,
   };
 };
 
 module.exports = {
   generateStage1InvoicePdf,
   generateStage2InvoicePdf: async ({ candidate, profile }) => {
-    const invoiceDir = path.join(__dirname, '..', 'uploads', 'invoices');
-    fs.mkdirSync(invoiceDir, { recursive: true });
-
     const invoiceNumber = process.env.STAGE2_INVOICE_NUMBER || uniqueInvoiceNo();
     const fileName = `stage2-invoice-${String(candidate?._id || 'candidate')}.pdf`;
-    const filePath = path.join(invoiceDir, fileName);
+    const storageKey = buildStorageKey({
+      folder: 'invoices',
+      subfolder: 'system',
+      filename: fileName,
+    });
     const website = process.env.WEBSITE_URL || getFrontendBaseUrl();
     const officeAddress =
       process.env.COMPANY_OFFICE_ADDRESS ||
       '8735 Dunwoody Place, STE N, Atlanta, GA 30350, United States';
 
-    await new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 40 });
-      const stream = fs.createWriteStream(filePath);
-      doc.pipe(stream);
+    const buffer = await renderPdfToBuffer((doc) => {
 
       if (fs.existsSync(getLogoPath())) {
         try {
@@ -211,15 +210,17 @@ module.exports = {
       doc.fontSize(12).text('DISCLAIMER');
       doc.moveDown(0.2);
       doc.fontSize(11).text('This invoice is system-generated and valid without signature.');
-      doc.end();
+    });
 
-      stream.on('finish', resolve);
-      stream.on('error', reject);
+    const storedFile = await storeBuffer({
+      storageKey,
+      buffer,
+      contentType: 'application/pdf',
     });
 
     return {
       invoiceNumber,
-      invoiceUrl: `/uploads/invoices/${fileName}`,
+      invoiceUrl: storedFile.fileUrl,
     };
   },
 };

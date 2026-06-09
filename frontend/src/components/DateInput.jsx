@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { formatMMDDYYYY, normalizeMMDDYYYYInput, parseDateValue } from '../utils/dateFormat';
+import { formatMMDDYYYY, parseDateValue } from '../utils/dateFormat';
 
 const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -59,7 +59,7 @@ export default function DateInput({
   const [viewDate, setViewDate] = useState(() => parseDateValue(value) || new Date());
 
   const selectedDate = useMemo(() => parseDateValue(value), [value]);
-  const displayValue = useMemo(() => formatMMDDYYYY(value) || normalizeMMDDYYYYInput(String(value || '')), [value]);
+  const displayValue = useMemo(() => String(value || ''), [value]);
 
   useEffect(() => {
     const handleOutside = (event) => {
@@ -77,8 +77,7 @@ export default function DateInput({
   };
 
   const handleTyping = (event) => {
-    const nextValue = normalizeMMDDYYYYInput(event.target.value);
-    onChange?.({ target: { value: nextValue } });
+    onChange?.({ target: { value: event.target.value } });
   };
 
   const calendarCells = getCalendarCells(viewDate.getFullYear(), viewDate.getMonth());
@@ -109,7 +108,7 @@ export default function DateInput({
           onFocus={() => setOpen(true)}
           onClick={() => setOpen(true)}
           placeholder={placeholder}
-          inputMode="numeric"
+          inputMode="text"
           autoComplete="off"
           maxLength={10}
           aria-haspopup="dialog"
